@@ -116,18 +116,18 @@ def check_docker():
 def main():
     """Función principal"""
     print("\n" + "=" * 60)
-    print("  🚀 Verificador de Entorno — Máster AI Engineering")
+    print("  🚀 Verificador de Entorno — Máster AI Engineering 2026")
     print("=" * 60)
 
-    check_python()
     check_system()
+    check_docker()
+    check_python()
     check_packages()
     check_env_variables()
-    check_docker()
 
     print_section("✨ Resumen")
     print("\nSi todos los puntos están ✅, tu entorno está listo para el máster.")
-    print("Si hay ❌, sigue las instrucciones en sesion-00/README.md para completar la configuración.")
+    print("Si hay ❌, sigue las instrucciones en sesion-00_introduccion/README.md para completar la configuración.")
     print("\n" + "=" * 60 + "\n")
 
 

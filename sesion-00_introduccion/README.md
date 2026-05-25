@@ -170,82 +170,6 @@ Si todos los comandos devuelven versiones sin errores, el entorno está listo pa
 2. **uv** (gestor de paquetes Python)
 3. **FastAPI** (se añade como dependencia con uv)
 
-## 🚀 Configuración Google Colab
-
-Google Colab (Colaboratory) es un entorno de notebooks Jupyter basado en el navegador que no requiere instalación local. Viene con Python preinstalado junto con las librerías más comunes de data science, corre sobre la infraestructura de Google y se integra automáticamente con Google Drive para guardar tus notebooks. Solo necesitas una cuenta de Google para empezar.
-
-### Crear y Abrir Notebooks
-
-Hay dos formas principales:
-
-1. **Desde archivos existentes**: Descarga un archivo .ipynb, ve a colab.research.google.com, sube el archivo en la pestaña "Subir", o si está en GitHub, reemplaza github.com con colab.research.google.com/github en la URL.
-
-2. **Crear uno nuevo**: Accede a colab.research.google.com y haz clic en "Nuevo cuaderno". Se guardará automáticamente en la carpeta "Colab Notebooks" de tu Google Drive.
-
-### Interfaz Básica
-
-Un notebook contiene dos tipos de celdas:
-- **Celdas de código**: Para escribir y ejecutar Python. Se ejecutan con el botón ▶ o Shift + Enter, y la salida aparece debajo.
-- **Celdas de texto**: Para documentación en Markdown que solo se visualiza sin ejecutarse.
-
-### Instalación de Librerías
-
-Colab incluye librerías preinstaladas (numpy, pandas, matplotlib), pero para trabajar con APIs de LLMs necesitarás instalar los SDKs. Se hace directamente desde una celda de código usando pip con el prefijo !:
-
-```
-!pip install openai
-!pip install anthropic
-```
-
-La instalación es temporal y se pierde cuando el entorno se desconecta.
-
-### Gestión Segura de API Keys con Secrets
-
-Este es el aspecto más crítico. Nunca hardcodees tu API key en el notebook. Colab proporciona una función de Secrets que almacena las claves de forma segura en tu cuenta Google, no en el notebook, evitando exposición si lo compartes.
-
-**Proceso**:
-1. Haz clic en el icono de llave (🔑) en el panel izquierdo
-2. Añade un nuevo secreto con nombre (OPENAI_API_KEY o ANTHROPIC_API_KEY) y tu clave
-3. Activa el toggle de "Acceso al notebook"
-4. Carga la clave en tu código usando `userdata.get()` y asígnala como variable de entorno
-
-Los secrets son personales (solo tú los ves) y globales en tu cuenta (disponibles en cualquier notebook con acceso activado).
-
-```
-import os
-from google.colab import userdata
-
-os.environ["OPENAI_API_KEY"] = userdata.get("OPENAI_API_KEY")
-
-from openai import OpenAI
-client = OpenAI()  # No necesitas pasar la key — la lee del entorno
-```
-
-```
-import os
-from google.colab import userdata
-
-os.environ["ANTHROPIC_API_KEY"] = userdata.get("ANTHROPIC_API_KEY")
-
-from anthropic import Anthropic
-client = Anthropic()  # Lee la key del entorno automáticamente
-```
-
-### Ciclo de Vida del Entorno de Ejecución (Runtime)
-
-- La máquina virtual se asigna cuando ejecutas la primera celda
-- Se desconecta automáticamente tras ~90 minutos de inactividad o ~12 horas de uso continuado (versión gratuita)
-- Al desconectarse, se pierde todo el estado (librerías, variables, archivos temporales)
-- El notebook se guarda automáticamente, solo se pierde la ejecución
-- Puedes reiniciar el entorno desde Entorno de ejecución → Reiniciar
-
-### Recomendaciones Prácticas
-
-- Ejecuta las celdas secuencialmente de arriba a abajo para evitar problemas de dependencias
-- Utiliza siempre Secrets para las API keys, no hardcodees nunca
-- No te preocupes si el entorno se desconecta; vuelve a ejecutar desde el principio
-- La versión gratuita es suficiente para los ejercicios (no requiere GPU para llamadas a APIs de LLMs)
-
 ## 🔗 Recursos
 
 ### **Docker**
@@ -288,15 +212,7 @@ client = Anthropic()  # Lee la key del entorno automáticamente
 
 - **Tutorial CRUD con FastAPI (español):** [kinsta.com/es/blog/fastapi](https://kinsta.com/es/blog/fastapi) — guía práctica para construir una aplicación CRUD completa.
 
----
-
-### **Google Colab**
-
-- **Documentación oficial de Google Colab:** [developers.google.com/colab](https://developers.google.com/colab)
-
-
 ## ✅ Ejercicios completados
 
 - `main.py` con el ejemplo de FastAPI definido en la documentación.
 - `check_environment.py` que comprueba que todas las dependencias del entorno de desarrollo local están correctamente instaladas.
-- `collab_anthropic.ipynb` y `collab_openai.ipynb` con ejemplos de cuadernos de Google Collab.

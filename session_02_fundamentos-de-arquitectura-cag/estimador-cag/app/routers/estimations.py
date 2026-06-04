@@ -1,0 +1,30 @@
+"""Router for project estimation endpoints."""
+
+from fastapi import APIRouter, HTTPException
+
+from app.logging import get_logger
+from app.schemas.estimation import EstimationRequest, EstimationResponse
+from app.services.llm_service import generate_estimation
+
+router = APIRouter()
+log = get_logger(__name__)
+
+
+@router.post("/estimate", response_model=EstimationResponse)
+def estimate(request: EstimationRequest) -> EstimationResponse:
+    """Generate a project cost and time estimation from a meeting transcription."""
+    log.info(
+        "estimate_request_received",
+        transcription_length=len(request.transcription),
+    )
+
+    try:
+        result = generate_estimation(request.transcription)
+        log.info(
+            "estimate_request_completed",
+            estimation=result["estimation"]
+        )
+        return EstimationResponse(**result)
+    except Exception as e:
+        log.error("estimate_request_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))

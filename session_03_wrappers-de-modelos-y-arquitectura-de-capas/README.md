@@ -531,10 +531,10 @@ Fichero `streamlit_app.py` funcional en tu proyecto.
 
 ### Checklist de verificación
 
-- [ ] `streamlit run streamlit_app.py` abre una interfaz de chat en el navegador
+- [ ] `streamlit run streamlit_app_level_[N].py` abre una interfaz de chat en el navegador
 - [ ] Puedes pegar una transcripción de reunión y recibes una estimación de software
 - [ ] La conversación persiste en pantalla (puedes hacer varias preguntas seguidas)
-- [ ] La respuesta se muestra en streaming, no de golpe
+- [ ] La respuesta se muestra en streaming, no de golpe (streamlit_app_level_2.py y streamlit_app_level_3.py)
 - [ ] La API key se lee desde `.env` o `st.secrets`, no está en el código
 
 ---
@@ -553,7 +553,7 @@ Fichero `streamlit_app.py` funcional en tu proyecto.
 
 ## Checklist antes de la siguiente sesión
 
-- [ ] `streamlit run streamlit_app.py` funciona y muestra una interfaz de chat
+- [ ] `streamlit run streamlit_app_level_[N].py` funciona y muestra una interfaz de chat
 - [ ] La estimación aparece en streaming (nivel 2 completado)
 - [ ] La API key se carga desde `.env` o `st.secrets`
 - [ ] Entiendes la diferencia entre los tres frameworks (Streamlit, Gradio, Chainlit) y cuándo usar cada uno

@@ -89,6 +89,50 @@ uv run uvicorn app.main:app --reload
 uv run streamlit run streamlit_app_level_3.py
 ```
 
+## Docker
+
+Backend y frontend en dos contenedores orquestados con `docker compose`. Comparten un único `Dockerfile` (las dependencias están unificadas en `pyproject.toml`) y se diferencian por el `command` que ejecuta cada servicio.
+
+El backend se levanta primero y el frontend espera al healthcheck de `/health` antes de arrancar (`depends_on: condition: service_healthy`), de modo que el puerto `8000` queda reservado por el back antes de que el front intente conectarse.
+
+```bash
+docker compose up --build           # construye imágenes y arranca en foreground
+docker compose up --build -d        # en background
+docker compose logs -f              # seguir logs de ambos servicios
+docker compose logs -f backend      # solo backend
+docker compose down                 # parar y eliminar contenedores + red
+```
+
+URLs publicadas en el host:
+
+- Backend → `http://localhost:8000` (docs en `/docs`)
+- Streamlit → `http://localhost:8501`
+
+### Parámetros configurables
+
+| Variable        | Descripción                                                                                                                                                                                 | Por defecto                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `STREAMLIT_APP` | Fichero Streamlit que ejecuta el servicio `frontend`                                                                                                                                        | `streamlit_app_level_3.py` |
+| `BACKEND_URL`   | Sobrescrita en compose a `http://backend:8000` (hostname de la red interna). Dentro de un contenedor `localhost` apunta al propio contenedor, por eso no se puede usar el valor del `.env`. | `http://backend:8000`      |
+
+Cambiar el front a otro nivel sin tocar el compose:
+
+```bash
+STREAMLIT_APP=streamlit_app_level_1.py docker compose up --build
+STREAMLIT_APP=streamlit_app_level_2.py docker compose up --build
+```
+
+Reconstruir solo un servicio tras un cambio:
+
+```bash
+docker compose up --build backend
+docker compose up --build frontend
+```
+
+### Variables de entorno y secretos
+
+Compose lee el `.env` de la raíz del repo (`../../.env`) vía `env_file`, así que las API keys de OpenAI/Anthropic y el resto de configuración (`APP_ENV`, `LOG_LEVEL`, `LLM_PROVIDER`, `LLM_MODEL`) se inyectan automáticamente. El `.env` no se commitea; usa `.env.example` como plantilla.
+
 ## Tests
 
 ```bash
@@ -97,12 +141,12 @@ uv run pytest -v
 
 ## Variables de entorno
 
-| Variable            | Descripción                                                                           | Por defecto   |
-| ------------------- | ------------------------------------------------------------------------------------- | ------------- |
-| `APP_ENV`           | `local` o `development` o `staging` o `production`                                    | `local`       |
-| `LOG_LEVEL`         | `notset` o `debug` o `info` o `warning` o `warn` o `error` o `exception` o `critical` | `debug`       |
-| `LLM_PROVIDER`      | `openai` o `anthropic`                                                                | `openai`      |
-| `LLM_MODEL`         | `gpt-4o-mini` o `claude-haiku-4-5`                                                    | `gpt-4o-mini` |
+| Variable            | Descripción                                                                           | Por defecto             |
+| ------------------- | ------------------------------------------------------------------------------------- | ----------------------- |
+| `APP_ENV`           | `local` o `development` o `staging` o `production`                                    | `local`                 |
+| `LOG_LEVEL`         | `notset` o `debug` o `info` o `warning` o `warn` o `error` o `exception` o `critical` | `debug`                 |
+| `LLM_PROVIDER`      | `openai` o `anthropic`                                                                | `openai`                |
+| `LLM_MODEL`         | `gpt-4o-mini` o `claude-haiku-4-5`                                                    | `gpt-4o-mini`           |
 | `BACKEND_URL`       | URL del backend que consume la interfaz Streamlit                                     | `http://localhost:8000` |
-| `OPENAI_API_KEY`    | API key de OpenAI                                                                     | —             |
-| `ANTHROPIC_API_KEY` | API key de Anthropic                                                                  | —             |
+| `OPENAI_API_KEY`    | API key de OpenAI                                                                     | —                       |
+| `ANTHROPIC_API_KEY` | API key de Anthropic                                                                  | —                       |

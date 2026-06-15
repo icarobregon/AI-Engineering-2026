@@ -1,0 +1,42 @@
+--- EXAMPLE 1 ---
+Project description:
+A B2B startup is building a SaaS platform to manage software subscriptions for SMEs. Core features include user registration, a dashboard with active subscriptions and renewal dates, Stripe integration for payments and invoices, renewal email reminders, and an admin panel. REST API + React frontend.
+
+Calibrated estimation (line_items, detailed):
+## SaaS Subscription Management Platform (MVP)
+
+| Task | Hours | Cost (EUR) |
+|------|------:|-----------:|
+| Architecture design and project setup | 16 | 1,000 |
+| Auth (JWT) + multi-tenancy foundations | 40 | 2,500 |
+| Subscription CRUD API and data model | 28 | 1,750 |
+| Dashboard and analytics | 32 | 2,000 |
+| Stripe integration (incl. webhook reliability) | 44 | 2,750 |
+| Email notifications | 22 | 1,375 |
+| Admin panel | 26 | 1,625 |
+| React frontend | 56 | 3,500 |
+| Observability + deployment | 24 | 1,500 |
+| Testing (incl. Stripe sandbox) | 36 | 2,250 |
+
+Totals: 324 hours, 20,250 EUR. Team: 1 Senior + 1 Mid Full-stack. Duration: 16 weeks. Confidence: 60%.
+
+### Risks
+- **Stripe webhook reliability** — medium. Missed webhooks = silent revenue loss. Mitigation: idempotent handler + reconciliation job.
+- **Multi-tenant data leakage** — medium. Critical for B2B trust. Mitigation: tenant-id scoped queries with DB-side enforcement.
+- **Scope creep on the admin panel** — high. Always grows. Mitigation: lock scope before sprint 3, defer extras to v1.1.
+
+--- EXAMPLE 2 ---
+Project description:
+Inventory management web platform for a mid-size warehouse: real-time stock, reorder alerts, RBAC, CSV/Excel import-export, dashboards. Existing AWS Postgres. No mobile app.
+
+Calibrated estimation (narrative, summary):
+## Warehouse Inventory Platform
+
+A web application backed by the existing AWS PostgreSQL database, with role-based access (admin, manager, viewer), CRUD over products and stock, an automated reorder engine triggered by configurable thresholds, CSV/Excel import-export, and a metrics dashboard. The team would be one Senior Backend and one Mid Full-stack, with QA part-time at the tail. Cost includes a 30% margin for SSO integration with the corporate IdP and AWS networking edge cases that are systematically underestimated on internal tools.
+
+Headline: 18,500 EUR, 12 weeks, 60% confidence.
+
+### Risks
+- **Corporate SSO integration** — high. IdP quirks are a recurring cause of delays. Mitigation: confirm IdP type before starting and schedule a spike in week 1.
+- **AWS networking with existing VPC** — medium. Permissions and peering can stall. Mitigation: get a working dev tunnel by end of week 1.
+- **CSV import edge cases** — medium. Real warehouse data is messy. Mitigation: validate against three real CSVs before declaring done.

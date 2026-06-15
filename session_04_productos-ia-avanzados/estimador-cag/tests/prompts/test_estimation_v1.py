@@ -6,6 +6,7 @@ LLM and must run in milliseconds.
 """
 
 import pytest
+import structlog
 
 from app.prompts.loader import render_estimation_prompt
 from app.schemas.estimation import (
@@ -68,3 +69,16 @@ def test_loader_raises_on_unknown_version():
 
     with pytest.raises(TemplateNotFound):
         render_estimation_prompt(_request(), version="v999")
+
+
+def test_loader_emits_prompt_rendered_log_with_hash_and_version():
+    with structlog.testing.capture_logs() as logs:
+        render_estimation_prompt(_request(), version="v1")
+
+    rendered_events = [log for log in logs if log.get("event") == "prompt_rendered"]
+    assert len(rendered_events) == 1
+    event = rendered_events[0]
+    assert event["version"] == "v1"
+    assert "prompt_hash" in event
+    assert len(event["prompt_hash"]) == 12
+    assert event["num_references"] >= 0

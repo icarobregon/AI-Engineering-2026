@@ -2,6 +2,27 @@
 
 Refactor del estimador de la Sesión 3 hacia un **producto**: el cliente pasa de chat a formulario tipado, el prompt sale del código y vive como artefacto versionado (`app/prompts/estimation/v1/`), y el endpoint `POST /api/v1/estimate` consume un `EstimationRequest` con campos explícitos.
 
+## Bonus opcional implementado
+
+- **`v2/` con calibración conservadora.** Mismo rol y formato que `v1`, pero el system fuerza un margen de seguridad del 25–40%, baja la `confidence_pct` por defecto a 50–70% y exige una sección `### Risks` con 3–5 riesgos por estimación. Selecciónalo vía `?prompt_version=v2`.
+- **`reference_projects` server-side.** El backend lee `app/prompts/reference_projects.json`, filtra por `project_type` y inyecta los proyectos coincidentes en un bloque `<reference_projects>` del system. Añadir nuevos casos = editar el JSON y reiniciar la app. No se expone en el formulario Streamlit.
+- **Logging del prompt.** Cada render emite un evento structlog `prompt_rendered` con `version`, `prompt_hash` (SHA-256 truncado a 12 chars), `num_references`, `project_type`, `detail_level` y `output_format`.
+
+Ejemplo `curl` con `v2`:
+
+```bash
+curl -X POST 'http://localhost:8000/api/v1/estimate?prompt_version=v2' \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Mobile app with login, in-app chat and Stripe checkout for iOS and Android.",
+    "project_type": "mobile_app",
+    "detail_level": "detailed",
+    "output_format": "phases_table"
+  }'
+```
+
+Versiones desconocidas devuelven `404 { "detail": "Unknown prompt_version: '...'" }`. Versiones que no cumplen el formato `v\d+` se rechazan con `422`.
+
 ## Cambios vs. Sesión 3
 
 - `EstimationRequest` ya no acepta `transcription: str`. Acepta `description`, `project_type`, `detail_level`, `output_format`.
@@ -75,10 +96,17 @@ app/
 ├── services/llm_service.py       # generate_estimation(request) → dict
 └── prompts/
     ├── loader.py                 # render_estimation_prompt(request, version="v1")
-    └── estimation/v1/
-        ├── system.j2
-        ├── user.j2
-        └── examples.j2
+    ├── references.py             # load_reference_projects(project_type)
+    ├── reference_projects.json   # seed de proyectos pasados (server-side)
+    └── estimation/
+        ├── v1/                   # baseline
+        │   ├── system.j2
+        │   ├── user.j2
+        │   └── examples.j2
+        └── v2/                   # calibración conservadora
+            ├── system.j2
+            ├── user.j2
+            └── examples.j2
 streamlit_app.py                  # formulario único
 tests/
 ├── prompts/test_estimation_v1.py # composición del prompt (sin API)

@@ -60,6 +60,41 @@ def test_estimate_calls_llm_service_once(client, mock_llm):
     assert mock_llm.call_count == 1
 
 
+def test_estimate_default_prompt_version_is_v1(client, mock_llm):
+    client.post("/api/v1/estimate", json=VALID_REQUEST)
+    kwargs = mock_llm.call_args.kwargs
+    assert kwargs.get("prompt_version") == "v1"
+
+
+def test_estimate_accepts_prompt_version_query_param(client, mock_llm):
+    mock_llm.return_value = {**mock_llm.return_value, "prompt_version": "v2"}
+    response = client.post("/api/v1/estimate?prompt_version=v2", json=VALID_REQUEST)
+    assert response.status_code == 200
+    assert response.json()["prompt_version"] == "v2"
+    assert mock_llm.call_args.kwargs.get("prompt_version") == "v2"
+
+
+def test_estimate_rejects_invalid_prompt_version_format(client):
+    response = client.post("/api/v1/estimate?prompt_version=latest", json=VALID_REQUEST)
+    assert response.status_code == 422
+
+
+def test_estimate_unknown_prompt_version_returns_404(client):
+    from jinja2 import TemplateNotFound
+    from unittest.mock import patch
+
+    with patch(
+        "app.routers.estimations.generate_estimation",
+        side_effect=TemplateNotFound("estimation/v999/system.j2"),
+    ):
+        response = client.post(
+            "/api/v1/estimate?prompt_version=v999",
+            json=VALID_REQUEST,
+        )
+    assert response.status_code == 404
+    assert "v999" in response.json()["detail"]
+
+
 def test_estimate_llm_error_returns_500(client):
     with patch(
         "app.routers.estimations.generate_estimation",

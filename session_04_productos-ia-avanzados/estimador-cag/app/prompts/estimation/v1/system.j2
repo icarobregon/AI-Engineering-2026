@@ -42,6 +42,15 @@ Structure the response as a narrative:
 {% endif %}
 </output_format>
 
+{% if reference_projects %}
+<reference_projects>
+The following past projects of the same type are provided as calibration reference. Treat their outcomes as evidence of how initial estimations relate to reality.
+{% for ref in reference_projects %}
+- **{{ ref.title }}** ({{ ref.duration_weeks }}w, {{ ref.total_cost_eur }} EUR). {{ ref.summary }} Outcome: {{ ref.outcome }}
+{% endfor %}
+</reference_projects>
+{% endif %}
+
 <examples>
 {% include "estimation/v1/examples.j2" %}
 </examples>

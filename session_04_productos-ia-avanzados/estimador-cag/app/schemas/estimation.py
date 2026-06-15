@@ -36,3 +36,12 @@ class EstimationResponse(BaseModel):
     model: str
     provider: str
     prompt_version: str
+
+
+class ReferenceProject(BaseModel):
+    title: str
+    project_type: ProjectType
+    summary: str
+    total_cost_eur: int = Field(ge=0)
+    duration_weeks: int = Field(ge=1)
+    outcome: str

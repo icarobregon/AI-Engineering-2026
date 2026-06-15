@@ -1,0 +1,50 @@
+[
+  {
+    "title": "FoodieGo iOS+Android delivery app",
+    "project_type": "mobile_app",
+    "summary": "Native iOS + Android app with login, restaurant browsing, push notifications, Stripe checkout. Initial estimate: 12 weeks / 90,000 EUR.",
+    "total_cost_eur": 124000,
+    "duration_weeks": 17,
+    "outcome": "Delivered 5 weeks late (+42% time, +38% cost). Push notification provider integration and App Store review delays were the main drivers."
+  },
+  {
+    "title": "Quanta fitness tracker mobile",
+    "project_type": "mobile_app",
+    "summary": "Cross-platform mobile app (React Native) for workout tracking with HealthKit/Google Fit sync. Initial estimate: 8 weeks / 55,000 EUR.",
+    "total_cost_eur": 58000,
+    "duration_weeks": 9,
+    "outcome": "Delivered on time, +5% cost overrun for a late-scope Apple Watch companion."
+  },
+  {
+    "title": "Lumen B2B billing SaaS",
+    "project_type": "web_saas",
+    "summary": "Multi-tenant SaaS for SMB invoicing with Stripe + email reminders + admin panel. Initial estimate: 14 weeks / 110,000 EUR.",
+    "total_cost_eur": 152000,
+    "duration_weeks": 19,
+    "outcome": "Delivered 5 weeks late (+36% time, +38% cost). Multi-tenancy and webhook reliability work was systematically underestimated."
+  },
+  {
+    "title": "Helix HR dashboard SaaS",
+    "project_type": "web_saas",
+    "summary": "Internal-facing HR dashboard with SSO, role-based access, payroll integration. Initial estimate: 10 weeks / 72,000 EUR.",
+    "total_cost_eur": 71000,
+    "duration_weeks": 10,
+    "outcome": "Delivered on time and on budget."
+  },
+  {
+    "title": "Atlas warehouse inventory tool",
+    "project_type": "internal_tool",
+    "summary": "Internal app for a logistics company: real-time stock, reorder alerts, RBAC, CSV import-export. Initial estimate: 6 weeks / 38,000 EUR.",
+    "total_cost_eur": 49000,
+    "duration_weeks": 8,
+    "outcome": "Delivered 2 weeks late (+33% time, +29% cost). AWS networking and SSO with the corporate IdP took longer than scoped."
+  },
+  {
+    "title": "Sigma ETL pipeline for analytics",
+    "project_type": "data_pipeline",
+    "summary": "Batch ETL pulling from 6 sources (Stripe, HubSpot, Postgres replicas) into Snowflake with dbt models. Initial estimate: 9 weeks / 68,000 EUR.",
+    "total_cost_eur": 95000,
+    "duration_weeks": 13,
+    "outcome": "Delivered 4 weeks late (+44% time, +40% cost). Data quality issues in upstream sources required custom reconciliation logic."
+  }
+]

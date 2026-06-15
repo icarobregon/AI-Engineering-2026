@@ -7,10 +7,8 @@ from app.schemas.estimation import EstimationRequest
 
 log = get_logger(__name__)
 
-PROMPT_VERSION = "v1"
 
-
-def generate_estimation(request: EstimationRequest) -> dict:
+def generate_estimation(request: EstimationRequest, prompt_version: str = "v1") -> dict:
     """Generate a project estimation from a typed EstimationRequest.
 
     Returns:
@@ -24,9 +22,10 @@ def generate_estimation(request: EstimationRequest) -> dict:
         detail_level=request.detail_level.value,
         output_format=request.output_format.value,
         description_length=len(request.description),
+        prompt_version=prompt_version,
     )
 
-    system_prompt, user_prompt = render_estimation_prompt(request, version=PROMPT_VERSION)
+    system_prompt, user_prompt = render_estimation_prompt(request, version=prompt_version)
 
     try:
         if settings.LLM_PROVIDER == "anthropic":
@@ -68,14 +67,14 @@ def generate_estimation(request: EstimationRequest) -> dict:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             estimation_length=len(estimation_text),
-            prompt_version=PROMPT_VERSION,
+            prompt_version=prompt_version,
         )
 
         return {
             "estimation": estimation_text,
             "model": settings.LLM_MODEL,
             "provider": settings.LLM_PROVIDER,
-            "prompt_version": PROMPT_VERSION,
+            "prompt_version": prompt_version,
         }
 
     except Exception as e:

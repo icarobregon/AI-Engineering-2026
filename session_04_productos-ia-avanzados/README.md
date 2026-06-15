@@ -442,7 +442,6 @@ Estos tests deben correr en milisegundos, sin llamadas a APIs externas.
 - [ ] `render_estimation_prompt` usa `StrictUndefined` y acepta un parámetro `version`
 - [ ] Los tests de template corren sin llamadas a la API
 - [ ] La API key no está hardcodeada
-- [ ] La rama se llama `pre-session-04` y hay un README breve con instrucciones de setup
 
 #### Bonus opcional
 

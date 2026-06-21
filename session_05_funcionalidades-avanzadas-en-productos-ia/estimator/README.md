@@ -3,6 +3,7 @@
 Servicio IA en FastAPI que estima proyectos de software a partir de un formulario tipado. Es la pieza Python del programa **Master en AI Engineering**: un endpoint pensado para ser consumido por un backend de negocio (Rails, Streamlit u otro), no por un usuario final.
 
 A partir de la **Sesión 04** el contrato es deliberadamente estrecho:
+
 - entrada tipada (`description` + tres enums),
 - salida en texto libre,
 - prompt fuera del código en templates Jinja2 versionados (`app/prompts/<use_case>/<version>/`).
@@ -119,19 +120,15 @@ Lo que vive **fuera** del template (en código): el contrato (`EstimationRequest
 
 ## Variables de entorno
 
-| Variable | Default | Notas |
-|---|---|---|
-| `OPENAI_API_KEY` | — | Requerido al menos uno de los dos |
-| `ANTHROPIC_API_KEY` | — | Requerido al menos uno de los dos |
-| `PRIMARY_MODEL` | `gpt-4o-mini` | Modelo principal del Router |
-| `FALLBACK_MODEL` | `claude-haiku-4-5-20251001` | Se usa si el primario falla |
-| `REDIS_URL` | `redis://localhost:6379` | Cache exact-match |
-| `CACHE_TTL` | `86400` | Segundos |
-| `APP_ENV` | `development` | Controla el renderer de structlog |
-| `ESTIMATOR_API_BASE_URL` | `http://localhost:8000` | Lo lee el cliente Streamlit |
+| Variable                 | Default                     | Notas                             |
+| ------------------------ | --------------------------- | --------------------------------- |
+| `OPENAI_API_KEY`         | —                           | Requerido al menos uno de los dos |
+| `ANTHROPIC_API_KEY`      | —                           | Requerido al menos uno de los dos |
+| `PRIMARY_MODEL`          | `gpt-4o-mini`               | Modelo principal del Router       |
+| `FALLBACK_MODEL`         | `claude-haiku-4-5-20251001` | Se usa si el primario falla       |
+| `REDIS_URL`              | `redis://localhost:6379`    | Cache exact-match                 |
+| `CACHE_TTL`              | `86400`                     | Segundos                          |
+| `APP_ENV`                | `development`               | Controla el renderer de structlog |
+| `ESTIMATOR_API_BASE_URL` | `http://localhost:8000`     | Lo lee el cliente Streamlit       |
 
 `get_settings()` es un singleton cacheado con `lru_cache`: cualquier cambio en `.env` requiere reiniciar uvicorn (no basta con `--reload`).
-
----
-
-> Este proyecto forma parte del **Master en AI Engineering** y es la base sobre la que se construye en directo el resto de la Sesión 04 (output estructurado, guardrails, cache semántico).

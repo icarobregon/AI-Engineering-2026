@@ -340,6 +340,41 @@ def test_estimate_unknown_session_returns_404():
 
 
 # ---------------------------------------------------------------------------
+# Regression test — zero-duration phases must not trigger a 502
+# ---------------------------------------------------------------------------
+
+def test_phase_with_zero_duration_is_valid() -> None:
+    """A phase with duration_weeks=0 (e.g. design already provided in Figma) is
+    now a valid EstimationResult.  Before the fix, ge=1 caused Instructor to
+    exhaust all retries and the endpoint returned 502."""
+    from app.schemas.estimation import EstimationResult, Phase
+
+    # This exact scenario reproduced the 502: Design=0w + Launch=0w.
+    phases = [
+        Phase(name="Discovery", duration_weeks=1, cost_eur=2500,
+              summary="Gathering requirements and clarifying project goals."),
+        Phase(name="Design", duration_weeks=0, cost_eur=0,
+              summary="Design already provided in Figma; no additional design work."),
+        Phase(name="Implementation", duration_weeks=2, cost_eur=8000,
+              summary="Developing the landing page, contact form, and WYSIWYG blog."),
+        Phase(name="QA", duration_weeks=1, cost_eur=2500,
+              summary="Testing all components and ensuring quality standards."),
+        Phase(name="Launch", duration_weeks=0, cost_eur=0,
+              summary="Launch activities are included in the implementation phase."),
+    ]
+    result = EstimationResult(
+        summary="Landing page with Figma design, HubSpot integration and WYSIWYG blog.",
+        confidence_pct=80,
+        phases=phases,
+        total_duration_weeks=4,
+        total_cost_eur=13000,  # 2500 + 0 + 8000 + 2500 + 0
+    )
+    assert result.total_cost_eur == 13000
+    zero_duration = [p for p in result.phases if p.duration_weeks == 0]
+    assert len(zero_duration) == 2
+
+
+# ---------------------------------------------------------------------------
 # Minimal PDF builder (no external deps beyond stdlib)
 # ---------------------------------------------------------------------------
 

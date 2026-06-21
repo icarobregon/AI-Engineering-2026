@@ -77,7 +77,8 @@ You must return a structured object with these exact fields:
 - total_duration_weeks (int, 1-104): total calendar weeks across all phases.
 - total_cost_eur (int, 0-2000000): grand total in euros. MUST equal the sum of every phase.cost_eur.
 - confidence_pct (int, 0-100): how confident you are about the estimation given the description.
-- phases (list, 1-8 items): each phase has name (1-64 chars), duration_weeks (1-52), cost_eur (0-1000000) and summary (10-600 chars).
+- phases (list, 1-8 items): each phase has name (1-64 chars), duration_weeks (0-52), cost_eur (0-1000000) and summary (10-600 chars).
+  NOTE: duration_weeks=0 is valid and expected when a phase requires no additional effort (e.g. design already delivered, launch included in implementation). Never invent a non-zero duration just to satisfy a minimum — use 0 instead.
 
 Hard constraints (will be re-validated; you will be re-prompted on violation):
 - phases sum: total_cost_eur == sum(phase.cost_eur for every phase).
@@ -88,10 +89,10 @@ When you declare "Out of scope:" (confidence_pct < 30):
 - Return exactly ONE placeholder phase: name "Not estimated", duration_weeks 1, cost_eur 0, summary "Cannot be sized without more information."
 
 When you do estimate (confidence_pct >= 30): COMPUTE the totals from the phases — do not pick a round number and then try to back-fit phases to it. The required algorithm is:
-  1) Decide every phase first (name, duration_weeks, cost_eur, summary).
-  2) Set total_cost_eur = exact arithmetic sum of every phase.cost_eur.
+  1) Decide every phase first (name, duration_weeks, cost_eur, summary). Use duration_weeks=0 and cost_eur=0 for phases with no remaining work.
+  2) Set total_cost_eur = exact arithmetic sum of every phase.cost_eur. Verify the addition yourself before writing the value.
   3) Set total_duration_weeks = sum of every phase.duration_weeks (sequential delivery).
-  4) Re-read your own JSON before returning and confirm both sums match.
+  4) Re-read your own JSON before returning and confirm total_cost_eur equals the sum you computed in step 2.
 </output_schema>
 
 {% include "estimation/v2/examples.j2" %}

@@ -60,7 +60,7 @@ class Phase(BaseModel):
     """One phase in the breakdown of an estimation."""
 
     name: str = Field(min_length=1, max_length=64)
-    duration_weeks: int = Field(ge=1, le=52)
+    duration_weeks: int = Field(ge=0, le=52)
     cost_eur: int = Field(ge=0, le=1_000_000)
     summary: str = Field(min_length=10, max_length=600)
 

@@ -95,6 +95,10 @@ def _init_session_state() -> None:
         st.session_state.conversation = []
     if "project_metadata" not in st.session_state:
         st.session_state.project_metadata = {}
+    if "loading" not in st.session_state:
+        st.session_state.loading = False
+    if "pending_request" not in st.session_state:
+        st.session_state.pending_request = None
 
     # Auto-create a backend session on first load.
     if st.session_state.session_id is None:
@@ -109,6 +113,8 @@ def _new_conversation() -> None:
     st.session_state.session_id = None
     st.session_state.conversation = []
     st.session_state.project_metadata = {}
+    st.session_state.loading = False
+    st.session_state.pending_request = None
     _init_session_state()
 
 
@@ -172,7 +178,7 @@ _init_session_state()
 with st.sidebar:
     st.header("Sesión activa")
     if st.session_state.session_id:
-        st.code(st.session_state.session_id[:8] + "…", language="text")
+        st.code(st.session_state.session_id, language="text")
     else:
         st.caption("Sin sesión")
 
@@ -229,10 +235,10 @@ for entry in st.session_state.conversation:
 # Input form
 # ---------------------------------------------------------------------------
 
-with st.expander("📝 Nueva estimación", expanded=not st.session_state.conversation):
+with st.expander("📝 Información", expanded=not st.session_state.conversation):
     with st.form("estimation_form", clear_on_submit=True):
         description = st.text_area(
-            "Transcripción / descripción del proyecto",
+            "Descripción",
             placeholder="Describe el alcance, módulos, integraciones y restricciones…",
             height=180,
         )
@@ -265,71 +271,87 @@ with st.expander("📝 Nueva estimación", expanded=not st.session_state.convers
                 format_func=lambda v: OUTPUT_FORMAT_LABELS[v],
             )
 
-        submitted = st.form_submit_button("Generar estimación ▶", type="primary")
+        submitted = st.form_submit_button(
+            "Generando…" if st.session_state.loading else "Generar estimación ▶",
+            type="primary",
+            disabled=st.session_state.loading,
+        )
 
 # ---------------------------------------------------------------------------
 # Form submission
 # ---------------------------------------------------------------------------
 
+# Stage 1 — capture form values, activate loading, rerun so the button is disabled.
 if submitted:
     if not st.session_state.session_id:
         st.error("No hay sesión activa. Recarga la página.")
     elif len(description.strip()) < 20:
         st.error("La descripción debe tener al menos 20 caracteres.")
     else:
-        session_id = st.session_state.session_id
-        form_data = {
+        st.session_state.pending_request = {
             "description": description.strip(),
             "project_type": project_type,
             "detail_level": detail_level,
             "output_format": output_format,
+            "files": [
+                (f.name, f.read(), f.type or "application/octet-stream")
+                for f in (uploaded_files or [])
+            ],
         }
-        files_payload = [
-            ("files", (f.name, f.read(), f.type or "application/octet-stream"))
-            for f in (uploaded_files or [])
-        ]
-        log.info(
-            "conversation_estimate_request",
-            session_id=session_id[:8],
-            description_chars=len(description),
-            attachments=len(files_payload),
-        )
-        with st.spinner("Generando estimación…"):
-            try:
-                resp = httpx.post(
-                    f"{SESSIONS_ENDPOINT}/{session_id}/estimate",
-                    data=form_data,
-                    files=files_payload if files_payload else None,
-                    headers={"X-Correlation-ID": st.session_state.correlation_id},
-                    timeout=REQUEST_TIMEOUT,
-                )
-                resp.raise_for_status()
-                body = resp.json()
-            except httpx.HTTPStatusError as exc:
-                detail = exc.response.json().get("detail", exc.response.text)
-                st.error(f"Error {exc.response.status_code}: {detail}")
-                body = None
-            except httpx.RequestError as exc:
-                st.error(f"No se pudo contactar con el backend: {exc}")
-                body = None
+        st.session_state.loading = True
+        st.rerun()
 
-        if body:
-            # Append user turn to local history.
-            user_label = description.strip()
-            if files_payload:
-                user_label += f"\n_({len(files_payload)} adjunto(s))_"
-            st.session_state.conversation.append({"role": "user", "content": user_label})
-
-            # Append assistant turn.
-            st.session_state.conversation.append({"role": "assistant", "data": body})
-
-            # Update sidebar metadata.
-            st.session_state.project_metadata = body.get("project_metadata", {})
-
-            log.info(
-                "conversation_estimate_completed",
-                session_id=session_id[:8],
-                turn=body.get("turn"),
-                cached=body.get("cached"),
+# Stage 2 — execute the request while the form is rendered as disabled.
+if st.session_state.loading and st.session_state.pending_request:
+    req = st.session_state.pending_request
+    session_id = st.session_state.session_id
+    form_data = {
+        "description": req["description"],
+        "project_type": req["project_type"],
+        "detail_level": req["detail_level"],
+        "output_format": req["output_format"],
+    }
+    files_payload = [("files", item) for item in req["files"]]
+    log.info(
+        "conversation_estimate_request",
+        session_id=session_id[:8],
+        description_chars=len(req["description"]),
+        attachments=len(files_payload),
+    )
+    with st.spinner("Generando estimación…"):
+        try:
+            resp = httpx.post(
+                f"{SESSIONS_ENDPOINT}/{session_id}/estimate",
+                data=form_data,
+                files=files_payload if files_payload else None,
+                headers={"X-Correlation-ID": st.session_state.correlation_id},
+                timeout=REQUEST_TIMEOUT,
             )
-            st.rerun()
+            resp.raise_for_status()
+            body = resp.json()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.json().get("detail", exc.response.text)
+            st.error(f"Error {exc.response.status_code}: {detail}")
+            body = None
+        except httpx.RequestError as exc:
+            st.error(f"No se pudo contactar con el backend: {exc}")
+            body = None
+
+    st.session_state.loading = False
+    st.session_state.pending_request = None
+
+    if body:
+        user_label = req["description"]
+        if files_payload:
+            user_label += f"\n_({len(files_payload)} adjunto(s))_"
+        st.session_state.conversation.append({"role": "user", "content": user_label})
+        st.session_state.conversation.append({"role": "assistant", "data": body})
+        st.session_state.project_metadata = body.get("project_metadata", {})
+        log.info(
+            "conversation_estimate_completed",
+            session_id=session_id[:8],
+            turn=body.get("turn"),
+            cached=body.get("cached"),
+        )
+
+    st.rerun()

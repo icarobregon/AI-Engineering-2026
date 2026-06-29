@@ -302,6 +302,64 @@ Plazo de entrega: enviar el enlace a la rama a Lia por WhatsApp o a george@lidr.
 
 **Nota sobre tiers y complejidad**: el patrón tier tiene sentido cuando existen distintos tipos de usuarios que necesitan respuestas diferentes. No es un patrón necesario en todos los proyectos — en la mayoría de casos iniciales añadirlo introduce complejidad innecesaria. En este ejercicio el objetivo es explorar el concepto, no implementarlo de forma completa. Un tier no es lo mismo que autenticación ni permisos, ni es equivalente a un simple `if` dentro del prompt.
 
+---
+
+## Decisiones de implementación
+
+### Adjuntos — Camino B (extracción local)
+
+Se eligió **Camino B** sobre el Camino A (multimodal Files API) por tres razones:
+
+1. **Sin lock-in de proveedor**: funciona con cualquier modelo via LiteLLM, no sólo Anthropic.
+2. **Control fino**: se decide exactamente qué texto entra al contexto; útil para filtrar cabeceras irrelevantes de un PDF antes de enviarlo al LLM.
+3. **Preparación para RAG**: el texto extraído localmente es el mismo que el pipeline de chunking de las sesiones 7+ necesita. El Camino A no prepara ese pipeline.
+
+Formatos soportados: **PDF** (`pypdf`) y **DOCX** (`python-docx`). Otros formatos se aceptan pero se omiten con un warning sin abortar la petición.
+
+El texto extraído se concatena al transcript con el separador:
+
+```
+--- attachment: <filename> ---
+```
+
+Los guardrails de entrada corren sobre el **texto combinado** (transcript + adjuntos). Limitación conocida: PII en un adjunto bloquea la petición con HTTP 400.
+
+### Extracción de ProjectMetadata — LLM extractor
+
+Se eligió el **LLM extractor** sobre la heurística regex por:
+
+- Las transcripciones son texto libre en ES/EN con alta variabilidad → regex sería frágil.
+- El modelo recibe `response_model=ProjectMetadata` (Instructor + Pydantic), lo que garantiza un JSON bien formado incluso si el modelo es impreciso.
+- El coste es una segunda llamada LLM ligera (~512 tokens, modelo primario) por turno.
+
+La regla del README lo confirma: _"dominio abierto, multilingüe, con variabilidad alta → LLM extractor"_.
+
+La fusión de metadata sigue la política:
+
+- **Escalares** (`project_name`, `assumed_team_size`, `agreed_scope`): sobrescriben el valor previo sólo cuando el extractor devuelve un valor no nulo.
+- **Listas** (`mentioned_technologies`, `explicit_constraints`, `rejected_options`): se acumulan (unión sin duplicados, insensible a mayúsculas).
+
+---
+
+## Arquitectura añadida en la sesión 5
+
+```
+POST /sessions                    → crea sesión (uuid4), devuelve session_id
+POST /sessions/{id}/estimate      → turno conversacional (multipart/form-data)
+  └── attachments.py              → extracción local PDF/DOCX
+  └── services/conversation.py   → orquestador del turno
+      ├── check_input()           → guardrails de entrada (heredado)
+      ├── render_estimation_prompt_with_metadata()  → prompt v2 con <project_metadata>
+      ├── llm_wrapper.complete_structured(..., history=...)  → estimación
+      ├── enforce_scope_response()                 → guardrail de salida (heredado)
+      └── _extract_and_merge_metadata()            → LLM extractor + merge
+  └── sessions.py                 → ConversationHistory + ProjectMetadata + SessionStore
+```
+
+Los endpoints transaccionales (`/api/v1/estimate`) y la caché Redis no se modificaron.
+
+---
+
 ## Checklist antes de la siguiente sesión
 
 - [ ] Entiendes la diferencia operativa entre historial (el array `messages` que viaja a la API) y memoria (los hechos destilados sobre el proyecto en curso)

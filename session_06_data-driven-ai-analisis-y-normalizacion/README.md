@@ -316,6 +316,31 @@ Vuelca un CSV con una fila por turno y todas las columnas del `turn_observed`. S
 - Compartir el link al repositorio o Pull Request por mail a george@lidr.co con al menos dos días de antelación a la sesión en vivo
 - No se aceptan entregas por capturas, documentos sueltos o mensajes por chat
 
+## Incidencias y decisiones técnicas
+
+### HTTP 502 durante el stress test — validador de suma de fases
+
+**Síntoma.** Al ejecutar el runner contra el backend (`evals/stress/run.py`), varios turnos devuelven HTTP 502, especialmente en el escenario `growing` con conversaciones largas o adjuntos grandes.
+
+**Causa raíz.** `EstimationResult` tenía un validador Pydantic (`phases_sum_matches_total`) que exigía igualdad exacta de enteros entre la suma de `phase.cost_eur` y `total_cost_eur`. `gpt-4o-mini` elige con frecuencia un total redondo al principio de la respuesta y luego produce fases cuya suma no coincide — fenómeno agravado por contextos largos (multi-turno + adjuntos). Instructor reintenta con el mensaje de error, pero el modelo vuelve a fallar. Tras agotar los reintentos, la excepción sube hasta el router de FastAPI:
+
+```python
+except Exception as exc:
+    raise HTTPException(status_code=502, detail="Upstream LLM call failed") from exc
+```
+
+**Solución aplicada.** El validador ya no rechaza la respuesta: sobreescribe `total_cost_eur` con la suma real de las fases. Las fases son la fuente de verdad por diseño (el modelo las genera primero, en orden autoregresivo), de modo que el total en la respuesta siempre es matemáticamente consistente.
+
+```python
+@model_validator(mode="after")
+def phases_sum_matches_total(self) -> "EstimationResult":
+    # Phases are the source of truth (generated first by the LLM).
+    self.total_cost_eur = sum(p.cost_eur for p in self.phases)
+    return self
+```
+
+**Lección.** Un validador que rechaza en lugar de corregir puede ser la decisión correcta en el endpoint transaccional (donde queremos auditar la fidelidad aritmética del modelo), pero se convierte en un punto de fallo sistemático bajo carga multi-turno. La estrategia adecuada depende del caso de uso: rechazar si necesitas medir la tasa de error del modelo; corregir si necesitas que el pipeline sea robusto.
+
 ## Checklist antes de la siguiente sesión
 
 - [ ] Entiendes las cuatro restricciones estructurales del CAG (context window, coste, latencia, degradación de atención) y cuándo cada una empuja hacia RAG

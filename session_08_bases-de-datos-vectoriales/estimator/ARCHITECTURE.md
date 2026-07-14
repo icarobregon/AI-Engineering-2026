@@ -133,7 +133,7 @@ POST /api/v1/estimate
 
 - **Rutas HTTP**: `/api/v1/estimate`, `/sessions/*`, `/api/v1/ingestion/*`, `/embeddings/ingest`,
   `/api/v1/config/models`.
-  El cliente Rails (`estimator-web`) depende de ellas y de la forma JSON de
+  El cliente/frontend que las consuma depende de ellas y de la forma JSON de
   `EstimationResponse` / `ACBResponse`.
 - **`EstimationResult`** (`domain/schemas/estimation.py`): el orden de campos importa para
   Instructor (`phases` antes que `total_cost_eur`/`total_duration_weeks`) y los dos

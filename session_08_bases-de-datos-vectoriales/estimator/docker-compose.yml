@@ -70,10 +70,9 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # Service name is estimator-postgres (not plain "postgres") so it does not
-  # collide with estimator-web's own "postgres" service when the root
-  # docker-compose.yml pulls both subprojects in via `include:` (which forbids
-  # duplicate resource names across included files).
+  # Service name is estimator-postgres (not plain "postgres") to keep it
+  # unambiguous when the root docker-compose.yml pulls subprojects in via
+  # `include:` (which forbids duplicate resource names across included files).
   estimator-postgres:
     # pgvector/pgvector:pg16 ships the pgvector extension already compiled.
     # In Session 6 we do NOT activate it (no ``CREATE EXTENSION vector``);
@@ -86,8 +85,8 @@ services:
       POSTGRES_PASSWORD: estimator
       POSTGRES_DB: estimator
     ports:
-      # Port 5433 on the host to avoid colliding with the estimator-web
-      # Postgres (5432). Inside the network we still talk on 5432.
+      # Port 5433 on the host to avoid colliding with any local Postgres on
+      # 5432. Inside the network we still talk on 5432.
       - "5433:5432"
     volumes:
       - estimator_postgres_data:/var/lib/postgresql/data

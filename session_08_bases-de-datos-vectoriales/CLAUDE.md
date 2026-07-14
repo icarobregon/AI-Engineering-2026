@@ -4,14 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository layout
 
-Two-project monorepo for the Master en AI Engineering programme:
+The AI service for the Master en AI Engineering programme:
 
 - `estimator/` — FastAPI service. The AI side: prompts, LLM calls, structured output, guardrails, semantic cache. All AI logic lives here; the rest of the programme evolves this codebase module by module.
-- `estimator-web/` — Rails 8 frontend + business backend (Postgres + Tailwind + Hotwire). Reference implementation of the cliente; each student is free to use a different stack. The live sessions invoke `estimator` directly via httpie/curl (stack-agnostic).
 
-A root-level `docker-compose.yml` orchestrates both via the `include:` directive (Compose v2.20+). Running `docker compose up` from the repo root brings up all 5 services (`estimator`, `redis`, `estimator-postgres`, `estimator-web`, `postgres`) on a shared network so Rails can call the FastAPI estimator at `http://estimator:8000`. Note there are **two** Postgres instances on purpose: `estimator-postgres` (pgvector image, host port 5433, used by the FastAPI service) and `postgres` (alpine, host port 5432, used by Rails). `include:` forbids two included files from declaring the same resource name, so the FastAPI one is named `estimator-postgres` (not plain `postgres`) and its volume is `estimator_postgres_data` — renaming either back to `postgres`/`postgres_data` re-introduces the `services.postgres conflicts with imported resource` error at the root.
+The business frontend/client is out of scope in this repo — we will build our own. The live sessions invoke `estimator` directly via httpie/curl (stack-agnostic).
 
-**Trap to be aware of**: launching from the root vs from a subdirectory creates *different* Compose projects, which means the named volumes (`postgres_data`, `estimator_postgres_data`, `bundle_cache`, `redis_data`) are not shared between the two modes. Pick a mode per workflow and stay with it.
+Run everything from the `estimator/` directory. `estimator/docker-compose.yml` brings up three services — `estimator`, `redis` and `estimator-postgres` (pgvector image, host port 5433, volume `estimator_postgres_data`) — on a shared network: `cd estimator && docker compose up`.
 
 Session guides for the instructor live in `guides/` (git-ignored). `guides/session-4-live-guide.md` is the most recent.
 
@@ -129,35 +128,3 @@ docker compose exec estimator bash -c '
 '
 docker compose exec estimator python -m pytest tests/ -v
 ```
-
-## estimator-web (Rails)
-
-Full guide in `estimator-web/README.md`. Consumes `POST /api/v1/estimate` and renders the structured `EstimationResponse`. Quick reference:
-
-```bash
-cd estimator-web
-docker compose up --build               # http://localhost:3000
-
-# Or with the FastAPI estimator (shared network):
-cd /Users/antonioperez/projects/ia/ai-engineering
-docker compose up --build
-```
-
-Common operations:
-
-```bash
-docker compose exec estimator-web bin/rails console
-docker compose exec estimator-web bin/rails test
-docker compose exec postgres psql -U postgres estimator_web_development
-```
-
-Design points to respect when editing (full layer map and rules in `estimator-web/ARCHITECTURE.md`):
-
-- **The app is organized by contexts mirroring the Master's modules** — `estimation` (S04), `conversation` (S05), `rag` (S07) — over an `EstimatorAi` foundation (`app/services/estimator_ai/`: `BaseClient` + one client per context) that is the only layer talking HTTP to FastAPI. Contexts never import each other.
-- **Contract POROs mirror the Pydantic schemas 1:1** (`from_hash` ↔ `model_validate`): `Estimation::Response.from_hash` builds nested `Estimation::Result` + `Estimation::Phase`; `Rag::ComparisonResponse.from_hash` builds the chunking-comparison tree. Views render the typed objects, not raw JSON; AR roots persist the full payload as JSONB.
-- **The `Stimulus form_loading_controller`** is intentionally simple: it just disables the submit button and shows rolling phase messages while Rails waits for FastAPI. No SSE / no streaming — those were removed when the response became a single JSON object.
-- **The cliente never talks to OpenAI / Anthropic directly.** It only POSTs to FastAPI, and the FastAPI handles guardrails, LLM calls and caches. That boundary is deliberate and documented in the session guide.
-- **GuardrailViolation is a first-class error** in the cliente (`EstimatorAi::GuardrailViolation`, raised by `app/services/estimator_ai/base_client.rb`). The FastAPI returns 400 with `{detail: {reason, message}}` when input is rejected (moderation/prompt_injection/pii); the cliente surfaces this in `flash`.
-- **The Chunking Lab** (`/rag/chunking_comparisons`, S07) compares chunking strategies via `POST /embeddings/compare` over the bundled corpus (`lib/estimator_ai/data/`); each run is persisted (`chunking_comparisons`) so paid strategies are never re-paid. Long calls pass a per-instance timeout (`EmbeddingsClient.new(timeout: 600)`) — the global 180s default stays.
-- **`config/database.yml` reads `DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_USER` / `DATABASE_PASSWORD` from ENV** with `nil` fallbacks (Unix socket when not in docker).
-- **Kamal and Thruster** (`.kamal/`, `config/deploy.yml`, `bin/kamal`, `bin/thrust`, gems with `require: false`) are leftovers from `rails new`. Production is out of scope.

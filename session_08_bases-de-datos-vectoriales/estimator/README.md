@@ -3,6 +3,7 @@
 Servicio IA en FastAPI que estima proyectos de software a partir de un formulario tipado. Es la pieza Python del programa **Master en AI Engineering**: un endpoint pensado para ser consumido por un backend de negocio (Rails, Streamlit u otro), no por un usuario final.
 
 A partir de la **Sesión 04** el contrato es deliberadamente estrecho:
+
 - entrada tipada (`description` + tres enums),
 - salida en texto libre,
 - prompt fuera del código en templates Jinja2 versionados (`app/foundation/prompts/<use_case>/<version>/`).
@@ -119,22 +120,22 @@ Lo que vive **fuera** del template (en código): el contrato (`EstimationRequest
 
 ## Variables de entorno
 
-| Variable | Default | Notas |
-|---|---|---|
-| `OPENAI_API_KEY` | — | Requerido al menos uno de los dos |
-| `ANTHROPIC_API_KEY` | — | Requerido al menos uno de los dos |
-| `PRIMARY_MODEL` | `gpt-4o-mini` | Modelo principal del Router |
-| `FALLBACK_MODEL` | `claude-haiku-4-5-20251001` | Se usa si el primario falla |
-| `REDIS_URL` | `redis://localhost:6379` | Cache exact-match |
-| `CACHE_TTL` | `86400` | Segundos |
-| `APP_ENV` | `development` | Controla el renderer de structlog |
-| `ESTIMATOR_API_BASE_URL` | `http://localhost:8000` | Lo lee el cliente Streamlit |
+| Variable                 | Default                     | Notas                             |
+| ------------------------ | --------------------------- | --------------------------------- |
+| `OPENAI_API_KEY`         | —                           | Requerido al menos uno de los dos |
+| `ANTHROPIC_API_KEY`      | —                           | Requerido al menos uno de los dos |
+| `PRIMARY_MODEL`          | `gpt-4o-mini`               | Modelo principal del Router       |
+| `FALLBACK_MODEL`         | `claude-haiku-4-5-20251001` | Se usa si el primario falla       |
+| `REDIS_URL`              | `redis://localhost:6379`    | Cache exact-match                 |
+| `CACHE_TTL`              | `86400`                     | Segundos                          |
+| `APP_ENV`                | `development`               | Controla el renderer de structlog |
+| `ESTIMATOR_API_BASE_URL` | `http://localhost:8000`     | Lo lee el cliente Streamlit       |
 
 `get_settings()` es un singleton cacheado con `lru_cache`: cualquier cambio en `.env` requiere reiniciar uvicorn (no basta con `--reload`). **Excepción: los modelos LLM** — ver la sección siguiente.
 
 ## Configuración de modelos en runtime
 
-Los knobs de modelo (`PRIMARY_MODEL`, `FALLBACK_MODEL`, `CRITIC_MODEL`, `METADATA_EXTRACTOR_MODEL`, `COMPRESSION_MODEL`, `PROPOSITIONAL_CHUNKER_MODEL`, `CONTEXTUAL_CHUNKER_MODEL`) se pueden **sobreescribir en caliente** sin tocar `.env` ni recrear contenedores — pensado para cambiar de modelo en mitad de un directo (la pestaña *Ajustes* del cliente Rails usa este endpoint).
+Los knobs de modelo (`PRIMARY_MODEL`, `FALLBACK_MODEL`, `CRITIC_MODEL`, `METADATA_EXTRACTOR_MODEL`, `COMPRESSION_MODEL`, `PROPOSITIONAL_CHUNKER_MODEL`, `CONTEXTUAL_CHUNKER_MODEL`) se pueden **sobreescribir en caliente** sin tocar `.env` ni recrear contenedores — pensado para cambiar de modelo en mitad de un directo (la pestaña _Ajustes_ del cliente Rails usa este endpoint).
 
 ```
 GET /api/v1/config/models
@@ -214,11 +215,11 @@ La respuesta del segundo turno integra Nimbus + React + Postgres + facturación 
 
 ### Variables de entorno nuevas
 
-| Variable | Default | Notas |
-|---|---|---|
-| `MAX_CONVERSATION_TURNS` | `6` | Pares user+assistant que mantiene la ventana. |
-| `MAX_ATTACHMENT_CHARS` | `60000` | Corte por archivo extraído. Trunca, no rechaza. |
-| `METADATA_EXTRACTOR_MODEL` | `gpt-4o-mini` | Modelo de la segunda llamada por turno. |
+| Variable                   | Default       | Notas                                           |
+| -------------------------- | ------------- | ----------------------------------------------- |
+| `MAX_CONVERSATION_TURNS`   | `6`           | Pares user+assistant que mantiene la ventana.   |
+| `MAX_ATTACHMENT_CHARS`     | `60000`       | Corte por archivo extraído. Trunca, no rechaza. |
+| `METADATA_EXTRACTOR_MODEL` | `gpt-4o-mini` | Modelo de la segunda llamada por turno.         |
 
 ### Tests del Paso 7
 
@@ -355,7 +356,3 @@ docker compose exec estimator python scripts/query_examples.py > output_examples
 La capa vectorial de la S08 usa el API **async** de SQLAlchemy con el driver `asyncpg` (`app/foundation/persistence/database_async.py`, dependencia `get_async_session`). La capa de la S06 (PII / ingestion jobs) sigue siendo **síncrona** (`database.py`, driver `psycopg`), porque corre fuera del hot path en `BackgroundTasks`. Ambas comparten la misma DB y una única fuente de verdad para la URL (`Settings.DATABASE_URL`, forma `+psycopg`); la async la deriva a `+asyncpg`. Alembic corre en modo async y aplica ambas migraciones.
 
 **Fuera de scope (se trabaja en directo):** índices vectoriales (HNSW/IVFFlat), filtros por metadata, búsqueda híbrida (`tsvector`), y tuning (`shared_buffers`, `ef_search`, `halfvec`).
-
----
-
-> Este proyecto forma parte del **Master en AI Engineering** y es la base sobre la que se construye en directo el resto de la Sesión 04 (output estructurado, guardrails, cache semántico) y de la Sesión 05 (compresión avanzada de memoria con anclas, tier dinámico, patrón Actor-Critic-Boss).

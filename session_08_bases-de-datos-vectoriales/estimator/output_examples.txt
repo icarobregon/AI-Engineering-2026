@@ -1,0 +1,45 @@
+====================================================================================================
+[Direct known component] REST API development with JWT authentication for financial sector
+  (361 ms, k=5)
+   1. chunk_id=1     distance=0.4109  [budget_component]  [Project: Mobile banking API with OAuth 2.0 authentication and PSD2 compliance] [Client sector: finance | Year: 2024 | M
+   2. chunk_id=2     distance=0.4760  [budget_component]  [Project: Mobile banking API with OAuth 2.0 authentication and PSD2 compliance] [Client sector: finance | Year: 2024 | M
+   3. chunk_id=3     distance=0.4982  [budget_component]  [Project: Mobile banking API with OAuth 2.0 authentication and PSD2 compliance] [Client sector: finance | Year: 2024 | M
+   4. chunk_id=4     distance=0.5123  [budget_component]  [Project: Mobile banking API with OAuth 2.0 authentication and PSD2 compliance] [Client sector: finance | Year: 2024 | M
+   5. chunk_id=9     distance=0.5258  [budget_component]  [Project: Real-time payments gateway with fraud detection and reconciliation] [Client sector: finance | Year: 2023 | Mai
+
+====================================================================================================
+[Semantic reformulation] secure backend service with token-based access control for banking applications
+  (154 ms, k=5)
+   1. chunk_id=1     distance=0.4075  [budget_component]  [Project: Mobile banking API with OAuth 2.0 authentication and PSD2 compliance] [Client sector: finance | Year: 2024 | M
+   2. chunk_id=2     distance=0.4557  [budget_component]  [Project: Mobile banking API with OAuth 2.0 authentication and PSD2 compliance] [Client sector: finance | Year: 2024 | M
+   3. chunk_id=3     distance=0.4774  [budget_component]  [Project: Mobile banking API with OAuth 2.0 authentication and PSD2 compliance] [Client sector: finance | Year: 2024 | M
+   4. chunk_id=4     distance=0.5354  [budget_component]  [Project: Mobile banking API with OAuth 2.0 authentication and PSD2 compliance] [Client sector: finance | Year: 2024 | M
+   5. chunk_id=9     distance=0.5363  [budget_component]  [Project: Real-time payments gateway with fraud detection and reconciliation] [Client sector: finance | Year: 2023 | Mai
+
+====================================================================================================
+[Out-of-domain] mobile application for restaurant reservations
+  (297 ms, k=5)
+   1. chunk_id=24    distance=0.5690  [budget_component]  [Project: Grocery delivery app with slot booking and route optimization] [Client sector: ecommerce | Year: 2024 | Main t
+   2. chunk_id=31    distance=0.5810  [budget_component]  [Project: Patient appointment and telemedicine platform with HL7/FHIR integration] [Client sector: healthcare | Year: 20
+   3. chunk_id=26    distance=0.5861  [budget_component]  [Project: Grocery delivery app with slot booking and route optimization] [Client sector: ecommerce | Year: 2024 | Main t
+   4. chunk_id=25    distance=0.6048  [budget_component]  [Project: Grocery delivery app with slot booking and route optimization] [Client sector: ecommerce | Year: 2024 | Main t
+   5. chunk_id=4     distance=0.6515  [budget_component]  [Project: Mobile banking API with OAuth 2.0 authentication and PSD2 compliance] [Client sector: finance | Year: 2024 | M
+
+====================================================================================================
+[Ambiguous / generic] integration with external system
+  (202 ms, k=5)
+   1. chunk_id=45    distance=0.5979  [budget_component]  [Project: Factory IoT telemetry and predictive maintenance system] [Client sector: industrial | Year: 2024 | Main tech: 
+   2. chunk_id=37    distance=0.5980  [budget_component]  [Project: Pharmacy inventory and prescription fulfillment system] [Client sector: healthcare | Year: 2023 | Main tech: j
+   3. chunk_id=54    distance=0.6021  [budget_component]  [Project: Decomposition of a monolithic core banking platform into domain services] [Client sector: finance | Year: 2024
+   4. chunk_id=11    distance=0.6030  [budget_component]  [Project: Real-time payments gateway with fraud detection and reconciliation] [Client sector: finance | Year: 2023 | Mai
+   5. chunk_id=50    distance=0.6151  [budget_component]  [Project: Energy grid monitoring and demand-response platform] [Client sector: industrial | Year: 2024 | Main tech: java
+
+====================================================================================================
+[Very specific] migration from monolith to microservices architecture using Kubernetes
+  (145 ms, k=5)
+   1. chunk_id=54    distance=0.5617  [budget_component]  [Project: Decomposition of a monolithic core banking platform into domain services] [Client sector: finance | Year: 2024
+   2. chunk_id=53    distance=0.6221  [budget_component]  [Project: Decomposition of a monolithic core banking platform into domain services] [Client sector: finance | Year: 2024
+   3. chunk_id=50    distance=0.6678  [budget_component]  [Project: Energy grid monitoring and demand-response platform] [Client sector: industrial | Year: 2024 | Main tech: java
+   4. chunk_id=48    distance=0.6820  [budget_component]  [Project: Warehouse management system with automated guided vehicle coordination] [Client sector: industrial | Year: 202
+   5. chunk_id=34    distance=0.6889  [budget_component]  [Project: Remote patient monitoring with wearable data ingestion and alerts] [Client sector: healthcare | Year: 2024 | M
+

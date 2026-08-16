@@ -1,0 +1,101 @@
+Reunión inicial — Cliente: Grupo Aldabra (ficticio)
+Fecha: 2026-03-11 · Duración: 51 min
+Asistentes: Nuria Peláez (Directora General, Aldabra), Toni Grau (Responsable de Tienda, Aldabra), equipo comercial
+
+[16:00:40] Nuria Peláez: Perdonad el retraso, venimos de otra reunión que se ha alargado muchísimo. ¿Habéis podido aparcar bien? La zona esta es imposible los miércoles.
+
+[16:01:05] Comercial: Sin problema, hemos venido en metro. Contadme un poco, ¿qué tenéis en mente?
+
+[16:01:20] Nuria Peláez: A ver, es que llevamos dándole vueltas mucho tiempo. Yo lo que sé es que como estamos ahora no podemos seguir. Toni te lo puede contar mejor que yo porque él lo vive cada día.
+
+[16:01:55] Toni Grau: Sí, mira. Nosotros vendemos productos de menaje, cocina, ese tipo de cosa. Empezamos hace doce años con una tienda física en Girona y ahora tenemos cuatro tiendas y una web que hicimos hace… ¿siete años, Nuria?
+
+[16:02:20] Nuria Peláez: Ocho. La hizo el sobrino de un socio con una plataforma de esas.
+
+[16:02:30] Toni Grau: Ocho, eso. Y funciona, eh, que conste. No es que esté rota. Pero se nos ha quedado pequeña para lo que queremos hacer ahora.
+
+[16:02:50] Comercial: ¿Y qué es lo que queréis hacer ahora?
+
+[16:03:02] Nuria Peláez: Pues eso es lo que estamos intentando decidir, la verdad. Hay varias ideas encima de la mesa. Una es lo que hablábamos el otro día con David, lo de abrir la web a otros vendedores.
+
+[16:03:35] Toni Grau: Sí, eso. Que no seamos sólo nosotros vendiendo lo nuestro, sino que otras tiendas pequeñas del sector puedan poner sus productos en nuestra web y nosotros nos llevamos una comisión.
+
+[16:04:10] Comercial: Vale, eso es un marketplace.
+
+[16:04:15] Nuria Peláez: Si tú lo dices. Yo de nombres técnicos no entiendo, yo lo que sé es que hay mucha tienda pequeña de menaje que no tiene ni web ni ganas de tenerla, y que confía en nosotros porque llevamos toda la vida.
+
+[16:04:50] Toni Grau: Aunque ojo, que esto lo hemos hablado y no está decidido del todo. Porque también estaba la idea de la tienda física, lo de los pedidos.
+
+[16:05:15] Nuria Peláez: Ah, sí. Eso también. Que ahora mismo el stock de la web y el de las tiendas son dos mundos. Vendes una cosa en la web, no se descuenta de la tienda, y al revés. Y luego hay líos.
+
+[16:05:40] Toni Grau: Muchos líos. La semana de Reyes fue un desastre, vendimos catorce cafeteras que no teníamos. Catorce llamadas pidiendo perdón.
+
+[16:06:10] Comercial: Entiendo. Entonces, ¿la prioridad es el marketplace o la sincronización de stock?
+
+[16:06:20] Nuria Peláez: Las dos. Bueno, no sé. Toni, ¿tú qué dirías?
+
+[16:06:30] Toni Grau: Yo el stock. Pero es que lo del marketplace es lo que nos hace crecer, y el stock es sólo dejar de hacerlo mal.
+
+[16:07:00] Nuria Peláez: Y luego está el tema de la app, que lo comentaba mi hija. Que todo el mundo compra por el móvil.
+
+[16:07:25] Comercial: ¿Una app nativa o la web adaptada a móvil?
+
+[16:07:35] Nuria Peláez: ¿Hay diferencia? Perdona la pregunta.
+
+[16:07:40] Comercial: Bastante, en coste sobre todo. Pero lo vemos después, dejadme entender primero el negocio.
+
+[16:08:15] Toni Grau: Otra cosa que sé seguro es que el tema de cobrar tiene que cambiar. Ahora mismo cobramos con la pasarela que traía la plataforma y las comisiones nos las están comiendo. Si abrimos a otros vendedores, además, hay que repartir el dinero entre ellos y nosotros, y eso ahora es imposible.
+
+[16:09:00] Comercial: ¿Habéis mirado algún proveedor de pagos concreto?
+
+[16:09:10] Toni Grau: Nos hablaron de Stripe. Un chico que vino a la feria de Barcelona nos dijo que eso de repartir pagos entre vendedores ellos lo tienen resuelto. No sé más, la verdad, no lo hemos mirado a fondo.
+
+[16:09:50] Nuria Peláez: Y aquí viene el lío gordo, que además vendemos en Portugal.
+
+[16:10:05] Comercial: ¿Tenéis tienda física en Portugal?
+
+[16:10:12] Nuria Peláez: No, no. Enviamos a Portugal desde hace dos años, cada vez más. Un quince por ciento de lo que vendemos por web va allí. Y eso trae historias de facturación que nos ha explicado la gestoría y que yo, sinceramente, no he entendido del todo.
+
+[16:10:55] Toni Grau: Los impuestos, que son distintos.
+
+[16:11:10] Nuria Peláez: Eso. Y si encima metemos vendedores portugueses, la gestoría dice que es otro mundo. Pero bueno, eso ya lo miraremos.
+
+[16:11:40] Comercial: ¿Volumen actual? Para hacerme una idea.
+
+[16:11:50] Toni Grau: Unos ochocientos pedidos al mes por la web. En Navidad se triplica. Y referencias tendremos… ¿tres mil?
+
+[16:12:10] Nuria Peláez: Tres mil y pico, contando variantes de color y tamaño, que eso también es un dolor porque la web actual no lo lleva bien.
+
+[16:12:45] Comercial: ¿Cuánta gente tenéis en la parte técnica?
+
+[16:12:55] Nuria Peláez: Ninguna. Bueno, Toni se apaña. Y llamamos al chico que nos hizo la web cuando se rompe algo, pero ya casi no nos coge el teléfono.
+
+[16:13:30] Toni Grau: Por eso queremos algo que no dependa de nadie concreto, ¿sabes? Que si mañana os toca la lotería y desaparecéis, otro pueda seguirlo.
+
+[16:14:10] Comercial: Eso es razonable. ¿Y plazos? ¿Hay alguna fecha en la cabeza?
+
+[16:14:20] Nuria Peláez: Nos gustaría para la campaña de Navidad. Aunque no sé si es realista, dínoslo tú.
+
+[16:14:40] Toni Grau: Yo diría que lo del stock sí que tendría que estar para Navidad sí o sí. Lo otro puede esperar.
+
+[16:15:00] Nuria Peláez: Pero es que si esperamos, otra vez pasa un año y seguimos igual. Llevamos así desde la pandemia.
+
+[16:15:35] Comercial: ¿Presupuesto orientativo?
+
+[16:15:45] Nuria Peláez: No tenemos una cifra. Tenemos que verlo con el consejo. Somos una empresa familiar, esto lo decidimos entre cuatro, y cada uno tiene una idea distinta de lo que cuesta una web.
+
+[16:16:30] Toni Grau: Mi cuñado dice que esto se hace con WordPress en dos semanas.
+
+[16:16:40] Nuria Peláez: Tu cuñado dice muchas cosas.
+
+[16:17:20] Comercial: Bueno. Dejadme que os haga una pregunta de otra manera. Si dentro de un año esto ha salido bien, ¿qué ha pasado?
+
+[16:17:50] Nuria Peláez: Que vendemos más y que Toni no se pasa el día apagando fuegos.
+
+[16:18:15] Toni Grau: Y que los vendedores pequeños están con nosotros. Eso es lo que nadie del sector está haciendo aquí, y si lo hacemos nosotros primero, ya está.
+
+[16:19:00] Comercial: Vale. Yo creo que tengo bastante para hacer una primera aproximación. Os la mando y a partir de ahí concretamos.
+
+[16:19:20] Nuria Peláez: Perfecto. Y mándanos también algo de lo que hayáis hecho parecido, que al consejo eso le da tranquilidad.
+
+[16:19:45] Toni Grau: Y si podéis separar lo del stock de lo otro en el precio, mejor. Para poder decidir.

@@ -1,0 +1,17 @@
+Historical reference projects:
+
+{{ context_block }}
+
+New project to estimate:
+
+{{ structured_query_json }}
+
+Generate a structured estimate. Cite sources for every quantitative component.
+If the historical context does not cover this kind of project sufficiently,
+return confidence="insufficient" and explain what is missing.
+{% if invalid_ids %}
+
+Your previous response cited source ids that do not exist: {{ invalid_ids }}.
+The only valid ids are the ones in the <source> blocks above. Re-issue the
+estimate citing only those ids, or move the unsupported claims to assumptions.
+{% endif %}

@@ -1,0 +1,53 @@
+Reunión de descubrimiento — Cliente: Norvia Salud (ficticio)
+Fecha: 2026-03-04 · Duración: 34 min
+Asistentes: Marta Ruiz (Directora de Operaciones, Norvia), Álvaro Sanz (CTO, Norvia), equipo comercial
+
+[10:02:11] Álvaro Sanz: Buenos días. Voy a ir al grano porque tenemos la especificación bastante cerrada por dentro y lo que buscamos es una estimación, no un taller de ideación.
+
+[10:02:40] Marta Ruiz: Exacto. Os cuento el contexto en tres frases. Somos una red de doce clínicas privadas en España. Hoy cada clínica gestiona sus citas con su propio Excel y un teléfono. Queremos un portal único de gestión de citas para pacientes, con historial clínico básico consultable por el profesional.
+
+[10:03:28] Álvaro Sanz: El alcance que hemos definido internamente son cuatro bloques. Uno: autenticación de pacientes con verificación en dos pasos por SMS. Dos: reserva y gestión de citas contra la agenda de cada clínica. Tres: expediente clínico ligero, sólo lectura para el paciente y lectura-escritura para el profesional. Cuatro: notificaciones automáticas de recordatorio, email y SMS.
+
+[10:04:15] Comercial: ¿Tenéis decidida la parte técnica o eso lo proponemos nosotros?
+
+[10:04:22] Álvaro Sanz: Decidida. Backend en Ruby on Rails, base de datos PostgreSQL, y Redis para las colas de notificaciones. No es negociable: mi equipo interno mantiene otros dos productos con ese stack y no vamos a meter una tecnología nueva sólo para este proyecto.
+
+[10:05:03] Comercial: Perfecto, eso simplifica. ¿Integraciones con sistemas externos?
+
+[10:05:10] Álvaro Sanz: Dos. La agenda de cada clínica vive hoy en un software de gestión que expone una API REST bastante pobre pero documentada, se llama ClinicWare. Y para los SMS usaremos el proveedor que ya tenemos contratado, Twilio.
+
+[10:06:02] Marta Ruiz: Y hay una restricción que para nosotros es la más importante de toda la reunión: esto es sanidad. Manejamos datos de salud, que son categoría especial en el RGPD. Necesitamos cifrado en reposo del expediente, registro de auditoría de todos los accesos, y política de retención configurable. Si eso no está, no hay proyecto.
+
+[10:06:50] Comercial: Entendido. ¿Ámbito geográfico?
+
+[10:06:55] Marta Ruiz: España, sólo España. Las doce clínicas están entre Madrid, Valencia y Sevilla. No hay planes de salir fuera en el horizonte de este proyecto.
+
+[10:07:30] Comercial: ¿Volumen esperado?
+
+[10:07:38] Álvaro Sanz: Unos 40.000 pacientes activos entre las doce clínicas, y estimamos unas 1.200 citas diarias en pico. No es un volumen que dé miedo, pero sí quiero que la reserva sea transaccional de verdad: dos pacientes no pueden coger el mismo hueco.
+
+[10:08:25] Comercial: ¿Aplicación móvil?
+
+[10:08:30] Álvaro Sanz: No en esta fase. Web responsive y ya. Si funciona, el año que viene hablamos de móvil, pero no quiero que lo metáis en el presupuesto porque acabaríamos pagando por algo que igual no hacemos.
+
+[10:09:14] Marta Ruiz: Una cosa más sobre el expediente. No queremos construir un historial clínico completo, eso está regulado y es otro producto. Queremos lo que llamamos expediente ligero: alergias, medicación actual, últimas cinco visitas y documentos adjuntos. Nada más.
+
+[10:10:02] Comercial: ¿Y quién carga los datos iniciales de esos 40.000 pacientes?
+
+[10:10:10] Álvaro Sanz: Buena pregunta. Hay que migrar desde los Excel de las doce clínicas. Formatos distintos por clínica, eso lo sé y lo asumo. Quiero que esté en el presupuesto como una partida separada para poder verla.
+
+[10:11:00] Marta Ruiz: Sobre plazos. Nos gustaría tenerlo en producción antes de final de año, pero no es una fecha impuesta por nada externo. Si nos decís que son ocho meses en vez de seis, lo escuchamos.
+
+[10:11:45] Comercial: ¿Equipo por vuestra parte?
+
+[10:11:50] Álvaro Sanz: Dos desarrolladores míos disponibles a media jornada para la integración con ClinicWare, que es la parte donde vosotros vais a sufrir sin nuestro conocimiento del sistema. El resto lo hacéis vosotros.
+
+[10:12:30] Marta Ruiz: Y presupuesto. Tenemos aprobado un rango, prefiero no decirlo ahora para no condicionaros. Mandadnos la estimación y os digo si estamos cerca o lejos.
+
+[10:13:10] Comercial: Perfecto. Resumo para confirmar: portal de citas para red de doce clínicas, cuatro bloques funcionales, Rails más PostgreSQL más Redis, integración con ClinicWare y Twilio, requisitos RGPD reforzados por dato de salud, migración desde Excel como partida aparte, sólo España, sin móvil.
+
+[10:13:48] Álvaro Sanz: Correcto. Eso es exactamente el proyecto.
+
+[10:14:05] Marta Ruiz: Añade el registro de auditoría bien visible en el presupuesto, por favor. Es lo que nos va a preguntar nuestro DPO cuando lo revise.
+
+[10:14:30] Comercial: Anotado. Os mandamos la estimación desglosada por bloques la semana que viene.

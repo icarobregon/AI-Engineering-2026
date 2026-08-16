@@ -1,0 +1,85 @@
+Reunión de alcance — Cliente: Mecánicas Turón (ficticio)
+Fecha: 2026-03-18 · Duración: 47 min
+Asistentes: Jesús Arriaga (Director Industrial, Turón), Bea Lorente (Jefa de Mantenimiento, Turón), Pau Riera (Consultor externo), equipo comercial
+
+[09:30:15] Jesús Arriaga: Os pongo en contexto. Tenemos tres plantas de mecanizado, la de Avilés es la grande. Doscientas máquinas entre las tres, muchas de los años noventa y algunas del año pasado.
+
+[09:31:00] Bea Lorente: El problema es que el mantenimiento lo llevamos en papel y en una hoja de cálculo que mantengo yo. Cuando una máquina se para, el histórico de por qué se paró la última vez está en la cabeza de quien estuviera ese día.
+
+[09:31:50] Jesús Arriaga: Y lo que queremos es dar el salto a mantenimiento predictivo. Sensorizar las máquinas, recoger vibración y temperatura, y que un modelo nos avise antes de que se rompa.
+
+[09:32:30] Comercial: ¿Tenéis ya sensores instalados?
+
+[09:32:40] Jesús Arriaga: En doce máquinas de la línea nueva sí, vienen de fábrica. En el resto no.
+
+[09:33:15] Pau Riera: Aquí conviene matizar. Yo llevo tres meses con ellos y lo que veo es que antes de predecir nada hay que tener el dato básico ordenado. Hoy no hay ni un inventario fiable de activos.
+
+[09:33:50] Bea Lorente: Eso es verdad. Yo tengo un Excel con las doscientas máquinas pero está desactualizado desde el verano.
+
+[09:34:20] Comercial: Entonces, ¿por dónde empezamos? ¿Inventario y órdenes de trabajo, o directamente la parte predictiva?
+
+[09:34:40] Jesús Arriaga: Hombre, es que si hacemos sólo el inventario nos hemos gastado el dinero en un Excel más caro.
+
+[09:35:10] Pau Riera: Un CMMS no es un Excel más caro, Jesús. Es la base sobre la que se apoya lo otro.
+
+[09:35:40] Jesús Arriaga: Ya, ya te entiendo. Pero yo al comité tengo que llevarle algo que suene a futuro. Si les digo "hemos digitalizado las órdenes de trabajo" me miran raro.
+
+[09:36:25] Bea Lorente: A mí lo que me resolvería la vida mañana es lo de las órdenes de trabajo, con el móvil, para que los técnicos las cierren desde la planta y no me traigan el papel a mí.
+
+[09:37:00] Comercial: Vamos a listar todo lo que ha salido y luego priorizamos. Uno: inventario de activos. Dos: órdenes de trabajo con app móvil. Tres: ingesta de datos de sensores. Cuatro: modelo predictivo de fallo.
+
+[09:37:40] Jesús Arriaga: Añade cinco, integración con SAP. Porque las piezas de repuesto se piden desde SAP y si esto no habla con SAP, Bea acabará metiendo las cosas dos veces.
+
+[09:38:20] Bea Lorente: Eso sí. Ahora mismo yo pido repuesto por teléfono a compras y ellos lo meten en SAP.
+
+[09:39:00] Comercial: ¿Qué versión de SAP?
+
+[09:39:10] Jesús Arriaga: Ni idea. Eso lo lleva corporativo desde Madrid y son… complicados. Habría que pedirles acceso y no te aseguro que nos lo den este trimestre.
+
+[09:39:55] Pau Riera: Yo esa dependencia la sacaría de la primera fase. Es riesgo puro.
+
+[09:40:20] Jesús Arriaga: Pero sin SAP esto no vale para nada.
+
+[09:40:35] Pau Riera: Vale para que Bea deje de perder dos horas al día. Que no es poco.
+
+[09:41:10] Jesús Arriaga: A ver, dejadme pensar. Igual tenéis razón y hay que hacerlo en dos fases. Pero entonces la fase uno no puede ser sólo el inventario, tiene que llevar algo de la sensorización aunque sean las doce máquinas que ya tienen sensor.
+
+[09:41:55] Comercial: Eso se puede hacer, sí. Una fase uno con inventario, órdenes de trabajo y la ingesta de las doce máquinas que ya están sensorizadas, sin modelo predictivo todavía.
+
+[09:42:30] Jesús Arriaga: Sin modelo predictivo no. Algo tiene que haber. Aunque sea un umbral tonto, que si la vibración pasa de tanto salte un aviso.
+
+[09:43:00] Pau Riera: Eso ya no es predictivo, es una alarma por umbral. Que está bien, pero llamémoslo por su nombre.
+
+[09:43:20] Jesús Arriaga: Me da igual cómo lo llamemos mientras avise.
+
+[09:44:00] Bea Lorente: ¿Y lo del móvil sigue estando? Porque para mí eso es lo importante y llevamos veinte minutos sin nombrarlo.
+
+[09:44:15] Comercial: Sigue estando, sí. ¿Los técnicos tienen móvil de empresa?
+
+[09:44:25] Bea Lorente: Unos sí y otros no. Y en la nave de Avilés hay zonas sin cobertura.
+
+[09:45:00] Comercial: Entonces habría que pensar en que funcione sin conexión y sincronice después. Eso tiene un coste.
+
+[09:45:20] Jesús Arriaga: ¿Mucho?
+
+[09:45:30] Comercial: No es trivial. Es de las cosas que más suele sorprender en el presupuesto.
+
+[09:46:00] Jesús Arriaga: Pues igual eso lo dejamos para más adelante y de momento que lo cierren desde un ordenador en la oficina de planta.
+
+[09:46:20] Bea Lorente: Eso es volver al papel con pasos extra, Jesús. El técnico no va a ir a la oficina.
+
+[09:46:40] Jesús Arriaga: Ya, ya. Vale, no lo sé. Apuntadlo como opción y lo decidimos.
+
+[09:47:30] Comercial: Entonces, para que yo pueda estimar, ¿me confirmáis un alcance de fase uno?
+
+[09:47:45] Jesús Arriaga: Mándanos las dos versiones. La que dice Pau y la que digo yo, con el predictivo dentro. Y con SAP y sin SAP.
+
+[09:48:20] Pau Riera: Eso son cuatro presupuestos.
+
+[09:48:30] Jesús Arriaga: Pues cuatro. Así el comité elige.
+
+[09:49:00] Bea Lorente: Y por favor que en todas esté lo del móvil, aunque sea al final del todo.
+
+[09:49:30] Comercial: De acuerdo. ¿Plazo para presentarlo al comité?
+
+[09:49:40] Jesús Arriaga: El comité es a mediados de mayo, pero antes lo tengo que ver yo. Y probablemente cambie cosas.

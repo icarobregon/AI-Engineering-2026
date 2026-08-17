@@ -201,6 +201,69 @@ def test_generate_flags_incoherent_insufficient(client, monkeypatch):
     assert body["coherent"] is False
 
 
+# --- regression: the stage handler really reaches the pipeline --------------
+
+
+def test_retrieve_stage_reaches_the_real_pipeline(client, monkeypatch):
+    """The handler → pipeline → store path, with the seam NOT faked.
+
+    Guards a bug that mocks were hiding. This module's Stage-2 route handler is
+    named ``retrieve``, and so is the function it imports from
+    ``retrieval.pipeline``: an unaliased import gets shadowed by the handler, so
+    ``await retrieve(...)`` inside the handler resolves to the HANDLER — it calls
+    itself. The import is therefore aliased to ``run_retrieval``.
+
+    Every other test in this module fakes that seam, which replaces exactly the
+    shadowed name and so cannot see the problem. This one fakes only the STORE and
+    lets the real pipeline run. (``ruff``'s F811 is the precise guard against the
+    shadowing itself; this test is what proves the wiring carries a request.)
+    """
+    import app.dependencies as deps
+    from app.generation.rag.retrieval.pipeline import retrieve as real_pipeline
+
+    # The autouse `stub` fixture faked the seam for every test in this module.
+    # Put the REAL pipeline back — that is the whole point here.
+    monkeypatch.setattr(stages, "run_retrieval", real_pipeline)
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    class FakeStore:
+        async def search_filtered(self, session, **kwargs):
+            row = type(
+                "Row",
+                (),
+                {
+                    "id": 7,
+                    "document_id": 70,
+                    "chunk_type": "budget_component",
+                    "content": "Catalog and checkout component",
+                    "metadata_": {"client_sector": "ecommerce", "year": 2024},
+                    "distance": 0.28,
+                },
+            )()
+            return [row], 42
+
+    # NOTE: `stages.run_retrieval` is deliberately NOT patched.
+    monkeypatch.setattr(deps, "get_async_session_factory", lambda: FakeSession)
+    monkeypatch.setattr(deps, "get_chunk_store", lambda: FakeStore())
+
+    response = client.post(
+        "/v1/estimate/stages/retrieve",
+        json={"query_text": "online store card checkout", "search_mode": "vector", "rerank": False},
+        headers=_h(),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [chunk["id"] for chunk in body["chunks"]] == [7]
+    assert body["candidates_evaluated"] == 42
+
+
 # --- regression: existing endpoints still authenticate ---------------------
 
 def test_existing_endpoints_still_work(client, monkeypatch):

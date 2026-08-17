@@ -1,0 +1,59 @@
+{
+  "annotation_criterion": "A budget is relevant if an experienced estimator would open it as a direct effort reference for the project described — comparable kind of work and comparable scope. Sharing a sector, a technology or vocabulary is NOT enough.",
+  "annotation_notes": [
+    "Relevance is annotated in BINARY, deliberately. Graded scales are more expressive and less consistent; for deciding whether a technique enters the pipeline, binary is enough.",
+    "Annotated per BUDGET, not per chunk: the structural chunker emits one chunk per component, and 'which budgets would I use as a reference' is the question a human can actually answer. A retrieved chunk counts as relevant iff its parent budget_id is listed here.",
+    "Annotated over the base corpus (data/budgets_sample.json, 17 budgets, chunk_type='budget_component') so the score stays reproducible even if the task corpus is ingested later.",
+    "Queries are in English because that is the language the corpus is written in AND the language that reaches the retriever: the pipeline embeds compose_search_text(), which is canonical English, not the raw Spanish transcript."
+  ],
+  "corpus": "data/budgets_sample.json",
+  "chunk_types": ["budget_component"],
+  "k": 5,
+  "queries": [
+    {
+      "id": "Q1",
+      "tests": "Frequent and direct. The baseline case the system sees most often.",
+      "query": "E-commerce platform with a product catalog, shopping cart checkout and an admin panel for the operations team",
+      "relevant_budget_ids": ["BUD-2024-005", "BUD-2024-017"],
+      "rationale": "005 is a headless storefront (catalog API, cart and checkout, PWA); 017 is a bare-bones e-commerce MVP whose line items are literally product list, cart, checkout and admin page.",
+      "trap": "BUD-2024-006 (multi-vendor marketplace) and BUD-2024-007 (grocery delivery) are e-commerce and lexically close, but their effort sits in vendor KYC/payouts and route optimization — not in catalog, cart or admin.",
+      "borderline": "BUD-2024-006 — excluded because its bulk of work is vendor-centric, but a marketplace's split order management IS order management. Flag for review."
+    },
+    {
+      "id": "Q2",
+      "tests": "Frequent and direct, and the other half of the article's confusable pair (e-commerce vs payments).",
+      "query": "Real-time payments gateway with fraud detection, transaction reconciliation and a double-entry ledger",
+      "relevant_budget_ids": ["BUD-2024-003", "BUD-2024-001"],
+      "rationale": "003 is exactly this (gateway core, real-time fraud detection, settlement reconciliation); 001 contributes a directly comparable transaction ledger service and PSD2 payment initiation.",
+      "trap": "BUD-2024-006 has a 'vendor payouts engine' and BUD-2024-007 handles delivery payments — both are payments-shaped but e-commerce operations, not a gateway.",
+      "borderline": "BUD-2024-016 (core banking decomposition, 720h) — excluded: it is a migration project, a different kind of work even though the domain matches."
+    },
+    {
+      "id": "Q3",
+      "tests": "Exact terms that must be respected — the case where the lexical branch should earn its place. 'HL7/FHIR' is an acronym with little general semantic mass and high discriminative value.",
+      "query": "Telemedicine platform with HL7/FHIR integration for clinical records, patient appointment scheduling and video consultations",
+      "relevant_budget_ids": ["BUD-2024-009"],
+      "rationale": "009 is the only budget with an FHIR integration layer, appointment scheduling and telemedicine video sessions.",
+      "trap": "BUD-2024-010 (remote patient monitoring), BUD-2024-011 (pharmacy inventory) and BUD-2024-012 (clinical trials) share the healthcare sector and plenty of vocabulary, but cover different functionality.",
+      "borderline": "Single relevant budget on purpose. Note the measurement consequence: 009 has 4 components, so precision@5 over chunks caps at 0.80 for this query."
+    },
+    {
+      "id": "Q4",
+      "tests": "Known-hard case: adjacent domains inside the same sector.",
+      "query": "Industrial IoT platform ingesting sensor telemetry for predictive maintenance and real-time equipment monitoring in a factory",
+      "relevant_budget_ids": ["BUD-2024-013", "BUD-2024-015"],
+      "rationale": "013 is factory telemetry plus predictive maintenance models; 015 is a smart meter data pipeline with load forecasting — the same shape of work (high-volume telemetry ingestion feeding models), so a usable effort reference.",
+      "trap": "BUD-2024-014 (warehouse management with AGV coordination) is industrial, is 620h, and shares 'operations' vocabulary — but it is logistics, not telemetry-driven maintenance.",
+      "borderline": "BUD-2024-015 — included because the ingestion-plus-modelling effort transfers, but it is energy rather than manufacturing. The most debatable call in this set."
+    },
+    {
+      "id": "Q5",
+      "tests": "Long, messy and unstructured, the way a real meeting transcript is: fillers, self-corrections, topics arriving out of order, and one item explicitly out of scope. Deliberately the SAME intent as Q1 in a different shape, so the pair isolates the effect of query formulation — the axis where these techniques are supposed to shine, and where a golden set of only clean queries would give an unfairly tepid verdict.",
+      "query": "So what they kept coming back to is basically the online store, they want the product catalog obviously, and the cart, and they mentioned the checkout has to handle cards, and then separately, this came up late, they also want the admin panel so their ops people can manage orders, oh and they said something about recommendations like the big retailers have, and at some point someone asked about a mobile app but I don't think that is in scope for phase one",
+      "relevant_budget_ids": ["BUD-2024-005", "BUD-2024-017"],
+      "rationale": "Same project as Q1. 005 additionally covers the personalized recommendations the transcript mentions.",
+      "trap": "The verbosity itself: this query's embedding is the average of catalog, cart, checkout, admin panel, recommendations and a mobile app that is explicitly out of scope — a vector moderately close to everything and genuinely close to nothing.",
+      "borderline": "None beyond Q1's."
+    }
+  ]
+}

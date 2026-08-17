@@ -186,6 +186,13 @@ class RetrievedChunk(BaseModel):
     sector: str
     project_year: int
     chunk_type: str
+    # Parent budget of this chunk, flattened from JSONB like sector/year. The
+    # structural chunker emits one chunk per budget COMPONENT, so several chunks
+    # share a budget_id — and relevance is judged per budget, not per component:
+    # the golden set annotates "which budgets would an estimator use as a
+    # reference", which is the unit a human reasons about. Optional because a
+    # chunk from a corpus without that metadata key simply has none.
+    budget_id: str | None = None
     distance: float | None = Field(
         default=None,
         description=(

@@ -48,6 +48,7 @@ def _chunk_from_row(row, *, distance: float | None) -> RetrievedChunk:
         sector=str(row.metadata_.get("client_sector", "unknown")),
         project_year=int(row.metadata_.get("year", 0)),
         chunk_type=row.chunk_type,
+        budget_id=row.metadata_.get("budget_id"),
         distance=distance,
     )
 

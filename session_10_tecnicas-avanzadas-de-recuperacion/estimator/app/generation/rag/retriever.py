@@ -142,6 +142,7 @@ async def search_chunks(
             sector=str(row.metadata_.get("client_sector", "unknown")),
             project_year=int(row.metadata_.get("year", 0)),
             chunk_type=row.chunk_type,
+            budget_id=row.metadata_.get("budget_id"),
             distance=float(row.distance),
         )
         for row in rows

@@ -149,6 +149,13 @@ Y la **asimetría deliberada** entre los dos usos de los metadatos, que es la mo
 > También se ha corregido el nombre del servicio en el comando de verificación
 > (`ai-service` → `estimator`, que es como se llama en `docker-compose.yml`).
 
+> **Dónde está la entrega.** La implementación, la tabla comparativa A/B/C/D con
+> precisión y latencia, las conclusiones del Paso 5 y las limitaciones conocidas
+> están en la sección **"Sesión 10 — Búsqueda híbrida y reranking"** de
+> [`estimator/README.md`](estimator/README.md). El golden set anotado a mano vive
+> en `estimator/scripts/golden_set.json` y el arnés de medición en
+> `estimator/scripts/measure_retrieval.py`.
+
 **Contexto.** El pipeline RAG ya funciona de extremo a extremo: reformula la consulta, recupera presupuestos por similitud vectorial y genera una estimación con ese contexto. El problema es que "similar" no siempre significa "relevante": a veces el sistema recupera el presupuesto de una app de pagos cuando la consulta describe una plataforma de e-commerce. Cercano en el espacio vectorial, inútil para estimar.
 
 **Objetivo.** Atacar ese problema con dos técnicas — **búsqueda híbrida** y **reranking** — y, sobre todo, **medir si compensan**. El objetivo no es solo que la recuperación mejore: es poder demostrar con números cuánto mejora y a qué coste.

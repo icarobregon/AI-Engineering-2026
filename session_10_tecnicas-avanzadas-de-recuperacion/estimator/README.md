@@ -401,6 +401,112 @@ El tuning de Postgres para builds de índices vive en `docker-compose.yml` (serv
 1. Repositorio actualizado: índice halfvec activo, flags de tuning en compose, queries de monitorización en el README.
 2. Documento corto con los números observados en **vuestro** barrido de `ef_search` (tabla del script) y la decisión razonada del valor adoptado: qué recall ganáis y qué latencia pagáis frente a las alternativas.
 
+## Sesión 10 — Búsqueda híbrida y reranking
+
+El pipeline RAG de la Sesión 09 recupera por similitud vectorial, y el problema es que *"similar" no siempre significa "relevante"*: el sistema trae el presupuesto de una app de pagos cuando la consulta describe un e-commerce. Cerca en el espacio vectorial, inútil para estimar. Esta sesión ataca eso con dos técnicas — **búsqueda híbrida** y **reranking** — y, sobre todo, **mide si compensan**.
+
+### Qué se construyó
+
+**Rama léxica sobre `tsvector`.** La migración `0003_session10_fts` añade a `chunks` una columna generada `content_tsv` (`GENERATED ALWAYS ... STORED`) más su índice GIN. Columna generada y no trigger: PostgreSQL recalcula el vector en cada insert/update de `content`, así que el índice léxico no puede desincronizarse del texto que indexa. La columna se declara también en el ORM (`store/models.py`), sin lo cual el próximo `alembic revision --autogenerate` propondría **borrarla**.
+
+La configuración de text search es **`'english'`, no `'spanish'`**. El enunciado dice que el corpus está en español; no lo está: `data/budgets_sample.json` y `data/task_corpus.json` traen nombres y descripciones de componentes en inglés (*"Faceted search"*, *"Order lifecycle"*, *"Product catalog model"*), y solo los nombres de cliente y las transcripciones semilla están en español. Un analizador español sobre texto inglés no eliminaría las stopwords inglesas ni haría stemming correcto, y eso subestimaría la rama léxica justo en la comparación que hay que medir. El literal vive en `TEXT_SEARCH_CONFIG` y la migración guarda su propia copia a propósito (una migración es un registro histórico, no debe cambiar de significado al editar una constante); un test vigila que no divergan.
+
+**Semántica OR, no AND.** `websearch_to_tsquery` —el que sugiere el enunciado— y `plainto_tsquery` unen los términos con AND. Con una consulta real del dominio eso produce:
+
+```
+'e-commerc' <-> 'e' <-> 'commerc' & 'platform' & 'product' & 'catalog'
+  & 'shop' & 'cart' & 'checkout' & 'admin' & 'panel'
+```
+
+Nueve términos obligatorios contra un corpus de empresa: **cero resultados**. Como la entrada real del sistema son descripciones largas de proyecto, la rama léxica habría devuelto lista vacía en casi toda consulta, la híbrida habría degradado en silencio a vectorial, y la tabla comparativa habría "demostrado" que la híbrida no aporta nada — cuando en realidad nunca llegó a ejecutarse. `_or_tsquery()` cambia el operador sobre el tsquery ya normalizado por `plainto_tsquery` y deja que `ts_rank` discrimine, que es la conducta bag-of-words que esta rama debe tener.
+
+**Fusión RRF.** `retrieval/fusion.py` fusiona por posición y no por puntuación, porque las dos ramas producen escalas incomparables: distancia coseno acotada donde menos es mejor, `ts_rank` sin cota donde más es mejor. Normalizar y combinar con pesos funciona en la demo y se rompe en producción, porque la distribución cambia con cada consulta. RRF lo esquiva, y es **una máquina de premiar el consenso**: aparecer razonablemente arriba en varias ramas vale más que arrasar en una. Recibe una *lista* de rankings, no exactamente dos, así que la expansión de consultas y el routing multi-índice reutilizarán la misma pieza.
+
+**Recall-then-rerank.** `retrieval/pipeline.py` expone un único `retrieve()` que compone las cuatro configuraciones detrás de dos interruptores. Cada parámetro resuelve igual: **argumento explícito → settings**. No pasar nada ejecuta lo que el despliegue tenga configurado; pasarlo lo sobreescribe solo para esa llamada. Activar el reranking es un cambio de configuración, y comparar técnicas es un experimento sobre dos booleanos.
+
+Dos detalles que no salen en los tutoriales y sí en los incidentes:
+
+- La búsqueda vectorial es asíncrona (I/O contra la BD) y el cross-encoder no (cómputo local). Unos cientos de milisegundos de inferencia en el event loop **bloquean todas las demás peticiones** mientras duran, así que se despacha con `asyncio.to_thread`. Hay un test de comportamiento, no solo de nombre de hilo: un ticker concurrente debe completar sus 20 ticks mientras un rerank bloqueante de 200 ms está en vuelo.
+- Los pesos del modelo (~450 MB) viven en el volumen `hf_cache` con `HF_HOME`. El directorio se crea **en el Dockerfile** con propietario `appuser`, porque Docker inicializa un volumen nuevo desde el directorio de la imagen, propiedad incluida; sin eso el volumen nace de root, el contenedor no-root no puede escribir y el primer rerank muere con `PermissionError`.
+
+### Cómo reproducir la medición
+
+```bash
+docker compose up -d
+
+# Gate del enunciado: ¿carga y puntúa el cross-encoder?
+docker compose exec estimator python -m app.generation.rag.retrieval.verify_reranker
+
+# Corpus (idempotente: los ya ingeridos responden 409 y se saltan)
+docker compose exec estimator python scripts/query_examples.py
+
+# Las cuatro configuraciones contra el golden set
+docker compose exec estimator python scripts/measure_retrieval.py
+```
+
+Las cuatro configuraciones también son alcanzables por petición, sin reiniciar nada:
+
+```bash
+http POST :8000/v1/retrieval/search X-API-Key:$RETRIEVAL_API_KEY \
+  query_text="e-commerce platform with product catalog and checkout" \
+  search_mode=hybrid rerank:=true
+```
+
+### Resultados
+
+Golden set de 5 consultas (`scripts/golden_set.json`), corpus de 17 presupuestos / 60 chunks, `k=5`, conjunto amplio `recall_k=50`, mediana de 5 ejecuciones por consulta, medición en caliente con precalentamiento global de las cuatro configuraciones.
+
+| Configuración | Búsqueda | Reranking | precision@5 | recall@5 | Presupuestos distintos | Latencia |
+|---|---|---|---|---|---|---|
+| **A** | Vectorial | No | 0,88 | 1,00 | 2,4 / 5 | **2 ms** |
+| **B** | Híbrida | No | 0,92 | 1,00 | 2,2 / 5 | **2 ms** |
+| **C** | Vectorial | Sí | **0,96** | 1,00 | 2,0 / 5 | **327 ms** |
+| **D** | Híbrida | Sí | 0,92 | 1,00 | 2,2 / 5 | **2.383 ms** |
+
+Deltas contra A: `B +0,04 / +0 ms` · `C +0,08 / +325 ms` · `D +0,04 / +2.381 ms`. El embebido de la consulta (159 ms de mediana) queda fuera de la columna de latencia porque es la misma constante en las cuatro filas: incluirlo sumaría lo mismo a todas importando jitter de red a la comparación.
+
+| Query | Qué prueba | A | B | C | D |
+|---|---|---|---|---|---|
+| Q1 | E-commerce, frecuente y directa | 0,80 | 1,00 | 1,00 | 1,00 |
+| Q2 | Pagos, frecuente y directa | 1,00 | 1,00 | 1,00 | 1,00 |
+| Q3 | Términos exactos (`HL7/FHIR`) | 0,80 | 0,80 | 0,80 | 0,80 |
+| Q4 | Dominios colindantes | 0,80 | 0,80 | 1,00 | 1,00 |
+| Q5 | Transcripción larga y desordenada | 1,00 | 1,00 | 1,00 | 0,80 |
+
+Tres ejecuciones independientes dieron la misma precisión: la recuperación es determinista. Las latencias de A y B son estables; C osciló entre 327 y 390 ms y D entre 2.383 y 3.109 ms con la máquina en reposo, y se degradaron a 1.546 y 3.987 ms con la máquina cargada — de ahí que la medición se repitiera con la carga por debajo de 4.
+
+**Dónde se mueve la aguja, con nombre y apellidos.** Las medias esconden lo interesante:
+
+- **Q4 es el fallo que da nombre a la sesión, y lo desactiva el reranker.** Con A, el quinto puesto lo ocupaba `BUD-2024-014` — almacén con AGV: sector industrial, 620 h, vocabulario de operaciones compartido, y **logística en vez de telemetría**. C y D lo sustituyen por un chunk relevante de `BUD-2024-015`. La híbrida sola no lo arregla: cambia un distractor por otro (`BUD-2024-010`, monitorización de pacientes).
+- **Q1 la arregla la híbrida.** A colaba `BUD-2024-008` (devoluciones de moda) en cuarta posición; B, C y D lo eliminan.
+- **Q3 es el techo, no un fallo.** `BUD-2024-009` es el único presupuesto relevante y tiene 4 componentes, así que 0,80 es el máximo alcanzable. El quinto puesto lo ocupa `BUD-2024-012` en las cuatro configuraciones y ninguna técnica puede mejorarlo.
+- **Q5 es la única regresión, y le pasa a la configuración más cara.** D puso `BUD-2024-016` —descomposición de un core bancario monolítico— en **primera** posición para la transcripción de e-commerce. El mecanismo es identificable: la fusión ensancha el pool de 27 a 44 candidatos, mete presupuestos que el umbral vectorial había descartado, y el cross-encoder se equivoca puntuando uno de ellos contra una consulta verbosa y multitema. Más candidatos no es mejor si el reranker tiene que ordenar más ruido.
+
+### Conclusiones — qué configuración usaría y por qué
+
+**Se queda B (híbrida sin reranking), y el reranking espera.**
+
+La razón de quedarse con B no es que gane mucho: es que **gana algo y no cuesta nada**. +0,04 de precisión y +0 ms medibles, porque las dos ramas corren concurrentemente y la léxica se sirve por índice GIN sobre el mismo PostgreSQL — ni un almacén nuevo, ni sincronización entre almacenes, ni un modelo más que operar. No hay tabla de decisión que justifique rechazar una mejora de coste cero, y la rama léxica es además la única que cubre el punto ciego de lo literal, que en estimación no es el caso raro sino el pan de cada día (`Stripe`, `SAP`, `HL7/FHIR`, `React Native`).
+
+La razón de **no** meter el reranking todavía no es su latencia, y esto importa: en este producto la generación posterior tarda varios segundos, así que los 325 ms de C serían menos del 5 % del total percibido — asumibles de sobra. La razón es que **el problema que el reranking resuelve no está presente en este corpus**. `recall@5` sale 1,00 en las cuatro configuraciones: todos los presupuestos relevantes ya entran en el top-5 sin hacer nada. El artículo da la señal precisa de cuándo el reranking es la herramienta correcta — *"los documentos relevantes están entre los candidatos, pero no arriba"* — y aquí ya están arriba, partiendo de 0,88 y no de 0,48.
+
+El `+0,08` de C son **dos chunks en dos consultas**, y una de las dos es la trampa que construimos a propósito. Ese es el retrato exacto de la **zona traicionera** del cuadrante: ganancia pequeña con coste pequeño, donde el coste real nunca es solo la latencia — es el modelo extra que operar, los 450 MB de pesos y los ~6 GB de imagen, la dependencia que actualizar y el modo de fallo nuevo que diagnosticar a las tres de la mañana. Una mejora de dos chunks sobre cinco consultas no paga ese peaje, y la tabla es precisamente lo que permite decir "no" con fundamento en lugar de con desgana.
+
+**D se descarta con datos, no con opinión:** cuesta 7 veces lo que C, puntúa peor que C, y su única regresión es explicable. Es el clásico de acumular técnicas porque están disponibles.
+
+El código de las tres técnicas se queda en el repositorio, apagado por configuración (`RETRIEVAL_SEARCH_MODE=hybrid`, `RERANKER_ENABLED=false`), porque el trabajo caro ya está hecho y encenderlo cuando aparezca la evidencia es cambiar un booleano. Y la evidencia que lo justificaría es observable y concreta: `recall@k` alto con `precision@k` bajo de forma recurrente, es decir, los relevantes entrando en el conjunto amplio pero no en el top-5.
+
+### Limitaciones conocidas
+
+Dicho con honestidad, porque una medición que no declara sus límites invita a sobreinterpretarla:
+
+- **El corpus es demasiado fácil para esta pregunta.** 17 presupuestos en 4 sectores muy separados (finanzas, e-commerce, sanidad, industrial). La búsqueda vectorial casi no falla, así que el techo está demasiado cerca del suelo y la medición no puede discriminar con fuerza. La conclusión de arriba es sobre *este corpus*, no sobre las técnicas.
+- **Cinco consultas no tienen potencia estadística.** Un `+0,04` es un chunk en una consulta. Las diferencias que justifican decisiones son las grandes y consistentes, no las centésimas.
+- **La anotación arrastra el sesgo de quien anota**, y el caso más discutible está marcado en el propio golden set (`BUD-2024-015` en Q4: el esfuerzo de ingesta de telemetría más modelos transfiere, pero es energía y no manufactura).
+- **`precision@5` se mide sobre chunks**, que es lo que el pipeline entrega al generador. Pero el chunker emite un chunk por componente, así que un presupuesto puede ocupar varias plazas legítimamente: 2,0–2,4 presupuestos distintos por top-5. El contexto lleva menos referencias independientes de las que parece. Se descartó una métrica de precisión sobre presupuestos deduplicados porque invierte el significado que dice medir — el denominador se encoge con la duplicación, de modo que premia traer *menos* presupuestos distintos.
+- **El `distance_threshold` de 0,6 es el que limita el recall real, no `recall_k`.** La rama vectorial devuelve 12–27 candidatos, nunca los 50 configurados, así que el "conjunto amplio" del patrón no es tan amplio como dice la configuración — y eso abarata artificialmente a C.
+- **La medición se detiene en la recuperación.** Dice qué documentos llegan al LLM, no qué hace el LLM con ellos. Una recuperación perfecta no garantiza una estimación correcta; solo la hace posible.
+
 ---
 
 > Este proyecto forma parte del **Master en AI Engineering** y es la base sobre la que se construye en directo el resto de la Sesión 04 (output estructurado, guardrails, cache semántico) y de la Sesión 05 (compresión avanzada de memoria con anclas, tier dinámico, patrón Actor-Critic-Boss).

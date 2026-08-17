@@ -30,14 +30,32 @@ from __future__ import annotations
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, ForeignKey, Index, String, Text, func, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, Computed, ForeignKey, Index, String, Text, func, text
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
 
 from app.foundation.persistence.models import Base
 
 EMBEDDING_DIMENSIONS = 1536  # text-embedding-3-small
+
+# PostgreSQL text search configuration for the lexical branch. It fixes the
+# stemming rules and the stop-word list, and BOTH sides must agree: a tsvector
+# built with one configuration and queried with another silently under-matches.
+# Every lexical query imports this constant instead of inlining a literal.
+#
+# 'english' — not 'spanish' — because that is the language the corpus is actually
+# written in: data/budgets_sample.json and data/task_corpus.json hold English
+# component names and descriptions ("Faceted search", "Order lifecycle",
+# "Product catalog model"). Only client names and the seed transcripts are in
+# Spanish. The exercise statement says the budgets are in Spanish; they are not,
+# and a Spanish analyser over English text would neither strip English stop words
+# nor stem correctly, which would understate the lexical branch in exactly the
+# A/B/C/D comparison this session has to measure.
+#
+# Changing this value requires a new migration that rebuilds the generated
+# column — the stored tsvector is only as good as the configuration that built it.
+TEXT_SEARCH_CONFIG = "english"
 
 
 class DocumentRow(Base):
@@ -65,6 +83,9 @@ class ChunkRow(Base):
         Index("ix_chunks_document_id", "document_id"),
         Index("ix_chunks_chunk_type", "chunk_type"),
         Index("ix_chunks_metadata_gin", "metadata", postgresql_using="gin"),
+        # Inverted index over the tsvector — the structure that makes the lexical
+        # branch a lookup instead of a scan.
+        Index("ix_chunks_content_tsv", "content_tsv", postgresql_using="gin"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -78,6 +99,17 @@ class ChunkRow(Base):
     )
     metadata_: Mapped[dict] = mapped_column(
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    # Lexical index payload: `content` tokenized, lowercased, stop-worded and
+    # stemmed. GENERATED ALWAYS ... STORED, so PostgreSQL recomputes it on every
+    # insert/update of `content` — no trigger to maintain and no way for the
+    # lexical index to drift from the text it indexes. Read-only from the app
+    # (SQLAlchemy excludes Computed columns from INSERT/UPDATE); nullable because
+    # the DDL adds no NOT NULL, though in practice it is never null.
+    content_tsv: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed(f"to_tsvector('{TEXT_SEARCH_CONFIG}', content)", persisted=True),
+        nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

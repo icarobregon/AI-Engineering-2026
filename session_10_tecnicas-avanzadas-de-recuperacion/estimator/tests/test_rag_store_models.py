@@ -8,9 +8,12 @@ CASCADE FK and the deliberate absence of a vector index.
 
 from __future__ import annotations
 
-from pgvector.sqlalchemy import Vector
+from pathlib import Path
 
-from app.generation.rag.store.models import ChunkRow, DocumentRow
+from pgvector.sqlalchemy import Vector
+from sqlalchemy.dialects.postgresql import TSVECTOR
+
+from app.generation.rag.store.models import TEXT_SEARCH_CONFIG, ChunkRow, DocumentRow
 
 
 def test_metadata_attribute_maps_to_metadata_column():
@@ -44,5 +47,41 @@ def test_relational_indexes_present():
         "ix_chunks_document_id",
         "ix_chunks_chunk_type",
         "ix_chunks_metadata_gin",
+        # Session 10: inverted index backing the lexical branch.
+        "ix_chunks_content_tsv",
     }
     assert {index.name for index in DocumentRow.__table__.indexes} == {"ix_documents_source_path"}
+
+
+def test_content_tsv_is_a_stored_generated_column():
+    """Session 10: the lexical column must be derived, stored and read-only.
+
+    If it stopped being generated, the app would have to maintain it by hand and
+    the lexical index could silently drift from ``content``.
+    """
+    content_tsv = ChunkRow.__table__.c.content_tsv
+    assert isinstance(content_tsv.type, TSVECTOR)
+    assert content_tsv.computed is not None
+    assert content_tsv.computed.persisted is True
+    assert f"to_tsvector('{TEXT_SEARCH_CONFIG}', content)" in str(content_tsv.computed.sqltext)
+
+
+def test_content_tsv_index_is_gin():
+    """GIN is the inverted index; a btree over a tsvector would not serve @@."""
+    index = next(
+        index for index in ChunkRow.__table__.indexes if index.name == "ix_chunks_content_tsv"
+    )
+    assert index.dialect_options["postgresql"]["using"] == "gin"
+    assert {col.name for col in index.columns} == {"content_tsv"}
+
+
+def test_text_search_config_matches_the_migration():
+    """The indexed configuration and the queried one must never diverge.
+
+    ``0003_session10_fts`` hardcodes its own literal on purpose (a migration is a
+    historical record), so this test is what keeps the two copies honest.
+    """
+    migration = (
+        Path(__file__).resolve().parents[1] / "alembic" / "versions" / "0003_session10_fts.py"
+    )
+    assert f'TEXT_SEARCH_CONFIG = "{TEXT_SEARCH_CONFIG}"' in migration.read_text()

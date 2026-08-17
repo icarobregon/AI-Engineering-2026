@@ -356,14 +356,25 @@ de métrica del arnés. Cobertura de `repository.py`: 34% → 66%. Suite: 343 �
   sin índice HNSW cuesta 2,2× más que el peor caso léxico, y corren en paralelo: reestructurar no
   ahorra nada en el endpoint.
 
-### 4.6 Lo que quedó pendiente, y por qué es una decisión y no un olvido
+### 4.6 Decisiones tomadas sobre los hallazgos restantes
 
-- **`ts_rank` sin normalización por longitud.** El corpus tiene un chunk atípico de 7.700 caracteres
-  (`BUD-2024-016`, frente a una media de 483) que entra en el top-5 léxico de las cinco consultas y no
-  es relevante en ninguna — es el mecanismo detrás de la única regresión de la config D. Añadir el flag
-  de normalización subiría `precision@5` de B de 0,92 a 0,96, empatando con C, lo que **cambia el
-  argumento del entregable aunque no la decisión de quedarse con B**. Se deja como decisión explícita
-  del autor, no como cambio silencioso.
-- **Un caso negativo fuera de dominio en el golden set** (`relevant_budget_ids: []`), que convertiría
-  el arreglo de §4.1 en algo medido y no argumentado. Requiere una métrica nueva (acierto del
-  soft-fail) y tocar un golden set ya validado.
+- **`ts_rank` sin normalización por longitud: se deja como está, deliberadamente.** El corpus tiene un
+  chunk atípico de 7.700 caracteres (`BUD-2024-016`, frente a una media de 483) que entra en el top-5
+  léxico de las cinco consultas sin ser relevante en ninguna, y es el mecanismo detrás de la única
+  regresión de la config D. Añadir el flag de normalización subiría `precision@5` de B de 0,92 a 0,96.
+
+  **No se aplica**, por tres razones. Primera: +0,04 sobre un golden set de 5 consultas es un chunk en
+  una consulta — exactamente el orden de magnitud que este mismo informe usa para rechazar el
+  reranking, y aplicar aquí un criterio distinto sería incoherente. Segunda: el radio de impacto no es
+  proporcional al tamaño del cambio — reordenar la rama léxica cambia las posiciones que ve RRF, y por
+  tanto el pool fusionado y lo que recibe el reranker; es mucha superficie movida por una ganancia
+  dentro del ruido. Tercera, y honesta: la cifra de 0,96 procede de la medición de la revisión y **no
+  se ha reproducido de forma independiente**, así que la decisión de aplicarla se estaría tomando sobre
+  un número no verificado en primera persona.
+
+  Queda documentado como candidato con causa raíz identificada, para cuando el corpus crezca y la
+  diferencia deje de ser ruido.
+- **Un caso negativo fuera de dominio en el golden set** (`relevant_budget_ids: []`) queda pendiente.
+  Convertiría el arreglo de §4.1 en algo medido y no argumentado, pero requiere una métrica nueva
+  (acierto del soft-fail, no precisión) y tocar un golden set ya validado. Hoy ese arreglo está
+  cubierto por tres tests unitarios y verificado en vivo contra el endpoint.

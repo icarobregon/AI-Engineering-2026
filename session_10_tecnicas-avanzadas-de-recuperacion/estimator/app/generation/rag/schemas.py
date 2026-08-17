@@ -186,7 +186,15 @@ class RetrievedChunk(BaseModel):
     sector: str
     project_year: int
     chunk_type: str
-    distance: float = Field(description="Cosine distance (lower = more similar).")
+    distance: float | None = Field(
+        default=None,
+        description=(
+            "Cosine distance (lower = more similar), or None when this chunk was "
+            "surfaced only by the lexical branch and therefore never entered the "
+            "vector ranking. None means 'not scored', not 'scored badly' — a "
+            "sentinel value here would end up in the generator's prompt as a fact."
+        ),
+    )
 
 
 class RetrievalResult(BaseModel):
@@ -226,13 +234,9 @@ class TaskItem(BaseModel):
     """
 
     name: str
-    description: str | None = Field(
-        default=None, description="One-line scope of the task."
-    )
+    description: str | None = Field(default=None, description="One-line scope of the task.")
     engineer_days: int = Field(ge=0)
-    sources: list[int] = Field(
-        default_factory=list, description="Chunk ids that back this task."
-    )
+    sources: list[int] = Field(default_factory=list, description="Chunk ids that back this task.")
 
 
 class WorkModule(BaseModel):
@@ -240,9 +244,7 @@ class WorkModule(BaseModel):
     grouping the concrete tasks needed to deliver it."""
 
     name: str
-    description: str | None = Field(
-        default=None, description="What this functional block covers."
-    )
+    description: str | None = Field(default=None, description="What this functional block covers.")
     tasks: list[TaskItem] = Field(default_factory=list)
 
 
@@ -353,6 +355,4 @@ class GenerateResult(BaseModel):
         default_factory=list,
         description="Cited source ids not present in kept_chunks (empty = clean).",
     )
-    coherent: bool = Field(
-        description="False when an insufficient estimate still carries numbers."
-    )
+    coherent: bool = Field(description="False when an insufficient estimate still carries numbers.")

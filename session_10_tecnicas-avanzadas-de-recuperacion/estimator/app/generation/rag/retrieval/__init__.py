@@ -1,5 +1,9 @@
 """Retrieval techniques layered on top of the Session 9 vector retriever.
 
+* ``fulltext_search`` — lexical branch over the generated ``content_tsv`` column.
+* ``fusion`` — Reciprocal Rank Fusion; combines rankings by position, not score.
+* ``hybrid_search`` — runs the semantic and lexical branches concurrently and
+  fuses them into one ranking.
 * ``reranker`` — cross-encoder wrapper (model loading + query/document pair
   scoring). Given by the exercise; the recall width and the final cut are
   orchestration decisions that live outside it.

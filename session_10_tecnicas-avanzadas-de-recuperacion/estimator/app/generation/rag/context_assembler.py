@@ -17,11 +17,18 @@ from app.generation.rag.schemas import RetrievedChunk
 
 
 def _wrap_chunk(chunk: RetrievedChunk) -> str:
-    """Render a single chunk as a self-describing ``<source>`` XML element."""
+    """Render a single chunk as a self-describing ``<source>`` XML element.
+
+    ``distance`` is OMITTED when the chunk has none — a hybrid-search chunk found
+    only by the lexical branch never entered the vector ranking. Emitting a
+    sentinel (say 1.0, "maximally dissimilar") would put a fabricated number in
+    front of the generator for a document the lexical branch ranked first.
+    """
+    distance = f' distance="{chunk.distance:.4f}"' if chunk.distance is not None else ""
     return (
         f'<source id="{chunk.id}" sector="{chunk.sector}" '
-        f'project_year="{chunk.project_year}" chunk_type="{chunk.chunk_type}" '
-        f'distance="{chunk.distance:.4f}">\n'
+        f'project_year="{chunk.project_year}" chunk_type="{chunk.chunk_type}"'
+        f"{distance}>\n"
         f"{chunk.content}\n"
         f"</source>"
     )

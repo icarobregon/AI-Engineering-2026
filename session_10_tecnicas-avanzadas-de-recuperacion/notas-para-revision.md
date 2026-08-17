@@ -10,8 +10,6 @@ y de la tabla comparativa A/B/C/D.
 
 ### 1.1 Errores en el enunciado del ejercicio
 
-- **La rama `session-10` que cita el enunciado no existe.** El repositorio de LIDR usa guiones
-  bajos: `session_10`. Verificado con `git ls-remote --heads`.
 - **La rama `session_10` contiene ya la solución completa del ejercicio, no el punto de partida.**
   Diffeándola contra `session_09_live` aparecen 7 ficheros nuevos (`retrieval/fusion.py`,
   `retrieval/pipeline.py`, `alembic/versions/0003_session10_fts.py`, `evals/golden_retrieval.json`,
@@ -35,19 +33,13 @@ y de la tabla comparativa A/B/C/D.
   `distance_threshold=0,6` heredado de la Sesión 09 limita antes:** la rama vectorial devuelve 12–27
   candidatos, nunca los 50 configurados. El "conjunto amplio" no es tan amplio como dice la
   configuración.
-- **El enunciado pide abrir el PR desde una rama `session-10/pre-work`.** Se ha seguido la convención
-  del repositorio personal (`session_NN_<kebab-slug>`, una rama y una carpeta por sesión), que es la
-  que mantiene el histórico auto-contenido de todo el máster.
 
 ### 1.2 Problemas del entorno y del código de partida
 
-- **El hook `block-session-merge.sh` se invocaba con ruta relativa** (`bash .claude/hooks/…`), así
-  que fallaba con *"No such file or directory"* en cada llamada a Bash en cuanto el shell no estaba
-  en la raíz del repo. Corregido con `$CLAUDE_PROJECT_DIR`.
 - **El comando de test documentado en `CLAUDE.md` no funcionaba, y fallaba de las dos formas más
   desorientantes posibles.** La imagen solo copia `app/`, así que (a) pytest corría sin
-  configuración, `asyncio_mode` caía a `strict` y 10 tests async fallaban con *"async def functions
-  are not natively supported"* — indistinguible de código roto; y (b) `tests/test_evals_*.py` y
+  configuración, `asyncio_mode` caía a `strict` y 10 tests async fallaban con _"async def functions
+  are not natively supported"_ — indistinguible de código roto; y (b) `tests/test_evals_*.py` y
   `tests/test_stress_*.py` importan el paquete `evals`, que tampoco está en la imagen, y los 4
   módulos petaban **en colección**, abortando la ejecución completa. Se montan ambos.
   Antes: 4 errores de colección. Después: 309 passed con el comando documentado.
@@ -66,9 +58,6 @@ y de la tabla comparativa A/B/C/D.
   repositorio.** Eliminado junto con sus 24 referencias en `docker-compose.yml`, `CLAUDE.md`,
   `arquitectura-actual.md`, `estimator/{ARCHITECTURE,README}.md`, `estimator/docker-compose.yml`,
   `estimator/.env.example` y 3 docstrings de código.
-- **`examples/` era material exclusivo de la Sesión 09** (`trace_s09.py` lo dice en su propio
-  docstring: *"adds NO new behaviour… no reranking, no generation — that is live-session work"*).
-  Eliminado de esta rama.
 
 ### 1.3 Bugs propios, detectados y corregidos
 
@@ -85,8 +74,6 @@ y de la tabla comparativa A/B/C/D.
   `[005, 005, 017, 017, 005]` → distintos `[005, 017]` → 1,00. B puntuaba mejor **solo por traer
   menos presupuestos distintos**. Descartada y sustituida por el recuento de presupuestos distintos,
   que muestra el mismo efecto sin fingir ser una precisión.
-- **Latencias medidas con la máquina contaminada.** Las dos primeras pasadas coincidieron con builds
-  de Docker (carga 27) y daban C=1.546 ms y D=3.987 ms. Repetidas con la carga por debajo de 4.
 - **Tres expectativas propias erróneas en las verificaciones ad-hoc**, corregidas en lugar de
   descartadas: la semántica AND de `websearch_to_tsquery`, el seq scan sobre una tabla de 5 filas
   (que es la decisión correcta del planificador, no un defecto), y un `top_k=2` sobre una consulta
@@ -96,9 +83,9 @@ y de la tabla comparativa A/B/C/D.
 
 - **`websearch_to_tsquery` y `plainto_tsquery` unen los términos con AND.** Con una consulta real del
   dominio, `websearch_to_tsquery('english', 'E-commerce platform with product catalog, shopping cart
-  checkout and an admin panel')` produce
+checkout and an admin panel')` produce
   `'e-commerc' <-> 'e' <-> 'commerc' & 'platform' & 'product' & 'catalog' & 'shop' & 'cart' &
-  'checkout' & 'admin' & 'panel'` — nueve términos **obligatorios**.
+'checkout' & 'admin' & 'panel'` — nueve términos **obligatorios**.
 - Como la entrada real del sistema son descripciones largas de proyecto y transcripciones, la rama
   léxica habría devuelto lista vacía en casi toda consulta, **la híbrida habría degradado en silencio
   a vectorial**, y la tabla A/B/C/D habría "demostrado" que la búsqueda híbrida no aporta nada —
@@ -176,7 +163,7 @@ y de la tabla comparativa A/B/C/D.
   masa semántica general y más valor discriminante — los que peor sobreviven a la compresión del
   embedding.
 - **El punto ciego complementario también se mide:** `websearch_to_tsquery('english', 'recurring
-  charges')` no recupera el presupuesto de Stripe, y viceversa. Cada rama falla donde la otra acierta,
+charges')` no recupera el presupuesto de Stripe, y viceversa. Cada rama falla donde la otra acierta,
   que es el argumento entero de la búsqueda híbrida.
 - **El índice GIN es usable, y el seq scan no es un defecto.** Con 60 filas el `EXPLAIN` normal da
   `Seq Scan`, que es la decisión **correcta** del planificador; forzando `enable_seqscan = off`
@@ -191,8 +178,14 @@ y de la tabla comparativa A/B/C/D.
 - **La semántica AND daba cero resultados en la consulta realista; con OR pasa a resultados
   ordenados.** Ese cambio de 0 a N es la diferencia entre medir la búsqueda híbrida y creer haberla
   medido.
-- **La rama léxica aporta volumen real:** 33–41 hits sobre 60 chunks según la consulta, y el pool
-  fusionado sube a 44–48. No es una rama decorativa que confirme lo que la vectorial ya sabía.
+- **La rama léxica aporta volumen, pero buena parte es ruido** — corregido tras la revisión. Los
+  recuentos reales son 17–36 hits sobre 60 chunks y un pool fusionado de 21–44 (las cifras 33–41 y
+  44–48 que aparecían aquí se tomaron con otro estado de la base de datos). Y ese volumen **no es
+  señal**: `client`, `main`, `sector` y `project` están en 60 de 60 chunks porque los inyecta la
+  plantilla `[Project: …] [Client sector: …]`, así que una consulta con cualquiera de esas palabras
+  recupera el corpus entero. En Q4 y Q5 el pool iguala a la rama léxica, o sea que la vectorial es un
+  subconjunto estricto de ella. Lo que salva a la híbrida es que **RRF fusiona por posición**: los
+  aciertos de plantilla quedan abajo y la fusión extrae la parte útil.
 - **RRF premia el consenso con las cifras del paper:** un presupuesto 2.º en semántica y 5.º en léxica
   suma `1/61 + 1/64 ≈ 0,0320`, y uno 1.º en semántica pero ausente en léxica `1/60 ≈ 0,0167`. El
   consenso gana por un factor de casi 2, que es el rescate exacto que necesita el caso de la
@@ -223,8 +216,8 @@ y de la tabla comparativa A/B/C/D.
 
 - **`recall@5` sale 1,00 en las cuatro configuraciones.** Es el número más importante de todo el
   ejercicio: todos los presupuestos relevantes ya entran en el top-5 sin hacer nada. La señal del
-  artículo para saber que el reranking es la herramienta correcta es *"los relevantes están entre los
-  candidatos, pero no arriba"*, y aquí ya están arriba. **El cuello de botella no está donde estas
+  artículo para saber que el reranking es la herramienta correcta es _"los relevantes están entre los
+  candidatos, pero no arriba"_, y aquí ya están arriba. **El cuello de botella no está donde estas
   técnicas ayudan.**
 - **`precision@5`: A 0,88 · B 0,92 · C 0,96 · D 0,92.** Partimos de 0,88, no del 0,48 del escenario
   que motiva la sesión, así que apenas hay margen que ganar.
@@ -235,7 +228,7 @@ y de la tabla comparativa A/B/C/D.
   entre almacenes, ni un modelo más que operar. **No hay tabla de decisión que justifique rechazar una
   mejora de coste cero.**
 - **El +0,08 de C son dos chunks en dos consultas, y una de las dos es la trampa que construimos a
-  propósito.** Es el retrato exacto de la *zona traicionera* del cuadrante: ganancia pequeña con coste
+  propósito.** Es el retrato exacto de la _zona traicionera_ del cuadrante: ganancia pequeña con coste
   pequeño, donde el coste real nunca es solo la latencia — es el modelo extra que operar, los 450 MB
   de pesos, los ~6 GB de imagen (la imagen pasó de 1,4 a 6,6 GB al añadir `sentence-transformers`), la
   dependencia que actualizar y el modo de fallo nuevo que diagnosticar a las tres de la mañana.
@@ -280,3 +273,97 @@ apagado por configuración, porque el trabajo caro ya está hecho y encenderlo c
 evidencia es cambiar un booleano. La evidencia que lo justificaría es observable y concreta:
 `recall@k` alto con `precision@k` bajo de forma recurrente, es decir, los relevantes entrando en el
 conjunto amplio pero no en el top-5.
+
+---
+
+## 4. Revisión posterior al cierre: qué encontró y qué se corrigió
+
+Con el ejercicio ya entregado se pasó una revisión adversarial sobre la implementación completa
+(seis revisores independientes por dimensión, cada hallazgo sometido después a un verificador cuyo
+trabajo era refutarlo, verificando contra el stack en marcha). De 50 hallazgos candidatos, 36
+sobrevivieron a la refutación y 14 se descartaron. Lo que cambió:
+
+### 4.1 Un fallo real, y era del default que yo mismo recomendé
+
+- **La rama léxica no tenía piso de relevancia, y eso desactivaba la salvaguarda de contexto
+  insuficiente.** `low_confidence` se derivaba de que la lista estuviese vacía, y en modo híbrido esa
+  lista casi nunca lo está — `client`/`main`/`sector`/`project` están en 60 de 60 chunks por la
+  plantilla del chunk, y las stopwords españolas (`de`, `y`, `para`) sobreviven al analizador inglés.
+  Resultado: una transcripción sin proyecto comparable pasaba de *"contexto insuficiente"* (config A)
+  a una estimación confiada fundamentada en ruido (config B, el default). **Corregido**:
+  `low_confidence` significa ahora "nada cruzó el piso semántico". Detalle completo en
+  `arquitectura-actual.md` §3.5.
+- **Ni un test lo detectaba.** Cambiar el comportamiento dejó los 343 tests en verde. Añadidos tres
+  tests que lo fijan, y comprobado por mutación que fallan si se revierte el arreglo.
+
+### 4.2 Tres mutaciones que se entregaban en verde, ahora cazadas
+
+Verificado reintroduciendo cada defecto y ejecutando la suite:
+
+| Mutación | Antes | Ahora |
+|---|---|---|
+| Revertir `low_confidence` a `not chunks` | 343 passed | 2 tests fallan |
+| Limitar la llamada híbrida a `top_k` (hunde 5× el techo de recall de la config D) | 343 passed | 1 test falla |
+| Quitar `budget_id` en la ruta solo-léxica (sesga las filas híbridas de la tabla) | 343 passed | 1 test falla |
+| Quitar los filtros estructurales de `search_lexical` | 343 passed | 4 tests fallan |
+
+Añadidos además: aserción de que el orquestador reenvía `search_text` (sin ella, un refactor mataba
+la rama léxica en el endpoint principal **en silencio**, porque `plainto_tsquery('english', NULL)` casa
+0 filas), un test de la rama `distance=None` del ensamblador de contexto, y 13 tests de las funciones
+de métrica del arnés. Cobertura de `repository.py`: 34% → 66%. Suite: 343 → 370 tests.
+
+### 4.3 Dos defectos aritméticos en el propio arnés de medición
+
+- **`precision_at_k` dividía por lo devuelto, no por `k`** — premiaba devolver menos: 2 relevantes de
+  2 devueltos puntuaba 1,00 frente a 4 de 5 puntuando 0,80. Es **la misma clase de defecto por la que
+  yo había rechazado otra métrica** en este mismo fichero. Corregido a dividir por `k`. Latente hoy
+  (las cuatro configuraciones devuelven 5), y activo en cuanto se aprieta el umbral o se añade un
+  filtro. **La tabla del entregable no cambia**: re-ejecutado tras el arreglo, precisión y recall son
+  idénticos.
+- **`recall_at_k` devolvía 0,0 sin verdad de referencia**, confundiendo "no había nada que encontrar"
+  con "no encontró nada". Ahora lanza excepción: un caso negativo fuera de dominio necesita una
+  comprobación de soft-fail, no recall.
+
+### 4.4 Afirmaciones mías que no se sostenían, corregidas
+
+- *"La léxica se sirve por índice GIN"* — con 60 chunks el planificador elige `Seq Scan` (0,24 ms), que
+  es la decisión correcta a esta escala. Lo que abarata la híbrida es la concurrencia, no el índice.
+- *"`ts_rank` puntúa más alto los términos más raros"* — **no hay IDF**: un término presente en 19 de 60
+  chunks puntúa exactamente igual que uno presente en 0.
+- *"El parser nunca produce un lexema que contenga `&`"* — los tokens `url` y `url_path` sí lo conservan.
+  Consecuencia acotada (perturba el rango, no pierde el resultado) y 0 de 60 chunks contienen URLs.
+- *"Un servicio con el reranking apagado no paga nada"* — `import app.main` ya arrastra `torch`
+  transitivamente. Lo que no paga es la carga del modelo ni la inferencia.
+- *"El código de las tres técnicas queda apagado por configuración (`RETRIEVAL_SEARCH_MODE=hybrid`…)"* —
+  ese setting es justo el que **enciende** la rama léxica y la fusión.
+- *"Los cinco fallos de la Sesión 09 están cerrados"* — cuatro; el rollup del presupuesto padre sigue
+  parcial, como la propia tabla de debajo indicaba.
+- **Recuentos de candidatos**: los reales son 9–22 (vectorial), 17–36 (léxica) y 21–44 (pool); las
+  cifras publicadas se tomaron con otro estado de la base de datos.
+- **Coste del cross-encoder**: no escala con el número de pares sino con los tokens del lote (una
+  consulta de 15 pares costó 1.138 ms y otra de 22 pares, 319 ms). Y la carga son ~5 s en caliente,
+  no 20,6 s — esa cifra incluía la descarga de 450 MB.
+
+### 4.5 Lo que la revisión decidió NO tocar
+
+- **`top_k` es inerte con el reranking activo.** Es deliberado y está documentado; añadir un validador
+  cruzado rompería el propósito del endpoint (que las cuatro configuraciones sean alcanzables por
+  petición). Se documenta, no se "arregla".
+- **La híbrida abre dos conexiones del pool por petición.** 50 peticiones concurrentes produjeron 0
+  excepciones, y el embebido de 150–600 ms hace la diferencia invisible en el endpoint. Se anota que
+  el "+0 ms" se midió a concurrencia 1, que es el único nivel donde se sostiene.
+- **La expresión tsquery se reevalúa por fila bajo el plan genérico.** A escala ×100 la rama vectorial
+  sin índice HNSW cuesta 2,2× más que el peor caso léxico, y corren en paralelo: reestructurar no
+  ahorra nada en el endpoint.
+
+### 4.6 Lo que quedó pendiente, y por qué es una decisión y no un olvido
+
+- **`ts_rank` sin normalización por longitud.** El corpus tiene un chunk atípico de 7.700 caracteres
+  (`BUD-2024-016`, frente a una media de 483) que entra en el top-5 léxico de las cinco consultas y no
+  es relevante en ninguna — es el mecanismo detrás de la única regresión de la config D. Añadir el flag
+  de normalización subiría `precision@5` de B de 0,92 a 0,96, empatando con C, lo que **cambia el
+  argumento del entregable aunque no la decisión de quedarse con B**. Se deja como decisión explícita
+  del autor, no como cambio silencioso.
+- **Un caso negativo fuera de dominio en el golden set** (`relevant_budget_ids: []`), que convertiría
+  el arreglo de §4.1 en algo medido y no argumentado. Requiere una métrica nueva (acierto del
+  soft-fail) y tocar un golden set ya validado.

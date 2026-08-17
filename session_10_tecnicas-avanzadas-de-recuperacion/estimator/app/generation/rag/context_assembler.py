@@ -37,13 +37,15 @@ def _wrap_chunk(chunk: RetrievedChunk) -> str:
 def build_context_block(chunks: list[RetrievedChunk]) -> str:
     """Build the XML context block fed to the generator.
 
-    Chunks are emitted most-relevant-first (the retriever already returns them
-    ascending by distance). Each chunk becomes one ``<source>`` element.
+    Chunks are emitted most-relevant-first. "Best first" is all this module needs
+    and all it can assume: since Session 10 the order is cosine-ascending only in
+    plain vector mode — it is RRF order in hybrid mode and cross-encoder order when
+    reranking, and some chunks carry no distance at all.
 
     Parameters
     ----------
     chunks:
-        Retrieved chunks, ordered by ascending distance.
+        Retrieved chunks, best first.
 
     Returns
     -------
@@ -68,7 +70,7 @@ def truncate_to_token_budget(
     Parameters
     ----------
     chunks:
-        Retrieved chunks, ordered by ascending distance.
+        Retrieved chunks, best first.
     max_context_tokens:
         Hard token ceiling for the assembled context block.
     encoder:

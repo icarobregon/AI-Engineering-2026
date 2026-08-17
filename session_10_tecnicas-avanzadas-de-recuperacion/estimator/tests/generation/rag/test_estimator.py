@@ -81,6 +81,7 @@ def _good_estimate() -> Estimate:
 def wire(monkeypatch):
     """Wire the orchestrator with mocked stages; return a call counter."""
     calls = {"reformulate": 0, "search": 0, "generate": 0, "embed": 0}
+    forwarded: dict = {}
     store = RecordingStore()
 
     def _wire(*, retrieval: RetrievalResult, estimate: Estimate | None = None):
@@ -88,8 +89,16 @@ def wire(monkeypatch):
             calls["reformulate"] += 1
             return EstimationQuery(function="ecommerce storefront", sector="ecommerce")
 
-        async def fake_search(query_embedding, query_text=None, **kwargs):
+        # No default on query_text ON PURPOSE. The lexical branch of hybrid search
+        # feeds on it, and `plainto_tsquery('english', NULL) IS NULL` matches zero
+        # rows — so a refactor that drops this positional argument would silently
+        # degrade the flagship endpoint to vector-only, with no error and no log.
+        # Without a default, that mutation becomes a loud TypeError instead.
+        async def fake_search(query_embedding, query_text, **kwargs):
             calls["search"] += 1
+            forwarded["query_embedding"] = query_embedding
+            forwarded["query_text"] = query_text
+            forwarded.update(kwargs)
             return retrieval
 
         async def fake_generate(context_block, structured_query):
@@ -107,25 +116,34 @@ def wire(monkeypatch):
         monkeypatch.setattr(deps, "get_embedder", lambda: SimpleNamespace(embed_one=fake_embed))
         monkeypatch.setattr(deps, "get_token_encoder", lambda: CharEncoder())
         monkeypatch.setattr(deps, "get_idempotency_store", lambda: store)
-        return calls, store
+        return calls, store, forwarded
 
     return _wire
 
 
 async def test_happy_path_runs_all_stages(wire):
     retrieval = RetrievalResult(chunks=[_chunk(1)], low_confidence=False, candidates_evaluated=5)
-    calls, _store = wire(retrieval=retrieval, estimate=_good_estimate())
+    calls, _store, forwarded = wire(retrieval=retrieval, estimate=_good_estimate())
 
     result = await orch.estimate_from_transcript("x" * 200)
 
     assert result.confidence == "high"
     assert result.total_engineer_days == 18
     assert calls == {"reformulate": 1, "search": 1, "generate": 1, "embed": 1}
+    # The lexical branch of hybrid search feeds on query_text, and
+    # `plainto_tsquery('english', NULL) IS NULL` matches zero rows — so dropping
+    # this argument would degrade the flagship endpoint to vector-only in SILENCE.
+    # `compose_search_text` is faked to return the string below.
+    assert forwarded["query_text"] == "ecommerce storefront for ecommerce"
+    assert len(forwarded["query_embedding"]) == 1536
+    # And the retrieval knobs the orchestrator is responsible for.
+    assert forwarded["top_k"] == _SETTINGS.RETRIEVAL_TOP_K
+    assert forwarded["distance_threshold"] == _SETTINGS.RETRIEVAL_DISTANCE_THRESHOLD
 
 
 async def test_soft_fail_skips_generation(wire):
     retrieval = RetrievalResult(chunks=[], low_confidence=True, candidates_evaluated=7)
-    calls, _store = wire(retrieval=retrieval, estimate=_good_estimate())
+    calls, _store, forwarded = wire(retrieval=retrieval, estimate=_good_estimate())
 
     result = await orch.estimate_from_transcript("x" * 200)
 
@@ -161,7 +179,7 @@ async def test_generate_estimate_passes_reasoning_token_budget(monkeypatch):
 
 async def test_idempotency_hit_short_circuits_pipeline(wire):
     retrieval = RetrievalResult(chunks=[_chunk(1)], low_confidence=False, candidates_evaluated=5)
-    calls, store = wire(retrieval=retrieval, estimate=_good_estimate())
+    calls, store, _forwarded = wire(retrieval=retrieval, estimate=_good_estimate())
 
     first = await orch.estimate_from_transcript("x" * 200, idempotency_key="k1")
     assert calls["generate"] == 1

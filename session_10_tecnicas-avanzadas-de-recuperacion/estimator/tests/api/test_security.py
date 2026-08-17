@@ -27,7 +27,7 @@ def stub(monkeypatch):
         lambda: type("S", (), {"RETRIEVAL_API_KEY": RET_KEY, "ESTIMATE_API_KEY": EST_KEY})(),
     )
 
-    async def fake_search(query_embedding, query_text=None, **kwargs):
+    async def fake_search(query_embedding, query_text, **kwargs):
         return RetrievalResult(chunks=[], low_confidence=True, candidates_evaluated=0)
 
     async def fake_estimate(transcript, idempotency_key=None):

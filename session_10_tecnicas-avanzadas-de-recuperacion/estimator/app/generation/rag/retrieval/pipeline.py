@@ -104,8 +104,11 @@ async def retrieve(
     -------
     RetrievalResult
         Best first: cross-encoder order when reranking, otherwise distance order
-        (vector) or fused order (hybrid). ``low_confidence`` is True only when
-        nothing was retrieved at all.
+        (vector) or fused order (hybrid). ``low_confidence`` is True when nothing
+        cleared the semantic relevance floor — either an empty result, or (in
+        hybrid mode) a result made only of lexical-only chunks. The orchestrator
+        gates generation on this flag, so it has to mean "no usable reference",
+        not merely "the list is non-empty".
 
     Raises
     ------
@@ -185,6 +188,10 @@ async def retrieve(
     )
     return RetrievalResult(
         chunks=final,
-        low_confidence=not final,
+        # Mirrors hybrid_search: a result set in which nothing cleared the
+        # semantic relevance floor is a soft-fail. Reranking cannot promote a
+        # lexical-only chunk into "relevant" — it reorders, it does not measure
+        # relevance against the corpus.
+        low_confidence=not final or all(chunk.distance is None for chunk in final),
         candidates_evaluated=result.candidates_evaluated,
     )

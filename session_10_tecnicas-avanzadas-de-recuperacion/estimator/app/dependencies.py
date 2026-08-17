@@ -357,8 +357,13 @@ def get_reranker():
     One instance per worker, because loading a cross-encoder costs seconds
     (measured: 20.6 s for ``mmarco-mMiniLMv2`` on CPU) and doing it per request
     would be a disaster. The wrapper loads the model LAZILY on first use, so
-    building this object is cheap and importing it pulls in no torch: a service
-    running with ``RERANKER_ENABLED=false`` pays absolutely nothing.
+    building this object is cheap and importing THIS module pulls in no torch.
+
+    Measured caveat: that invariant holds for ``retrieval.reranker`` itself, but not
+    for the application as a whole — ``import app.main`` already pulls ``torch`` and
+    ``sentence_transformers`` transitively through ``langchain_text_splitters``. So a
+    deployment with ``RERANKER_ENABLED=false`` still pays the import and the memory;
+    what it does not pay is the model load and the inference.
 
     The trade-off of lazy loading is that the FIRST rerank of a fresh process
     pays the full load. That is why latency has to be measured warm, with the

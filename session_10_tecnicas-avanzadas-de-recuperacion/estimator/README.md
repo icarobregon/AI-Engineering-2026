@@ -486,7 +486,7 @@ Tres ejecuciones independientes dieron la misma precisión: la recuperación es 
 
 **Se queda B (híbrida sin reranking), y el reranking espera.**
 
-La razón de quedarse con B no es que gane mucho: es que **gana algo y no cuesta nada**. +0,04 de precisión y +0 ms medibles, porque las dos ramas corren concurrentemente y la léxica se sirve por índice GIN sobre el mismo PostgreSQL — ni un almacén nuevo, ni sincronización entre almacenes, ni un modelo más que operar. No hay tabla de decisión que justifique rechazar una mejora de coste cero, y la rama léxica es además la única que cubre el punto ciego de lo literal, que en estimación no es el caso raro sino el pan de cada día (`Stripe`, `SAP`, `HL7/FHIR`, `React Native`).
+La razón de quedarse con B no es que gane mucho: es que **gana algo y cuesta muy poco**. +0,04 de precisión y +0 ms medibles **a concurrencia 1**, porque las dos ramas corren concurrentemente y el coste es la más lenta, no la suma — ni un almacén nuevo, ni sincronización entre almacenes, ni un modelo más que operar. (Dos matices medidos después, en la revisión: con 60 chunks el planificador elige `Seq Scan` y no el índice GIN, que a esta escala es la decisión correcta; y la híbrida abre dos conexiones del pool por petición en lugar de una, invisible a concurrencia 1 y visible bajo carga contra el pool por defecto.) No hay tabla de decisión que justifique rechazar una mejora de coste cero, y la rama léxica es además la única que cubre el punto ciego de lo literal, que en estimación no es el caso raro sino el pan de cada día (`Stripe`, `SAP`, `HL7/FHIR`, `React Native`).
 
 La razón de **no** meter el reranking todavía no es su latencia, y esto importa: en este producto la generación posterior tarda varios segundos, así que los 325 ms de C serían menos del 5 % del total percibido — asumibles de sobra. La razón es que **el problema que el reranking resuelve no está presente en este corpus**. `recall@5` sale 1,00 en las cuatro configuraciones: todos los presupuestos relevantes ya entran en el top-5 sin hacer nada. El artículo da la señal precisa de cuándo el reranking es la herramienta correcta — *"los documentos relevantes están entre los candidatos, pero no arriba"* — y aquí ya están arriba, partiendo de 0,88 y no de 0,48.
 
@@ -494,7 +494,9 @@ El `+0,08` de C son **dos chunks en dos consultas**, y una de las dos es la tram
 
 **D se descarta con datos, no con opinión:** cuesta 7 veces lo que C, puntúa peor que C, y su única regresión es explicable. Es el clásico de acumular técnicas porque están disponibles.
 
-El código de las tres técnicas se queda en el repositorio, apagado por configuración (`RETRIEVAL_SEARCH_MODE=hybrid`, `RERANKER_ENABLED=false`), porque el trabajo caro ya está hecho y encenderlo cuando aparezca la evidencia es cambiar un booleano. Y la evidencia que lo justificaría es observable y concreta: `recall@k` alto con `precision@k` bajo de forma recurrente, es decir, los relevantes entrando en el conjunto amplio pero no en el top-5.
+El reranking se queda en el repositorio **apagado** por configuración (`RERANKER_ENABLED=false`) y la
+híbrida **encendida** (`RETRIEVAL_SEARCH_MODE=hybrid`), porque el trabajo caro ya está hecho y
+encender el reranking cuando aparezca la evidencia es cambiar un booleano. Y la evidencia que lo justificaría es observable y concreta: `recall@k` alto con `precision@k` bajo de forma recurrente, es decir, los relevantes entrando en el conjunto amplio pero no en el top-5.
 
 ### Limitaciones conocidas
 

@@ -73,6 +73,7 @@ async def test_search_chunks_returns_hits_above_threshold(wire):
     assert first.sector == "ecommerce"  # flattened from client_sector
     assert first.project_year == 2024  # flattened from year
     assert first.chunk_type == "budget_component"
+    assert first.budget_id == "BUD-2024-005"  # flattened from metadata, scored by the harness
     # The structural filter was forwarded to the store.
     assert store.calls[0]["sectors"] == ["ecommerce"]
     assert store.calls[0]["distance_threshold"] == 0.6

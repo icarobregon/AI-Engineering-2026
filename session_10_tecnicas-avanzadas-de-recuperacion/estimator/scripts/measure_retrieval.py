@@ -87,11 +87,22 @@ CONFIGS = [
 
 
 def precision_at_k(budget_ids: list[str], relevant: set[str], k: int) -> float:
-    """Fraction of the top-k retrieved items that are relevant."""
-    top = budget_ids[:k]
-    if not top:
-        return 0.0
-    return sum(1 for budget_id in top if budget_id in relevant) / len(top)
+    """Relevant items among the top k, over k.
+
+    The denominator is ``k``, NOT ``len(top)``. Dividing by what was actually
+    returned rewards returning less: a configuration that returns 2 chunks, both
+    relevant, would score 1.00 against one that returns 5 with 4 relevant scoring
+    0.80 — and the comparison table would then recommend retrieving fewer
+    documents. Same defect, on a different axis, as the deduplicated-precision
+    metric this module rejects in its docstring.
+
+    Dormant on the current corpus (every configuration returns a full 5), but it
+    activates the moment the distance threshold is tightened, a ``sectors`` filter
+    is added, or a harder query enters the golden set. Dividing by ``k`` treats a
+    short result set as what it is for the consumer: missing context.
+    """
+    hits = sum(1 for budget_id in budget_ids[:k] if budget_id in relevant)
+    return hits / k
 
 
 def dedupe_preserving_order(budget_ids: list[str]) -> list[str]:
@@ -113,7 +124,15 @@ def recall_at_k(budget_ids: list[str], relevant: set[str], k: int) -> float:
     mode precision is blind to: the good budget that never shows up.
     """
     if not relevant:
-        return 0.0
+        # Returning 0.0 here would report "found nothing" for a query where there
+        # was nothing to find — which is exactly what an off-corpus negative case
+        # looks like, so a deliberate soft-fail would read as a retrieval
+        # regression. Recall is undefined without a ground truth; fail loudly
+        # instead of averaging a lie into the table.
+        raise ValueError(
+            "recall_at_k is undefined for a query with no relevant documents; "
+            "a negative (off-corpus) case needs a soft-fail check, not recall"
+        )
     found = {budget_id for budget_id in budget_ids[:k] if budget_id in relevant}
     return len(found) / len(relevant)
 

@@ -44,7 +44,7 @@ def stub(monkeypatch):
     async def fake_reformulate(transcript):
         return EstimationQuery(function="online store with card checkout", sector="ecommerce")
 
-    async def fake_search(query_embedding, query_text=None, **kwargs):
+    async def fake_search(query_embedding, query_text, **kwargs):
         return RetrievalResult(chunks=[_chunk(1), _chunk(2)], low_confidence=False, candidates_evaluated=12)
 
     monkeypatch.setattr(stages, "reformulate_query", fake_reformulate)
@@ -110,7 +110,7 @@ def test_retrieve_passes_through_chunks(client):
 
 
 def test_retrieve_soft_fail_passthrough(client, monkeypatch):
-    async def empty_search(query_embedding, query_text=None, **kwargs):
+    async def empty_search(query_embedding, query_text, **kwargs):
         return RetrievalResult(chunks=[], low_confidence=True, candidates_evaluated=9)
 
     monkeypatch.setattr(stages, "run_retrieval", empty_search)
@@ -273,7 +273,7 @@ def test_existing_endpoints_still_work(client, monkeypatch):
     async def fake_estimate(transcript, idempotency_key=None):
         return Estimate(confidence="insufficient", reasoning="stub", insufficient_context_explanation="stub")
 
-    async def fake_search(query_embedding, query_text=None, **kwargs):
+    async def fake_search(query_embedding, query_text, **kwargs):
         return RetrievalResult(chunks=[], low_confidence=True, candidates_evaluated=0)
 
     monkeypatch.setattr(

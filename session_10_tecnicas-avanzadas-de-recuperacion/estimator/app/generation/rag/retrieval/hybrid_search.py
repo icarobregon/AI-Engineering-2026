@@ -81,10 +81,12 @@ async def hybrid_search(
         Width of each branch before fusion. Wider than ``top_k`` on purpose: this
         is the recall stage, and its only job is to not lose the relevant chunk.
     distance_threshold:
-        Relevance floor for the semantic branch (unchanged Session 9 behaviour).
-        Note it caps that branch's contribution: chunks beyond the floor never
-        enter the fusion, by design — a hybrid pipeline should not resurrect what
-        the vector branch already judged irrelevant.
+        Relevance floor for the SEMANTIC BRANCH ONLY (unchanged Session 9
+        behaviour). It does NOT bound what the fused result can contain: a chunk
+        the lexical branch found bypasses it entirely, carrying ``distance=None``.
+        That bypass is the branch's whole purpose — it is how a literal match gets
+        rescued — but it means this parameter cannot be used to tighten the
+        relevance of the hybrid result as a whole. See ``low_confidence`` below.
     rrf_k:
         RRF smoothing constant.
     sectors, project_year_min, project_year_max, chunk_types:
@@ -93,9 +95,25 @@ async def hybrid_search(
     Returns
     -------
     RetrievalResult
-        ``chunks`` in fused order, truncated to ``top_k``. ``low_confidence`` is
-        True only when BOTH branches came back empty — with two branches, one
-        finding nothing is a normal outcome, not a failure.
+        ``chunks`` in fused order, truncated to ``top_k``.
+
+        ``low_confidence`` is True when nothing cleared the SEMANTIC relevance
+        floor — either no chunk at all, or only lexical-only chunks. Deriving it
+        from emptiness alone would silently destroy the Session 9 guardrail: the
+        lexical branch has no relevance floor, so "the fused list is non-empty"
+        is nearly always true and the caller would never soft-fail. Measured on
+        this corpus: the chunk template puts ``client``/``main``/``sector``/
+        ``project`` in 60 of 60 chunks, so an OR-query containing any one of them
+        matches the entire corpus.
+
+        The honest cost of this rule: a genuine literal rescue (the "Stripe"
+        case) soft-fails when it is the ONLY hit. That is the right trade on this
+        corpus — no chunk here contains ``stripe`` at all, so every lexical-only
+        result set observed so far has been template noise. On a corpus where
+        identifiers really appear, the better answer is a calibrated relevance
+        floor for the lexical branch; a global ``ts_rank`` floor was measured and
+        rejected, because the good-query and noise-query rank distributions
+        overlap (noise median 0.00675 above good median 0.00468).
 
     Raises
     ------
@@ -133,13 +151,11 @@ async def hybrid_search(
     for row in lexical_rows:
         pool.setdefault(row.id, _chunk_from_row(row, distance=None))
 
-    fused = reciprocal_rank_fusion(
-        [
-            [chunk.id for chunk in semantic_result.chunks],
-            [row.id for row in lexical_rows],
-        ],
-        k=rrf_k,
-    )
+    semantic_ranking = [chunk.id for chunk in semantic_result.chunks]
+    lexical_ranking = [row.id for row in lexical_rows]
+    semantic_ids, lexical_ids = set(semantic_ranking), set(lexical_ranking)
+
+    fused = reciprocal_rank_fusion([semantic_ranking, lexical_ranking], k=rrf_k)
     chunks = [pool[chunk_id] for chunk_id, _score in fused[:top_k]]
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
@@ -147,10 +163,11 @@ async def hybrid_search(
         "rag_hybrid_search_done",
         semantic_hits=len(semantic_result.chunks),
         lexical_hits=len(lexical_rows),
-        # How much the two branches actually disagreed. If this is ~0 the fusion
-        # is not earning its latency on this corpus; if it is high, RRF has real
-        # consensus signal to work with. Cheap to log, expensive to reconstruct.
+        # Size of the union, plus the actual overlap. The overlap is the number
+        # RRF's consensus mechanism has to work with; the union alone says the
+        # opposite of what it looks like (a BIGGER union means LESS agreement).
         pool_size=len(pool),
+        overlap=len(semantic_ids & lexical_ids),
         results=len(chunks),
         top_k=top_k,
         recall_k=recall_k,
@@ -159,6 +176,8 @@ async def hybrid_search(
     )
     return RetrievalResult(
         chunks=chunks,
-        low_confidence=not chunks,
+        # NOT `not chunks`: see the docstring. A pool of lexical-only chunks means
+        # nothing cleared the semantic floor, which is a soft-fail, not a hit.
+        low_confidence=not chunks or all(chunk.distance is None for chunk in chunks),
         candidates_evaluated=semantic_result.candidates_evaluated,
     )

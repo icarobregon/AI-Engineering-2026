@@ -66,7 +66,8 @@ flowchart TB
     REF -->|"search_text + embedding"| PIPE
     VEC -->|"k-NN + WHERE"| DB
     LEX -->|"@@ + GIN"| DB
-    RRK -->|"top-5"| ASM
+    RRF -->|"bypass del reranker:<br/>camino por defecto, top-10"| ASM
+    RRK -->|"top-5 cuando el reranking está activo"| ASM
     ASM --> GEN --> VAL
     GEN --> OAI
 
@@ -115,18 +116,19 @@ Otras cifras del sistema, medidas:
 
 | Magnitud | Valor | Dónde importa |
 |---|---|---|
-| Carga del cross-encoder | 20,6 s | Singleton por worker; carga perezosa, y la primera petición la paga |
-| Inferencia del cross-encoder | 20–64 ms por par | Escala con el número de candidatos, no con el corpus |
+| Carga del cross-encoder | ~5 s en caliente · ~20 s la primera vez | Los ~20 s incluyen la descarga de 450 MB; con el volumen `hf_cache` poblado son ~5 s. Singleton por worker, carga perezosa: la primera petición la paga |
+| Inferencia del cross-encoder | 13–88 ms por par | **No escala con el número de pares** sino con los tokens totales del lote: el relleno hasta el documento más largo domina. Medido: una consulta de 15 pares costó 1.138 ms y otra de 22 pares, 319 ms |
 | Pesos del modelo | ~450 MB | Volumen `hf_cache`; sin él se re-descargan en cada recreación |
 | Imagen del contenedor | 1,4 GB → 6,6 GB | El precio de `sentence-transformers` (arrastra torch) |
-| Candidatos reales de la rama vectorial | 12–27, nunca 50 | El `distance_threshold` limita antes que `recall_k` |
-| Candidatos tras fusión (híbrida) | 44–48 | La fusión ensancha lo que paga el reranker |
+| Candidatos reales de la rama vectorial | 9–22, nunca 50 | El `distance_threshold` limita antes que `recall_k` |
+| Candidatos de la rama léxica | 17–36 de 60 | Sin piso de relevancia: casa con casi todo el corpus (ver §3.5) |
+| Candidatos tras fusión (híbrida) | 21–44 | La fusión ensancha lo que paga el reranker. En Q4 y Q5 el pool **iguala** a la rama léxica: la vectorial es un subconjunto estricto de ella |
 
 ---
 
 ## 3. Diagnóstico: qué revelaron los números
 
-### 3.1 Los cinco fallos de la Sesión 09 están cerrados
+### 3.1 Cuatro de los cinco fallos de la Sesión 09 están cerrados
 
 El diagnóstico anterior identificó cinco fallos. Estado hoy:
 
@@ -168,7 +170,46 @@ candidatos, mete presupuestos que el umbral vectorial había descartado, y el cr
 equivoca puntuando uno de ellos contra una consulta verbosa y multitema. **Más candidatos no es
 mejor si el reranker tiene que ordenar más ruido.**
 
-### 3.5 Deuda técnica identificada (no bloqueante)
+### 3.5 La rama léxica no tiene piso de relevancia, y eso desactivaba el soft-fail
+
+Hallazgo de la revisión posterior al cierre, corregido. La rama vectorial tiene un piso
+(`distance_threshold = 0,6`); la léxica no tenía ninguno: solo exige `content_tsv @@ tsquery`. Y con
+semántica OR eso casa con casi todo el corpus, por dos motivos que se suman:
+
+- **La plantilla del chunk.** Cada chunk empieza por `[Project: …] [Client sector: … | Year: … | Main
+  tech: …]`, así que `client`, `main`, `sector` y `project` están en **60 de 60 chunks**. Una consulta
+  que contenga cualquiera de esas palabras recupera el corpus entero.
+- **Las stopwords españolas sobreviven al analizador inglés.** `to_tsvector('english', …)` no filtra
+  `de`, `y`, `para` ni `con`, y la entrada real del sistema son transcripciones en español. Medido: la
+  consulta *"Cocina italiana receta de pasta carbonara…"* recuperaba un presupuesto de anonimización
+  de ensayos clínicos, casando por el lexema `de`.
+
+La consecuencia era grave y silenciosa. `low_confidence` se derivaba de que la lista estuviese vacía,
+así que en modo híbrido —el default— **nunca podía valer `True`**, y la salvaguarda de la Sesión 09
+en `estimator.py` dejaba de dispararse:
+
+| Config | Transcripción administrativa real (sin proyecto comparable) |
+|---|---|
+| A vectorial | 0 chunks, `low_confidence=True` → devuelve "contexto insuficiente" sin pagar generación |
+| B híbrida (antes) | 10 chunks de plantilla, `low_confidence=False` → **fundamenta una estimación en ruido** |
+
+**Arreglo aplicado:** `low_confidence` significa ahora *"nada cruzó el piso semántico"* —
+`not chunks or all(chunk.distance is None for chunk in chunks)`— en `hybrid_search` y en `pipeline`.
+Verificado en vivo: las consultas fuera de dominio vuelven a dar `low_confidence=True` aunque traigan
+chunks, y las cinco del golden set no cambian.
+
+**Lo que se descartó y por qué:** un piso global de `ts_rank`. Se midió la distribución y **las curvas
+se solapan** — la consulta de ruido tiene mediana *más alta* (0,00675) que la buena (0,00468) y
+máximos casi iguales (0,02342 vs 0,02572). No hay umbral que las separe, porque `ts_rank` no pondera
+por IDF: el término que aparece en 19 de 60 chunks puntúa exactamente igual que el que aparece en 0.
+Es la advertencia del artículo (*"`ts_rank` no es BM25"*) materializándose.
+
+**Coste honesto del arreglo:** un rescate literal genuino (el caso "Stripe") hace soft-fail cuando es
+el *único* acierto. En este corpus no cuesta nada — no hay ni un chunk que contenga `stripe` — pero en
+un corpus donde los identificadores sí aparezcan, la respuesta correcta sería un piso calibrado para
+la rama léxica, o excluir la plantilla del texto indexado.
+
+### 3.6 Deuda técnica identificada (no bloqueante)
 
 - **No hay índice HNSW.** La migración `0002` lo dice explícitamente: el seq scan es la línea base
   contra la que la sesión en vivo de S08 mide. Con 60 chunks es irrelevante (2 ms), pero la rama

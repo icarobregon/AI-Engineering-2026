@@ -37,6 +37,26 @@ def test_build_context_block_wraps_each_chunk_in_source_xml():
     assert block.strip().endswith("</source>")
 
 
+def test_source_omits_distance_when_the_chunk_has_none():
+    """A hybrid chunk found only by the lexical branch has no cosine distance.
+
+    The attribute is OMITTED rather than filled with a sentinel: writing
+    distance="1.0000" ("maximally dissimilar") in front of the generator, for a
+    document the lexical branch ranked first, would be a fabricated fact. This is a
+    default-configuration live path — reverting the guard raises
+    ``TypeError: unsupported format string passed to NoneType.__format__``.
+    """
+    chunk = _chunk(7, "Cart and checkout service")
+    chunk.distance = None
+
+    block = build_context_block([chunk])
+
+    assert "distance=" not in block
+    assert '<source id="7"' in block
+    assert 'chunk_type="budget_component"' in block
+    assert block.endswith("</source>")
+
+
 def test_build_context_block_preserves_order():
     block = build_context_block([_chunk(1, "first"), _chunk(2, "second")])
     assert block.index('id="1"') < block.index('id="2"')

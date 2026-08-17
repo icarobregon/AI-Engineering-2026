@@ -209,7 +209,12 @@ class RetrievalResult(BaseModel):
 
     chunks: list[RetrievedChunk]
     low_confidence: bool = Field(
-        description="True when no chunk crossed the distance threshold (soft-fail)."
+        description=(
+            "True when nothing cleared the semantic relevance floor: either no chunk "
+            "was retrieved, or (in hybrid mode) every retrieved chunk came only from "
+            "the lexical branch and therefore has no cosine distance. The estimation "
+            "pipeline gates generation on this flag."
+        )
     )
     candidates_evaluated: int = Field(
         ge=0, description="Total chunks scored before applying the threshold/limit."

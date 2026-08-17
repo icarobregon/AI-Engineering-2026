@@ -42,16 +42,28 @@ def _or_tsquery(query_text: str):
     mandatory terms, zero matches.
 
     With OR, a document matches on any term and ``ts_rank`` does the discriminating:
-    it scores documents higher when they match more of the query's terms and rarer
-    ones. That is the bag-of-words behaviour the lexical branch is supposed to have.
+    it scores documents higher when they match MORE of the query's terms. Note what it
+    does NOT do: there is no IDF weighting, so a rare term counts exactly as much as an
+    omnipresent one (measured on this corpus: ``ts_rank`` is byte-identical for a term
+    matching 19 of 60 chunks and one matching 0). Nor is there length normalisation by
+    default, so a long chunk accumulates matches and outranks a short precise one.
 
     **Implementation:** ``plainto_tsquery`` does the tokenizing, stop-wording and
     stemming — with the same configuration as the indexed column — and never raises
     on malformed input (it returns an empty tsquery and logs a notice). Its output
     joins terms with ``&``, so swapping the operator on the rendered text turns the
-    conjunction into a disjunction. The swap is safe because tsquery renders every
-    lexeme single-quoted and the parser never produces a lexeme containing ``&``
-    (verified: ``R&D`` lexes to ``'r' & 'd'``).
+    conjunction into a disjunction.
+
+    The swap is safe for this corpus, with one honest caveat. Almost everything lexes
+    without an ``&`` (verified: ``R&D`` becomes ``'r' & 'd'``), but PostgreSQL's ``url``
+    and ``url_path`` token types keep ``&`` verbatim, so an input containing a query
+    string can have the operator rewritten INSIDE such a lexeme. The consequence is
+    bounded — the ``host`` lexeme of the same URL survives and still matches, so it
+    perturbs the rank rather than losing the result, and no input tried produced
+    invalid tsquery syntax. Zero of the 60 chunks in this corpus contain a URL. The
+    robust form, if this ever indexes URLs, is to build the disjunction from
+    ``tsvector_to_array(to_tsvector(...))`` with ``quote_literal`` — which also
+    deduplicates, something ``plainto_tsquery`` does not.
 
     An input that reduces to nothing (only stop words, only punctuation) produces an
     empty tsquery, which matches no rows — the correct outcome, not an error.

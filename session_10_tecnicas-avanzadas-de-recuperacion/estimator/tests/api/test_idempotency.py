@@ -52,7 +52,7 @@ def generate_calls(monkeypatch):
     async def fake_reformulate(transcript):
         return EstimationQuery(function="ecommerce storefront", sector="ecommerce")
 
-    async def fake_search(query_embedding, query_text=None, **kwargs):
+    async def fake_search(query_embedding, query_text, **kwargs):
         return RetrievalResult(
             chunks=[
                 RetrievedChunk(

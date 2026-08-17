@@ -67,7 +67,12 @@ class FakeReranker:
         self.thread_names: list[str] = []
 
     def rerank(self, query, candidates, *, top_n):
-        self.calls.append({"query": query, "candidates_in": len(candidates), "top_n": top_n})
+        self.calls.append({
+            "query": query,
+            "candidates_in": len(candidates),
+            "candidate_ids": [candidate.id for candidate in candidates],
+            "top_n": top_n,
+        })
         self.thread_names.append(threading.current_thread().name)
         return list(reversed(candidates))[:top_n]
 
@@ -148,6 +153,15 @@ async def test_config_d_hybrid_plus_rerank(wire):
     assert store.lexical_calls[0]["top_k"] == 50
     assert reranker.calls[0]["top_n"] == 5
     assert len(result.chunks) == 5
+    # The WHOLE fused pool must reach the cross-encoder: 20 vector rows + the
+    # lexical-only id 99. Without this, clamping the hybrid call to top_k would
+    # drop the recall-then-rerank ceiling 5x in config D with the suite still green.
+    assert reranker.calls[0]["candidates_in"] == 21
+    # And the lexical-only chunk must REACH the cross-encoder — that composition
+    # (lexical recall feeding cross-encoder precision) is the entire point of D.
+    # Asserted on the reranker's input, not its output: what the model then does
+    # with it is the model's business, and this fake reverses the order.
+    assert 99 in reranker.calls[0]["candidate_ids"]
 
 
 # --------------------------------------------------------------------------- #
@@ -267,6 +281,52 @@ async def test_the_event_loop_stays_responsive_during_reranking(wire):
 # --------------------------------------------------------------------------- #
 # Edge cases
 # --------------------------------------------------------------------------- #
+
+
+async def test_lexical_only_results_still_soft_fail(wire):
+    """The guardrail the hybrid default silently removed, now pinned.
+
+    The lexical branch has NO relevance floor, so an off-corpus query still matches
+    chunks on template boilerplate (measured: client/main/sector/project appear in
+    60 of 60 chunks). Deriving low_confidence from emptiness alone therefore meant
+    the Session 9 soft-fail could never fire in hybrid mode, and
+    ``estimate_from_transcript`` would ground a confident estimate on noise.
+
+    Reproduced live before the fix: an off-corpus query returned 5 chunks, every one
+    with distance=None, and low_confidence=False.
+    """
+    store = FakeStore(vector_rows=[], lexical_rows=[_row(97), _row(98)], candidates=60)
+    wire(store)
+
+    result = await retrieve([0.0] * 1536, "off corpus query", search_mode="hybrid", top_k=5)
+
+    assert result.chunks, "the lexical branch did contribute chunks"
+    assert all(chunk.distance is None for chunk in result.chunks)
+    assert result.low_confidence is True, "nothing cleared the semantic floor -> soft-fail"
+
+
+async def test_a_single_vector_hit_is_enough_to_clear_the_soft_fail(wire):
+    """The complement: one chunk that DID cross the floor makes the result usable,
+    even when the rest of the pool is lexical-only."""
+    store = FakeStore(vector_rows=[_row(1, distance=0.31)], lexical_rows=[_row(97)], candidates=60)
+    wire(store)
+
+    result = await retrieve([0.0] * 1536, "q", search_mode="hybrid", top_k=5)
+
+    assert result.low_confidence is False
+    assert any(chunk.distance is not None for chunk in result.chunks)
+
+
+async def test_reranking_cannot_promote_a_lexical_only_pool_out_of_soft_fail(wire):
+    """A cross-encoder reorders; it does not measure relevance against the corpus.
+    If nothing cleared the semantic floor, reranking must not hide that."""
+    store = FakeStore(vector_rows=[], lexical_rows=[_row(i) for i in range(90, 96)], candidates=60)
+    wire(store, FakeReranker())
+
+    result = await retrieve([0.0] * 1536, "q", search_mode="hybrid", rerank=True, rerank_top_n=5)
+
+    assert len(result.chunks) == 5
+    assert result.low_confidence is True
 
 
 async def test_reranker_is_not_invoked_when_recall_is_empty(wire):

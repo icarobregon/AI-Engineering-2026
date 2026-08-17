@@ -139,12 +139,15 @@ class Settings(BaseSettings):
     #   A = vector + off (the Session 9 baseline)   C = vector + on
     #   B = hybrid + off                            D = hybrid + on
     # Default "hybrid": the measured decision of this session. The lexical branch
-    # buys +0.04 precision@5 at +0 ms (both branches run concurrently and the
-    # lexical one is served by a GIN index on the same PostgreSQL), so there is no
-    # decision table that justifies turning it off. Reranking stays off: recall@5
-    # measured 1.00 on this corpus, so the relevant budgets are already at the top
-    # and there is no ordering problem for a cross-encoder to fix. See the
-    # "Sesión 10" section of README.md for the numbers and the argument.
+    # buys +0.04 precision@5 at +0 ms measured AT CONCURRENCY 1 — the two branches
+    # run concurrently, so the cost is the slower one, not the sum. (The GIN index
+    # is not what makes it cheap at this corpus size: with 60 chunks the planner
+    # correctly picks a Seq Scan, 0.24 ms. And hybrid opens two pooled connections
+    # per request instead of one, which is invisible at concurrency 1 and visible
+    # under load against the default pool.) Reranking stays off: recall@5 measured
+    # 1.00 on this corpus, so the relevant budgets are already at the top and there
+    # is no ordering problem for a cross-encoder to fix. See the "Sesión 10"
+    # section of README.md for the numbers and the argument.
     RETRIEVAL_SEARCH_MODE: Literal["vector", "hybrid"] = "hybrid"
     RERANKER_ENABLED: bool = False
     # Multilingual cross-encoder (ES+EN), small enough for CPU at teaching

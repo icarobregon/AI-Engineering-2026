@@ -174,6 +174,12 @@ async def test_hybrid_keeps_the_real_distance_and_never_invents_one(wire):
 
     assert by_id[1].distance == pytest.approx(0.31)  # found by both
     assert by_id[77].distance is None  # lexical only
+    # budget_id is the unit the whole measurement scores. Dropping it on the
+    # lexical-only path alone would mis-score configs B and D only, by up to
+    # -0.20 precision@5 per query — the table would then argue against the
+    # technique the default enables.
+    assert by_id[77].budget_id == "BUD-2024-005"
+    assert by_id[1].budget_id == "BUD-2024-005"
 
 
 async def test_hybrid_deduplicates_chunks_found_by_both_branches(wire):

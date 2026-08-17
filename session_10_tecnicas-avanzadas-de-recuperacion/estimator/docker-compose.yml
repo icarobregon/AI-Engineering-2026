@@ -35,6 +35,18 @@ services:
       - ./scripts:/app/scripts
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
+      # tests/test_evals_*.py and tests/test_stress_*.py import the `evals`
+      # package, which the image does not copy (it is not runtime code). Without
+      # this mount those four modules fail at COLLECTION, which aborts the whole
+      # run before a single test executes.
+      - ./evals:/app/evals
+      # pytest reads its configuration from [tool.pytest.ini_options] in
+      # pyproject.toml. The image only copies app/, so without this mount pytest
+      # runs with no config: asyncio_mode falls back to "strict" and every async
+      # test fails with "async def functions are not natively supported" — a
+      # configuration failure that reads exactly like broken code. Read-only:
+      # nothing in the container has any business writing the manifest.
+      - ./pyproject.toml:/app/pyproject.toml:ro
 
     # Apply pending migrations on startup, then run uvicorn with auto-reload.
     # Remove --reload for production deployments.

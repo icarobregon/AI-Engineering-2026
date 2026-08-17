@@ -13,13 +13,18 @@ conceptual one produces tiny ones), so yesterday's calibration is wrong today.
 RRF sidesteps the whole problem by discarding the scores and using only the
 POSITIONS::
 
-    rrf_score(d) = sum over branches of  1 / (k + rank_i(d))
+    rrf_score(d) = sum over branches of  1 / (k + position_i(d))
 
-which makes it **a machine for rewarding consensus**: ranking reasonably well in
-several branches beats dominating exactly one. A budget that is 2nd semantically
-and 5th lexically (``1/62 + 1/65 ≈ 0.0315``) outranks one that is 1st
-semantically and absent lexically (``1/61 ≈ 0.0164``) — which is the exact rescue
-the literal-match case needs.
+Note ``position`` is 0-BASED here, unlike the 1-based ranks of the original paper.
+The choice is arbitrary (it shifts every score by the same direction and changes no
+ordering) but it has to be stated, because the arithmetic below only matches the
+implementation under one of the two conventions.
+
+The formula makes RRF **a machine for rewarding consensus**: ranking reasonably
+well in several branches beats dominating exactly one. A budget that is 2nd
+semantically and 5th lexically scores ``1/61 + 1/64 ≈ 0.0320`` and outranks one
+that is 1st semantically and absent lexically, ``1/60 ≈ 0.0167`` — nearly double,
+and the exact rescue the literal-match case needs.
 
 On ``k``: small values let the top positions dominate, large values flatten the
 differences. 60 comes from the original Cormack et al. (2009) paper and has held

@@ -284,6 +284,22 @@ class RetrievalRequest(BaseModel):
     project_year_min: int | None = Field(default=None, ge=2010, le=2100)
     project_year_max: int | None = Field(default=None, ge=2010, le=2100)
     chunk_types: list[str] | None = None
+    # Session 10 switches. None means "use the configured default", so an existing
+    # client that never heard of them keeps the exact behaviour it had; sending
+    # them makes the four measured configurations reachable per request, which is
+    # what makes the comparison reproducible without redeploying.
+    search_mode: Literal["vector", "hybrid"] | None = Field(
+        default=None, description="Overrides RETRIEVAL_SEARCH_MODE for this request."
+    )
+    rerank: bool | None = Field(
+        default=None, description="Overrides RERANKER_ENABLED for this request."
+    )
+    rerank_top_n: int | None = Field(
+        default=None,
+        ge=1,
+        le=30,
+        description="Results kept after reranking; overrides RERANK_TOP_N.",
+    )
 
 
 class EstimateRequest(BaseModel):

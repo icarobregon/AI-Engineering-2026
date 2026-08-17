@@ -88,7 +88,7 @@ def wire(monkeypatch):
             calls["reformulate"] += 1
             return EstimationQuery(function="ecommerce storefront", sector="ecommerce")
 
-        async def fake_search(query_embedding, **kwargs):
+        async def fake_search(query_embedding, query_text=None, **kwargs):
             calls["search"] += 1
             return retrieval
 
@@ -102,7 +102,7 @@ def wire(monkeypatch):
 
         monkeypatch.setattr(orch, "get_settings", lambda: _SETTINGS)
         monkeypatch.setattr(orch, "reformulate_query", fake_reformulate)
-        monkeypatch.setattr(orch, "search_chunks", fake_search)
+        monkeypatch.setattr(orch, "retrieve", fake_search)
         monkeypatch.setattr(orch, "generate_estimate", fake_generate)
         monkeypatch.setattr(deps, "get_embedder", lambda: SimpleNamespace(embed_one=fake_embed))
         monkeypatch.setattr(deps, "get_token_encoder", lambda: CharEncoder())

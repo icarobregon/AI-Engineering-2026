@@ -27,7 +27,7 @@ def stub(monkeypatch):
         lambda: type("S", (), {"RETRIEVAL_API_KEY": RET_KEY, "ESTIMATE_API_KEY": EST_KEY})(),
     )
 
-    async def fake_search(query_embedding, **kwargs):
+    async def fake_search(query_embedding, query_text=None, **kwargs):
         return RetrievalResult(chunks=[], low_confidence=True, candidates_evaluated=0)
 
     async def fake_estimate(transcript, idempotency_key=None):
@@ -42,7 +42,7 @@ def stub(monkeypatch):
         "get_embedder",
         lambda: type("E", (), {"embed_one": staticmethod(lambda t: [0.0] * 1536)})(),
     )
-    monkeypatch.setattr(retrieval_router, "search_chunks", fake_search)
+    monkeypatch.setattr(retrieval_router, "retrieve", fake_search)
     monkeypatch.setattr(estimate_router, "estimate_from_transcript", fake_estimate)
     yield
 

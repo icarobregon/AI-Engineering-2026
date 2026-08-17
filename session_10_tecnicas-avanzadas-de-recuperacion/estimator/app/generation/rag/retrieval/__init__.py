@@ -9,6 +9,8 @@
   orchestration decisions that live outside it.
 * ``verify_reranker`` — pre-flight script that checks the model downloads,
   loads and ranks a sanity pair correctly.
+* ``pipeline`` — the single ``retrieve()`` entrypoint that composes the four
+  configurations behind the ``search_mode`` and ``rerank`` switches.
 
 This package depends only on ``foundation`` + ``domain/schemas`` + sibling
 modules under ``generation/rag`` — never on another ``generation`` family.

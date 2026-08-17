@@ -39,7 +39,10 @@ from app.generation.rag.errors import RagError, RetrievalError
 from app.generation.rag.estimator import generate_estimate
 from app.generation.rag.observability import log_stage
 from app.generation.rag.query_reformulator import compose_search_text, reformulate_query
-from app.generation.rag.retriever import search_chunks
+
+# Aliased: this module's Stage-2 route handler is also called `retrieve`, and an
+# unaliased import would be shadowed by it — making the handler call ITSELF.
+from app.generation.rag.retrieval.pipeline import retrieve as run_retrieval
 from app.generation.rag.schemas import (
     AssembleRequest,
     AssembleResult,
@@ -98,9 +101,13 @@ async def retrieve(request: Request, payload: RetrievalRequest) -> RetrievalResu
     try:
         with log_stage("retrieval", request_id, sectors=payload.sectors):
             query_embedding = await asyncio.to_thread(embedder.embed_one, payload.query_text)
-            return await search_chunks(
+            return await run_retrieval(
                 query_embedding,
+                payload.query_text,
+                search_mode=payload.search_mode,
+                rerank=payload.rerank,
                 top_k=payload.top_k,
+                rerank_top_n=payload.rerank_top_n,
                 distance_threshold=payload.distance_threshold,
                 sectors=payload.sectors,
                 project_year_min=payload.project_year_min,
@@ -156,7 +163,9 @@ async def generate(request: Request, payload: GenerateRequest) -> GenerateResult
     request_id = get_request_id(request)
     try:
         with log_stage("generation", request_id, sources=len(payload.kept_chunks)):
-            estimate = await generate_estimate(payload.context_block, structured_query=payload.query)
+            estimate = await generate_estimate(
+                payload.context_block, structured_query=payload.query
+            )
     except RagError as exc:
         log.error("stage_failed", stage="generation", error_type=type(exc).__name__)
         raise HTTPException(status_code=502, detail="Estimate generation failed.") from exc

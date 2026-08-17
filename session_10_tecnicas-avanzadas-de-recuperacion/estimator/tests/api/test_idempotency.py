@@ -52,7 +52,7 @@ def generate_calls(monkeypatch):
     async def fake_reformulate(transcript):
         return EstimationQuery(function="ecommerce storefront", sector="ecommerce")
 
-    async def fake_search(query_embedding, **kwargs):
+    async def fake_search(query_embedding, query_text=None, **kwargs):
         return RetrievalResult(
             chunks=[
                 RetrievedChunk(
@@ -80,7 +80,7 @@ def generate_calls(monkeypatch):
 
     monkeypatch.setattr(orch, "get_settings", lambda: settings)
     monkeypatch.setattr(orch, "reformulate_query", fake_reformulate)
-    monkeypatch.setattr(orch, "search_chunks", fake_search)
+    monkeypatch.setattr(orch, "retrieve", fake_search)
     monkeypatch.setattr(orch, "generate_estimate", fake_generate)
     monkeypatch.setattr(
         deps,

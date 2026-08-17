@@ -17,6 +17,9 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql+psycopg://estimator:estimator@estimator-postgres:5432/estimator
+      # Session 10: point the cross-encoder weight cache at the hf_cache volume
+      # instead of the container filesystem, which is discarded on recreation.
+      HF_HOME: /home/appuser/.cache/huggingface
 
     depends_on:
       redis:
@@ -47,6 +50,14 @@ services:
       # configuration failure that reads exactly like broken code. Read-only:
       # nothing in the container has any business writing the manifest.
       - ./pyproject.toml:/app/pyproject.toml:ro
+      # Session 10: cross-encoder weights (~450MB) land in the HuggingFace cache
+      # on first rerank. Without a volume every container recreation re-downloads
+      # them. Ownership matters here: the image runs as the non-root `appuser`,
+      # and Docker initializes a fresh named volume from the image's directory
+      # (ownership included) — which is why the Dockerfile creates this path owned
+      # by appuser. Without that, the volume is root-owned and the first rerank
+      # dies with PermissionError.
+      - hf_cache:/home/appuser/.cache/huggingface
 
     # Apply pending migrations on startup, then run uvicorn with auto-reload.
     # Remove --reload for production deployments.
@@ -125,3 +136,6 @@ services:
 volumes:
   redis_data:
   estimator_postgres_data:
+  # Cross-encoder weights (~450MB). Persisting them across container recreations
+  # turns a 450MB download into a 20s model load.
+  hf_cache:

@@ -351,6 +351,25 @@ def get_parser_registry() -> ParserRegistry:
 
 
 @lru_cache
+def get_reranker():
+    """Cross-encoder reranker singleton (Session 10).
+
+    One instance per worker, because loading a cross-encoder costs seconds
+    (measured: 20.6 s for ``mmarco-mMiniLMv2`` on CPU) and doing it per request
+    would be a disaster. The wrapper loads the model LAZILY on first use, so
+    building this object is cheap and importing it pulls in no torch: a service
+    running with ``RERANKER_ENABLED=false`` pays absolutely nothing.
+
+    The trade-off of lazy loading is that the FIRST rerank of a fresh process
+    pays the full load. That is why latency has to be measured warm, with the
+    cold run discarded.
+    """
+    from app.generation.rag.retrieval.reranker import CrossEncoderReranker
+
+    return CrossEncoderReranker.from_settings()
+
+
+@lru_cache
 def get_session_store() -> SessionStore:
     """In-memory store of conversational sessions. Singleton per worker.
 

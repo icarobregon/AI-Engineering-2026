@@ -44,7 +44,7 @@ def stub(monkeypatch):
     async def fake_reformulate(transcript):
         return EstimationQuery(function="online store with card checkout", sector="ecommerce")
 
-    async def fake_search(query_embedding, **kwargs):
+    async def fake_search(query_embedding, query_text=None, **kwargs):
         return RetrievalResult(chunks=[_chunk(1), _chunk(2)], low_confidence=False, candidates_evaluated=12)
 
     monkeypatch.setattr(stages, "reformulate_query", fake_reformulate)
@@ -53,7 +53,7 @@ def stub(monkeypatch):
         stages, "get_embedder",
         lambda: type("E", (), {"embed_one": staticmethod(lambda t: [0.0] * 1536)})(),
     )
-    monkeypatch.setattr(stages, "search_chunks", fake_search)
+    monkeypatch.setattr(stages, "run_retrieval", fake_search)
     yield
 
 
@@ -110,10 +110,10 @@ def test_retrieve_passes_through_chunks(client):
 
 
 def test_retrieve_soft_fail_passthrough(client, monkeypatch):
-    async def empty_search(query_embedding, **kwargs):
+    async def empty_search(query_embedding, query_text=None, **kwargs):
         return RetrievalResult(chunks=[], low_confidence=True, candidates_evaluated=9)
 
-    monkeypatch.setattr(stages, "search_chunks", empty_search)
+    monkeypatch.setattr(stages, "run_retrieval", empty_search)
     r = client.post(
         "/v1/estimate/stages/retrieve",
         json={"query_text": "a quantum blockchain for dog grooming"},
@@ -210,14 +210,14 @@ def test_existing_endpoints_still_work(client, monkeypatch):
     async def fake_estimate(transcript, idempotency_key=None):
         return Estimate(confidence="insufficient", reasoning="stub", insufficient_context_explanation="stub")
 
-    async def fake_search(query_embedding, **kwargs):
+    async def fake_search(query_embedding, query_text=None, **kwargs):
         return RetrievalResult(chunks=[], low_confidence=True, candidates_evaluated=0)
 
     monkeypatch.setattr(
         retrieval_router, "get_embedder",
         lambda: type("E", (), {"embed_one": staticmethod(lambda t: [0.0] * 1536)})(),
     )
-    monkeypatch.setattr(retrieval_router, "search_chunks", fake_search)
+    monkeypatch.setattr(retrieval_router, "retrieve", fake_search)
     monkeypatch.setattr(estimate_router, "estimate_from_transcript", fake_estimate)
 
     r1 = client.post(

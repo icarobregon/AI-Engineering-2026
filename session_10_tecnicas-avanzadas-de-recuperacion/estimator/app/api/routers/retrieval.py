@@ -22,7 +22,7 @@ from app.api.rate_limiting import limiter
 from app.api.security import require_retrieval_key
 from app.dependencies import get_embedder
 from app.generation.rag.errors import RetrievalError
-from app.generation.rag.retriever import search_chunks
+from app.generation.rag.retrieval.pipeline import retrieve
 from app.generation.rag.schemas import RetrievalRequest, RetrievalResult
 
 log = structlog.get_logger()
@@ -45,9 +45,13 @@ async def search(request: Request, payload: RetrievalRequest) -> RetrievalResult
 
     try:
         query_embedding = await asyncio.to_thread(embedder.embed_one, payload.query_text)
-        return await search_chunks(
+        return await retrieve(
             query_embedding,
+            payload.query_text,
+            search_mode=payload.search_mode,
+            rerank=payload.rerank,
             top_k=payload.top_k,
+            rerank_top_n=payload.rerank_top_n,
             distance_threshold=payload.distance_threshold,
             sectors=payload.sectors,
             project_year_min=payload.project_year_min,

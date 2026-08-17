@@ -24,7 +24,7 @@ from app.generation.rag.errors import GenerationError, MalformedEstimateError
 from app.generation.rag.observability import log_stage
 from app.generation.rag.prompt_builder import build_system_prompt, build_user_message
 from app.generation.rag.query_reformulator import compose_search_text, reformulate_query
-from app.generation.rag.retriever import search_chunks
+from app.generation.rag.retrieval.pipeline import retrieve
 from app.generation.rag.schemas import Estimate, EstimationQuery
 from app.generation.rag.validation import check_coherence, validate_citations
 
@@ -170,8 +170,12 @@ async def estimate_from_transcript(
     sector = query.sector.lower().strip() if query.sector else None
     sectors = [sector] if sector in _KNOWN_SECTORS else None
     with log_stage("retrieval", request_id, sectors=sectors):
-        retrieval = await search_chunks(
+        # Through the pipeline, so search mode and reranking are whatever the
+        # deployment is configured for. Passing no overrides keeps this call site
+        # free of retrieval policy: the technique in use is a settings decision.
+        retrieval = await retrieve(
             query_embedding,
+            search_text,
             top_k=settings.RETRIEVAL_TOP_K,
             distance_threshold=settings.RETRIEVAL_DISTANCE_THRESHOLD,
             sectors=sectors,

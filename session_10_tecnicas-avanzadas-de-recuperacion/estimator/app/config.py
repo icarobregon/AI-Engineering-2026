@@ -131,10 +131,29 @@ class Settings(BaseSettings):
     RETRIEVAL_API_KEY: str | None = None
     ESTIMATE_API_KEY: str | None = None
 
-    # --- Session 10 fields ---
+    # --- Session 10 fields (hybrid search + cross-encoder reranking) ---
+    # The two switches that define the four measured configurations. Both are
+    # overridable per request, so flipping a technique on is a configuration
+    # change and comparing techniques is an experiment over two booleans — never
+    # a code change.
+    #   A = vector + off (the Session 9 baseline)   C = vector + on
+    #   B = hybrid + off                            D = hybrid + on
+    RETRIEVAL_SEARCH_MODE: Literal["vector", "hybrid"] = "vector"
+    RERANKER_ENABLED: bool = False
     # Multilingual cross-encoder (ES+EN), small enough for CPU at teaching
     # latency. Read by CrossEncoderReranker.from_settings().
     RERANKER_MODEL: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
+    # Recall-then-rerank widths. The WIDE set fixes the quality ceiling: the
+    # reranker reorders, it does not retrieve, so a budget that misses the recall
+    # set is unrecoverable. 30-75 is the sane band for a company-sized corpus.
+    RETRIEVAL_RECALL_TOP_K: int = 50
+    # The FINAL set is dictated by the consumer of the context, not by the
+    # reranker: 5 well-chosen budgets beat 15 mediocre ones, because the
+    # generator also suffers when the signal is buried in noise.
+    RERANK_TOP_N: int = 5
+    # RRF smoothing constant (Cormack et al.). Touching it first is premature
+    # optimisation — see retrieval/fusion.py.
+    RRF_K: int = 60
 
     @model_validator(mode="after")
     def validate_at_least_one_api_key(self) -> "Settings":

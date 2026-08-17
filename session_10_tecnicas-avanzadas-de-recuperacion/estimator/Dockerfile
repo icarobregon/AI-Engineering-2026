@@ -44,6 +44,14 @@ COPY app/ /app/app/
 # Ensure the non-root user owns everything it needs to run.
 RUN chown -R appuser:appgroup /app
 
+# Create the HuggingFace cache directory owned by appuser BEFORE the volume is
+# mounted over it. Docker initializes a fresh named volume from the image's
+# directory — including its ownership — so this is what stops the volume from
+# being root-owned and the first rerank from dying with PermissionError. Creating
+# it after `USER appuser` would not work: the parent is not writable by then.
+RUN mkdir -p /home/appuser/.cache/huggingface && \
+    chown -R appuser:appgroup /home/appuser/.cache
+
 # Put the virtual environment's bin directory first on PATH so `python` and
 # `uvicorn` resolve to the versions installed inside the venv.
 ENV PATH="/app/.venv/bin:$PATH"

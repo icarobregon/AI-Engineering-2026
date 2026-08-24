@@ -2,7 +2,7 @@
 
 Downstream work (LLM, embeddings, pgvector) is stubbed; the focus is the auth
 boundary, the stateless stage contracts, and the grounding signals from the
-generate stage (which exercises the REAL ``validate_citations`` /
+generate stage (which exercises the REAL ``verify_citations`` /
 ``check_coherence`` rather than mocking them).
 """
 
@@ -151,7 +151,7 @@ def test_assemble_drops_chunks_over_budget(client):
     assert len(body["kept_chunks"]) < 5
 
 
-# --- generate (real validate_citations + check_coherence) ------------------
+# --- generate (real verify_citations + check_coherence) --------------------
 
 def _generate_payload(estimate: Estimate) -> dict:
     return {
@@ -182,6 +182,49 @@ def test_generate_flags_fabricated_citations(client, monkeypatch):
     assert body["coherent"] is True
 
 
+def test_generate_reports_the_status_of_every_line(client, monkeypatch):
+    """Session 11: the stage surfaces the per-line verdict instead of enforcing it."""
+    estimate = Estimate(
+        confidence="high",
+        reasoning="r",
+        total_engineer_days=28,
+        modules=[
+            {
+                "name": "Checkout",
+                "tasks": [
+                    {
+                        "name": "Cart",
+                        "sources": [{"chunk_id": 1, "evidence": "Checkout: 140h"}],
+                        "grounded": True,
+                        "engineer_days": 18,
+                    },
+                    {
+                        "name": "Fraud scoring",
+                        "sources": [{"chunk_id": 999, "evidence": "invented"}],
+                        "grounded": True,
+                        "engineer_days": 10,
+                    },
+                    {"name": "Gift cards", "sources": [], "grounded": False},
+                ],
+            }
+        ],
+    )
+
+    async def fake_generate(context_block, structured_query, include_hours=True):
+        return estimate
+
+    monkeypatch.setattr(stages, "generate_estimate", fake_generate)
+    r = client.post("/v1/estimate/stages/generate", json=_generate_payload(estimate), headers=_h())
+    assert r.status_code == 200
+    report = r.json()["citation_report"]
+    assert [line["status"] for line in report["lines"]] == ["grounded", "dangling", "insufficient"]
+    assert (report["grounded"], report["dangling"], report["insufficient"]) == (1, 1, 1)
+    assert report["dangling_source_ids"] == [999]
+    # The stage reports; it does not enforce. The dangling line is served as-is so
+    # the wizard can show it — enforcement happens in /from-transcript.
+    assert r.json()["estimate"]["modules"][0]["tasks"][1]["engineer_days"] == 10
+
+
 def test_generate_flags_incoherent_insufficient(client, monkeypatch):
     # insufficient confidence but numbers present → incoherent.
     estimate = Estimate(
@@ -208,7 +251,15 @@ def test_structure_returns_clean_estimate_without_sources(client, monkeypatch):
     estimate = Estimate(
         confidence="high",
         reasoning="decomposed from the brief",
-        modules=[{"name": "Auth", "tasks": [{"name": "OAuth login"}, {"name": "RBAC"}]}],
+        modules=[
+            {
+                "name": "Auth",
+                "tasks": [
+                    {"name": "OAuth login", "grounded": False},
+                    {"name": "RBAC", "grounded": False},
+                ],
+            }
+        ],
     )
 
     async def fake_structure(query):
@@ -222,10 +273,12 @@ def test_structure_returns_clean_estimate_without_sources(client, monkeypatch):
     )
     assert r.status_code == 200
     body = r.json()
-    # Structure-only: no hours, no citations, always coherent/clean.
+    # Structure-only: no hours, no citations, always coherent/clean. The citation
+    # report stays None — nothing was verified because no context was delivered.
     assert body["estimate"]["modules"][0]["tasks"][0]["engineer_days"] is None
     assert body["fabricated_source_ids"] == []
     assert body["coherent"] is True
+    assert body["citation_report"] is None
 
 
 def test_structure_requires_estimate_key(client):

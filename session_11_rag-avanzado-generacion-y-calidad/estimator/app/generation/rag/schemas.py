@@ -163,6 +163,10 @@ Scale = Literal["small", "medium", "large", "unknown"]
 Confidence = Literal["high", "medium", "low", "insufficient"]
 Relevance = Literal["primary", "supporting", "tangential"]
 Impact = Literal["high", "medium", "low"]
+# Session 11 — per-line citation verdict. ``grounded`` = every cited chunk was
+# really retrieved; ``dangling`` = the line claims grounding it cannot back;
+# ``insufficient`` = the line honestly declared it had no source.
+LineCitationStatus = Literal["grounded", "dangling", "insufficient"]
 
 
 class EstimationQuery(BaseModel):
@@ -262,16 +266,63 @@ class Assumption(BaseModel):
     rationale: str
 
 
+class SourceReference(BaseModel):
+    """One verifiable per-line citation (Session 11).
+
+    Replaces the bare chunk id the task used to carry: an id alone says *which*
+    source was used but not *what* in it backs the claim, so a citation could
+    point at a real chunk that says nothing of the sort. ``evidence`` closes that
+    gap by carrying the span the model actually read.
+
+    ``document_id`` is resolved by the service after generation (see
+    :func:`validation.enforce_citation_policy`), never asked of the model: it is
+    derivable from ``chunk_id``, and asking the model to restate a derivable value
+    only adds a surface to hallucinate on.
+    """
+
+    chunk_id: int = Field(
+        description="DB id of the cited chunk — the `id` attribute of its <source> element."
+    )
+    document_id: str = Field(
+        default="",
+        description="Traceable id of the parent document (budget/transcript/doc). "
+        "Filled by the service from the retrieved chunk; leave empty.",
+    )
+    evidence: str = Field(
+        description="Verbatim span or figure copied from the cited source that backs "
+        "this line. Copy it exactly; do not paraphrase or summarise."
+    )
+
+
 class TaskItem(BaseModel):
     """One concrete engineering task inside a functional module, in engineer-days.
 
-    ``sources`` cite the historical chunk(s) the task was derived from; a task
-    with no historical analog is left uncited and should surface as an
-    :class:`Assumption` instead.
+    This is the *line* of the estimate, and the unit citation works at: ``sources``
+    carry the historical chunk(s) it was derived from together with the verbatim
+    evidence, and ``grounded`` records whether the line claims that backing at all.
+
+    Integrity rule (enforced in :mod:`app.generation.rag.validation`, not by a
+    Pydantic validator, so that the outcome is reported and logged rather than
+    silently re-prompted): ``grounded=True`` requires at least one real source,
+    and ``grounded=False`` forbids ``engineer_days`` — a line with no evidence
+    must say so instead of filling the gap with a plausible number.
+
+    Field order is deliberate and follows the project's autoregressive rule (see
+    ARCHITECTURE.md §8): sources and the grounding verdict are emitted BEFORE
+    ``engineer_days``, so the model commits to its evidence before it commits to
+    a figure, rather than picking a number and back-fitting a citation.
     """
 
     name: str
     description: str | None = Field(default=None, description="One-line scope of the task.")
+    sources: list[SourceReference] = Field(
+        default_factory=list, description="Per-line citations backing this task."
+    )
+    grounded: bool = Field(
+        description="True only if at least one retrieved source backs this line. "
+        "False means no sufficient source data: leave `sources` empty and "
+        "`engineer_days` null rather than guessing."
+    )
     engineer_days: int | None = Field(
         default=None,
         ge=0,
@@ -279,7 +330,6 @@ class TaskItem(BaseModel):
         "mode (Session 10): the LLM proposes the module→task structure and the hours "
         "are derived afterwards by per-task vector search, not inferred here.",
     )
-    sources: list[int] = Field(default_factory=list, description="Chunk ids that back this task.")
 
 
 class WorkModule(BaseModel):
@@ -310,6 +360,37 @@ class Estimate(BaseModel):
     confidence: Confidence
     reasoning: str = Field(description="How the estimate was derived from the sources.")
     insufficient_context_explanation: str | None = None
+
+
+class LineCitationCheck(BaseModel):
+    """The citation verdict for a single estimate line (Session 11)."""
+
+    module: str
+    task: str
+    status: LineCitationStatus
+    cited_chunk_ids: list[int] = Field(default_factory=list)
+    dangling_chunk_ids: list[int] = Field(
+        default_factory=list, description="Cited ids that were never in the retrieved context."
+    )
+
+
+class CitationReport(BaseModel):
+    """Per-line citation verification of one estimate (Session 11).
+
+    Reports what the MODEL produced, before any policy is applied — that is the
+    interesting artifact, since after the policy runs no dangling citation can
+    survive by construction.
+    """
+
+    lines: list[LineCitationCheck] = Field(default_factory=list)
+    grounded: int = Field(default=0, description="Lines citing only real, retrieved sources.")
+    dangling: int = Field(default=0, description="Lines claiming grounding they cannot back.")
+    insufficient: int = Field(default=0, description="Lines that declared no source data.")
+    dangling_source_ids: list[int] = Field(
+        default_factory=list,
+        description="Sorted, de-duplicated cited ids that were never retrieved, across "
+        "the whole estimate (per-line citations and top-level `sources` alike).",
+    )
 
 
 # ---- HTTP request models for the Session 9 routers ------------------------
@@ -418,6 +499,11 @@ class GenerateResult(BaseModel):
         description="Cited source ids not present in kept_chunks (empty = clean).",
     )
     coherent: bool = Field(description="False when an insufficient estimate still carries numbers.")
+    citation_report: CitationReport | None = Field(
+        default=None,
+        description="Per-line citation verification (Session 11). None for the "
+        "structure-only stage, where there is no context to verify against.",
+    )
 
 
 # ---------------------------------------------------------------------------

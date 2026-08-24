@@ -18,6 +18,7 @@ from app.generation.rag.schemas import (
     RetrievalResult,
     RetrievedChunk,
     SourceCitation,
+    SourceReference,
     TaskItem,
     WorkModule,
 )
@@ -70,7 +71,14 @@ def _good_estimate() -> Estimate:
         modules=[
             WorkModule(
                 name="Checkout",
-                tasks=[TaskItem(name="Cart & payment flow", engineer_days=18, sources=[1])],
+                tasks=[
+                    TaskItem(
+                        name="Cart & payment flow",
+                        sources=[SourceReference(chunk_id=1, evidence="Checkout flow: 140h")],
+                        grounded=True,
+                        engineer_days=18,
+                    )
+                ],
             )
         ],
         sources=[SourceCitation(source_id=1, relevance="primary", used_for="checkout")],
@@ -180,3 +188,151 @@ async def test_idempotency_hit_short_circuits_pipeline(wire):
     assert second == first
     # No stage re-ran on the cached call.
     assert calls == {"reformulate": 1, "search": 1, "generate": 1, "embed": 1}
+
+
+# --- Session 11: per-line citation verification inside the pipeline ----------
+
+
+def _mixed_estimate() -> Estimate:
+    """One well-grounded line plus one citing a chunk that was never retrieved."""
+    return Estimate(
+        total_engineer_days=25,
+        duration_weeks=5,
+        modules=[
+            WorkModule(
+                name="Checkout",
+                tasks=[
+                    TaskItem(
+                        name="Cart & payment flow",
+                        sources=[SourceReference(chunk_id=1, evidence="Checkout flow: 140h")],
+                        grounded=True,
+                        engineer_days=18,
+                    ),
+                    TaskItem(
+                        name="Fraud scoring",
+                        sources=[SourceReference(chunk_id=42, evidence="Fraud rules: 60h")],
+                        grounded=True,
+                        engineer_days=7,
+                    ),
+                ],
+            )
+        ],
+        sources=[SourceCitation(source_id=1, relevance="primary", used_for="checkout")],
+        assumptions=[],
+        confidence="high",
+        reasoning="Grounded in BUD-2024-005.",
+    )
+
+
+def _wire_retry(monkeypatch, wire, first: Estimate, second: Estimate):
+    """Wire the pipeline so generation returns ``first`` and the retry ``second``."""
+    retrieval = RetrievalResult(chunks=[_chunk(1)], low_confidence=False, candidates_evaluated=5)
+    calls, store = wire(retrieval=retrieval, estimate=first)
+    retries = {"n": 0}
+
+    async def fake_retry(context_block, structured_query, *, feedback=None, include_hours=True):
+        retries["n"] += 1
+        return second
+
+    monkeypatch.setattr(orch, "_generate", fake_retry)
+    return calls, retries
+
+
+async def test_dangling_citation_triggers_one_corrective_retry(wire, monkeypatch):
+    calls, retries = _wire_retry(monkeypatch, wire, _mixed_estimate(), _good_estimate())
+
+    result = await orch.estimate_from_transcript("x" * 200)
+
+    assert retries["n"] == 1  # exactly one corrective retry
+    assert calls["generate"] == 1
+    assert result.total_engineer_days == 18
+    assert result.modules[0].tasks[0].grounded is True
+
+
+async def test_unrepaired_dangling_citation_is_demoted_instead_of_served(wire, monkeypatch):
+    # The model keeps citing id 42 after the retry: the line must not reach the
+    # client carrying a citation that does not resolve, nor a number backing it.
+    calls, retries = _wire_retry(monkeypatch, wire, _mixed_estimate(), _mixed_estimate())
+
+    result = await orch.estimate_from_transcript("x" * 200)
+
+    assert retries["n"] == 1
+    fraud = result.modules[0].tasks[1]
+    assert fraud.grounded is False
+    assert fraud.sources == []
+    assert fraud.engineer_days is None
+    # The surviving line keeps its hours and the total is re-derived from them.
+    assert result.modules[0].tasks[0].engineer_days == 18
+    assert result.total_engineer_days == 18
+
+
+async def test_served_estimate_resolves_the_document_of_every_citation(wire):
+    retrieval = RetrievalResult(chunks=[_chunk(1)], low_confidence=False, candidates_evaluated=5)
+    wire(retrieval=retrieval, estimate=_good_estimate())
+
+    result = await orch.estimate_from_transcript("x" * 200)
+
+    # _chunk() carries no budget_id, so the resolved value is the empty string —
+    # the point is that it comes from the chunk, never from the model.
+    assert result.modules[0].tasks[0].sources[0].document_id == ""
+
+
+async def test_citation_report_is_logged_correlated_by_request_id(wire, monkeypatch):
+    import structlog
+
+    _wire_retry(monkeypatch, wire, _mixed_estimate(), _mixed_estimate())
+
+    with structlog.testing.capture_logs() as logs:
+        await orch.estimate_from_transcript("x" * 200)
+
+    reports = [entry for entry in logs if entry["event"] == "citation_report"]
+    # Logged once, after the retry had its chance, describing what the model produced.
+    assert len(reports) == 1
+    report = reports[0]
+    assert report["grounded"] == 1
+    assert report["dangling"] == 1
+    assert report["dangling_source_ids"] == [42]
+    assert report["retried"] is True
+    assert report["request_id"]
+    assert report["log_level"] == "warning"
+
+
+async def test_coherence_repair_output_also_goes_through_the_citation_policy(wire, monkeypatch):
+    """A repaired generation is a fresh one: it cannot skip the citation policy.
+
+    Reaching the repair branch needs an estimate that SURVIVES the policy and is
+    still incoherent — `insufficient` carrying a line grounded in a chunk that was
+    really retrieved. The repair then returns a coherent estimate whose second line
+    cites a chunk that was never retrieved; only re-applying the policy catches it.
+    """
+    incoherent_but_grounded = Estimate(
+        confidence="insufficient",
+        reasoning="r",
+        total_engineer_days=18,
+        insufficient_context_explanation="numbers present while insufficient",
+        modules=[
+            WorkModule(
+                name="Checkout",
+                tasks=[
+                    TaskItem(
+                        name="Cart & payment flow",
+                        sources=[SourceReference(chunk_id=1, evidence="Checkout flow: 140h")],
+                        grounded=True,
+                        engineer_days=18,
+                    )
+                ],
+            )
+        ],
+    )
+    _wire_retry(monkeypatch, wire, incoherent_but_grounded, _mixed_estimate())
+
+    result = await orch.estimate_from_transcript("x" * 200)
+
+    # The repair produced a line citing chunk 42, never retrieved. The policy ran
+    # again on that fresh output, so it reaches the client demoted, not cited.
+    assert result.confidence == "high"
+    fraud = result.modules[0].tasks[1]
+    assert fraud.grounded is False
+    assert fraud.sources == []
+    assert fraud.engineer_days is None
+    assert result.total_engineer_days == 18

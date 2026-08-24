@@ -1,14 +1,37 @@
-"""Prompt construction for grounded estimate generation (Session 9).
+"""Prompt construction for grounded estimate generation (Sessions 9 and 11).
 
 The system prompt encodes the grounding policy: every quantitative claim must
 trace back to a ``<source>`` block, fabricated ids are forbidden, and when the
 context cannot support an estimate the model must say so via
 ``confidence="insufficient"`` rather than guess.
+
+Session 11 moves that policy from the estimate down to the LINE. Citing at the
+level of the whole estimate lets a model produce a well-cited document in which
+no individual figure is traceable; the rules below make each task carry its own
+sources, the verbatim span that backs it, and an explicit ``grounded`` verdict —
+so "no sufficient source data" becomes an answer the model can give per line
+instead of a gap it fills with a plausible number.
 """
 
 from __future__ import annotations
 
 from app.generation.rag.schemas import EstimationQuery
+
+# Shared by both grounded branches of build_system_prompt: per-line attribution
+# (rule 2) and the per-line abstention verdict (rule 3). Kept as one constant so
+# the two branches cannot drift apart.
+_ATTRIBUTION_RULES = (
+    "2. Attribute every task to its evidence: fill that task's `sources` with one "
+    "entry per supporting <source> block. `chunk_id` is that element's `id` "
+    "attribute, and `evidence` is the span or figure from INSIDE that block which "
+    "backs the line, copied VERBATIM — do not paraphrase, summarise or translate "
+    "it. Leave `document_id` empty; the service resolves it.\n"
+    "3. Set `grounded` on every task: true only when at least one <source> really "
+    "supports it, false otherwise. A task with `grounded` false must have empty "
+    "`sources` and null `engineer_days`. Declaring that you have no sufficient "
+    "source data is a valid answer; inventing a plausible number, or citing an id "
+    "that does not appear in the <sources> block, is not.\n"
+)
 
 
 def build_system_prompt(include_hours: bool = True) -> str:
@@ -39,15 +62,13 @@ def build_system_prompt(include_hours: bool = True) -> str:
             "Rules:\n"
             "1. Leave `engineer_days` null for every task and `total_engineer_days` "
             "null — you are NOT estimating effort here.\n"
-            "2. Cite the source id(s) a task derives from in that task's `sources` (the "
-            "`id` attribute of the <source> element) when it maps to a historical "
-            "component; never invent source ids.\n"
-            "3. Genuinely novel scope with no historical analog must be expressed as an "
-            "Assumption.\n"
-            "4. If the provided context is insufficient to scope the project "
+            f"{_ATTRIBUTION_RULES}"
+            "4. Genuinely novel scope with no historical analog must be expressed as an "
+            "Assumption, never as a task citing an id that is not there.\n"
+            "5. If the provided context is insufficient to scope the project "
             'responsibly, set confidence="insufficient", leave modules empty and '
             "explain what is missing in insufficient_context_explanation.\n"
-            "5. Otherwise set confidence to high/medium/low based on how well the "
+            "6. Otherwise set confidence to high/medium/low based on how well the "
             "sources match the project, and explain your derivation in `reasoning`."
         )
     return (
@@ -73,14 +94,11 @@ def build_system_prompt(include_hours: bool = True) -> str:
         "Rules:\n"
         "1. Base every estimate ONLY on the <source> blocks provided. Do not rely on "
         "outside knowledge for the numbers.\n"
-        "2. Cite the source id(s) a task derives from in that task's `sources` (the "
-        "`id` attribute of the <source> element). A task refined from a historical "
-        "component should cite that component.\n"
-        "3. Never invent source ids. Genuinely novel scope with no historical analog "
-        "must be expressed as an Assumption (not as a task citing a non-existent id).\n"
-        "4. Clearly distinguish evidence-backed tasks (with sources) from assumptions "
-        "(without sources).\n"
-        "5. total_engineer_days must equal the sum of all tasks across all modules.\n"
+        f"{_ATTRIBUTION_RULES}"
+        "4. Genuinely novel scope with no historical analog must be expressed as an "
+        "Assumption, never as a task citing an id that is not there.\n"
+        "5. total_engineer_days must equal the sum of the `engineer_days` of the "
+        "tasks that carry one (tasks marked not grounded contribute nothing).\n"
         "6. If the provided context is insufficient to estimate responsibly, set "
         'confidence="insufficient", leave total_engineer_days and duration_weeks '
         "null, leave modules empty, and explain what is missing in "
@@ -115,8 +133,9 @@ def build_user_message(context_block: str, structured_query: EstimationQuery) ->
         f"{context_block}\n"
         "</sources>\n"
         "\n"
-        "Produce the grounded estimate now, citing source ids for every "
-        "quantitative claim."
+        "Produce the grounded estimate now. Attribute every task to the source "
+        "ids that back it, copy the evidence verbatim, and mark as not grounded "
+        "any task no source supports."
     )
 
 
@@ -151,8 +170,8 @@ def build_structure_system_prompt() -> str:
         "Rules:\n"
         "1. Leave `engineer_days` null for every task and `total_engineer_days` "
         "null — hours are derived in a later step.\n"
-        "2. Leave `sources` empty: there is no historical context here. Do not "
-        "invent citations.\n"
+        "2. Leave `sources` empty and `grounded` false on every task: there is no "
+        "historical context here, so nothing can be cited. Do not invent citations.\n"
         "3. Use `assumptions` for scope you are inferring beyond the brief.\n"
         "4. If the brief is too vague to scope responsibly, set "
         'confidence="insufficient", leave modules empty and explain what is '

@@ -21,7 +21,7 @@ import structlog
 from app.config import get_settings
 from app.generation.rag.context_assembler import build_context_block, truncate_to_token_budget
 from app.generation.rag.errors import GenerationError, MalformedEstimateError
-from app.generation.rag.observability import log_stage
+from app.generation.rag.observability import log_citation_report, log_stage
 from app.generation.rag.prompt_builder import (
     build_structure_system_prompt,
     build_structure_user_message,
@@ -31,7 +31,11 @@ from app.generation.rag.prompt_builder import (
 from app.generation.rag.query_reformulator import compose_search_text, reformulate_query
 from app.generation.rag.retrieval.pipeline import retrieve
 from app.generation.rag.schemas import Estimate, EstimationQuery
-from app.generation.rag.validation import check_coherence, validate_citations
+from app.generation.rag.validation import (
+    check_coherence,
+    enforce_citation_policy,
+    verify_citations,
+)
 
 log = structlog.get_logger()
 
@@ -170,8 +174,9 @@ async def estimate_from_transcript(
 
     Steps: (optional) idempotency lookup → reformulate → embed → filtered
     retrieval (soft-fail short-circuits to an insufficient-context estimate) →
-    token-budget truncation → context assembly → generation → citation
-    validation (one corrective retry) → coherence check → (optional) cache.
+    token-budget truncation → context assembly → generation → per-line citation
+    verification (one corrective retry, then policy enforcement) → coherence
+    check → (optional) cache.
 
     Parameters
     ----------
@@ -184,8 +189,10 @@ async def estimate_from_transcript(
     Returns
     -------
     Estimate
-        The grounded estimate (possibly ``confidence='insufficient'`` or
-        downgraded to ``'low'`` if citations could not be repaired).
+        The grounded estimate, with every surviving line traceable to a chunk
+        that really reached the prompt. Lines whose citations did not resolve
+        come back as ``grounded=False`` without hours; if no line survives
+        grounded, the whole estimate is ``confidence='insufficient'``.
 
     Raises
     ------
@@ -261,18 +268,22 @@ async def estimate_from_transcript(
     with log_stage("generation", request_id, sources=len(kept)):
         estimate = await generate_estimate(context_block, structured_query=query)
 
-    # 6. Validate citations; one corrective retry on fabricated ids.
-    fabricated = validate_citations(estimate, kept)
-    if fabricated:
+    # 6. Verify citations line by line, retry once on fabricated ids, then enforce
+    #    the policy on what survives. The report describes what the MODEL produced;
+    #    the enforcement decides what the SERVICE serves.
+    report = verify_citations(estimate, kept)
+    retried = bool(report.dangling_source_ids)
+    if retried:
         feedback = (
-            f"your previous response cited invalid source ids: {fabricated}. "
-            "Only cite ids that appear in the <sources> block."
+            f"your previous response cited invalid source ids: {report.dangling_source_ids}. "
+            "Only cite ids that appear in the <sources> block, and mark as not grounded "
+            "any task you cannot back with one instead of citing something else."
         )
-        with log_stage("citation_retry", request_id, fabricated=fabricated):
+        with log_stage("citation_retry", request_id, fabricated=report.dangling_source_ids):
             estimate = await _generate(context_block, query, feedback=feedback)
-        if validate_citations(estimate, kept):
-            log.warning("citations_unrepaired", request_id=request_id)
-            estimate = estimate.model_copy(update={"confidence": "low"})
+        report = verify_citations(estimate, kept)
+    log_citation_report(report, request_id, retried=retried)
+    estimate = enforce_citation_policy(estimate, kept)
 
     # 7. Coherence guard: one repair attempt, then reject.
     if not check_coherence(estimate):
@@ -284,6 +295,9 @@ async def estimate_from_transcript(
         )
         with log_stage("coherence_repair", request_id):
             estimate = await _generate(context_block, query, feedback=feedback)
+        # The repaired estimate is a fresh generation: it has not been through the
+        # citation policy yet, and must not reach the client without it.
+        estimate = enforce_citation_policy(estimate, kept)
         if not check_coherence(estimate):
             raise MalformedEstimateError(
                 "Estimate violates the insufficient-context coherence rule."

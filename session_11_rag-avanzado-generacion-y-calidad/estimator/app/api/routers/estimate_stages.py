@@ -37,7 +37,7 @@ from app.dependencies import get_embedder, get_token_encoder
 from app.generation.rag.context_assembler import build_context_block, truncate_to_token_budget
 from app.generation.rag.errors import RagError, RetrievalError
 from app.generation.rag.estimator import generate_estimate, generate_structure
-from app.generation.rag.observability import log_stage
+from app.generation.rag.observability import log_citation_report, log_stage
 from app.generation.rag.query_reformulator import compose_search_text, reformulate_query
 from app.generation.rag.retriever import search_chunks
 from app.generation.rag.schemas import (
@@ -51,7 +51,7 @@ from app.generation.rag.schemas import (
     RetrievalResult,
     StructureRequest,
 )
-from app.generation.rag.validation import check_coherence, validate_citations
+from app.generation.rag.validation import check_coherence, verify_citations
 
 log = structlog.get_logger()
 
@@ -172,9 +172,12 @@ async def structure(request: Request, payload: StructureRequest) -> GenerateResu
 async def generate(request: Request, payload: GenerateRequest) -> GenerateResult:
     """Stage 4 — generate the grounded estimate and report grounding signals.
 
-    Unlike the full pipeline, this does not auto-retry on fabricated citations
-    or incoherence; it returns ``fabricated_source_ids`` and ``coherent`` so the
-    wizard can surface them as a teaching moment."""
+    Unlike the full pipeline, this does not auto-retry on fabricated citations,
+    does not enforce the citation policy and does not repair incoherence: it
+    returns ``citation_report`` (the per-line verdict, Session 11) alongside
+    ``fabricated_source_ids`` and ``coherent`` so the wizard can surface the raw
+    model output as a teaching moment. Enforcement lives in the served path,
+    :func:`estimator.estimate_from_transcript`."""
     request_id = get_request_id(request)
     try:
         with log_stage(
@@ -192,10 +195,11 @@ async def generate(request: Request, payload: GenerateRequest) -> GenerateResult
         log.error("stage_failed", stage="generation", error_type=type(exc).__name__)
         raise HTTPException(status_code=502, detail="Estimate generation failed.") from exc
 
-    fabricated = validate_citations(estimate, payload.kept_chunks)
-    coherent = check_coherence(estimate)
+    report = verify_citations(estimate, payload.kept_chunks)
+    log_citation_report(report, request_id)
     return GenerateResult(
         estimate=estimate,
-        fabricated_source_ids=fabricated,
-        coherent=coherent,
+        fabricated_source_ids=report.dangling_source_ids,
+        coherent=check_coherence(estimate),
+        citation_report=report,
     )

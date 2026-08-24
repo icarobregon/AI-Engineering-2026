@@ -1,5 +1,5 @@
 {
-  "description": "Session 10 golden set for retrieval evaluation. Project descriptions and cross-collection questions, each hand-annotated with the documents that are genuinely relevant. Q1–Q5 are budget-only (graded over data/budgets_sample.json) and keep the original relevant_budget_ids; Q6–Q8 span the multi-index corpus (budgets + transcripts + technical docs) and use relevant_source_ids. A retrieved chunk counts as relevant iff its source_id (budget_id / transcript_id / doc_id) is in the relevant set. The distractors are deliberately cross-sector or cross-collection 'similar but irrelevant' documents — the exact failure modes this session attacks (averaged multi-topic queries, the dominant collection flooding the top-k, lexical identifiers diluted by embeddings). Annotation criterion: a document is relevant when it directly addresses the asked-for functionality/topic, not merely shares sector or vocabulary.",
+  "description": "Session 10 golden set for retrieval evaluation. Project descriptions and cross-collection questions, each hand-annotated with the documents that are genuinely relevant. Q1–Q5 are budget-only (graded over data/budgets_sample.json) and keep the original relevant_budget_ids; Q6–Q8 span the multi-index corpus (budgets + transcripts + technical docs) and use relevant_source_ids. A retrieved chunk counts as relevant iff its source_id (budget_id / transcript_id / doc_id) is in the relevant set. The distractors are deliberately cross-sector or cross-collection 'similar but irrelevant' documents — the exact failure modes this session attacks (averaged multi-topic queries, the dominant collection flooding the top-k, lexical identifiers diluted by embeddings). Annotation criterion: a document is relevant when it directly addresses the asked-for functionality/topic, not merely shares sector or vocabulary. Session 11 extends Q1–Q5 with a `ground_truth`: the reference estimate a reviewer would expect for that project description, in engineer-days, naming the functional modules and the historical hours each block derives from. It states only what the estimate SHOULD contain: the distractors and traps stay in each query's `note`, because a reference that also asserts what must be excluded penalises context_recall with claims no retrieved context can support. It is written in the vocabulary the chunk text actually carries (project and component names, hours) rather than in BUD-2024-xxx ids, which the rendered chunk does not contain. It is the reference answer of the RAGAS evaluation (scripts/eval_ragas_s11.py). Q6–Q8 stay retrieval-only on purpose: they are cross-collection QA questions ('what did the client say about…'), not estimation requests, so no reference estimate exists for them.",
   "corpus": "data/budgets_sample.json + data/transcripts_sample.json + data/technical_docs_sample.json",
   "chunk_types": null,
   "k": 5,
@@ -9,6 +9,7 @@
       "query": "Mobile banking application with OAuth2 authentication, PSD2 open banking compliance, strong customer authentication and a transaction ledger.",
       "relevant_budget_ids": ["BUD-2024-001", "BUD-2024-003"],
       "relevant_source_ids": ["BUD-2024-001", "BUD-2024-003"],
+      "ground_truth": "Unos 55-60 engineer-days (≈460h a 8h/día). Módulos esperados, tomados del presupuesto histórico de una API de banca móvil con OAuth 2.0 y cumplimiento PSD2: backend de autenticación OAuth 2.0 (120h); conectores de open banking PSD2, que incluyen la autenticación reforzada del cliente (160h); servicio de ledger transaccional (140h); y notificaciones push y email (60h).",
       "note": "Fintech auth + payments. Trap: BUD-2024-006 (e-commerce marketplace vendor payouts) is 'payments-like' but irrelevant for a banking auth project."
     },
     {
@@ -16,6 +17,7 @@
       "query": "Headless e-commerce storefront with a product catalog, shopping cart checkout and personalized product recommendations.",
       "relevant_budget_ids": ["BUD-2024-005", "BUD-2024-006", "BUD-2024-007", "BUD-2024-017"],
       "relevant_source_ids": ["BUD-2024-005", "BUD-2024-006", "BUD-2024-007", "BUD-2024-017"],
+      "ground_truth": "Unos 55-60 engineer-days (≈460h a 8h/día). Módulos esperados, tomados del presupuesto histórico de una tienda headless: API de catálogo de producto (150h), servicio de carrito y checkout (140h), recomendaciones personalizadas (110h) y storefront PWA (60h).",
       "note": "E-commerce storefront/catalog/checkout. Trap: finance payment budgets (BUD-2024-003) and healthcare scheduling are close in topic words but wrong domain."
     },
     {
@@ -23,6 +25,7 @@
       "query": "Telemedicine platform for patient appointment scheduling and video consultations with HL7/FHIR integration and clinical records.",
       "relevant_budget_ids": ["BUD-2024-009", "BUD-2024-010"],
       "relevant_source_ids": ["BUD-2024-009", "BUD-2024-010"],
+      "ground_truth": "Unos 65-70 engineer-days (≈560h a 8h/día). Módulos esperados, tomados del presupuesto histórico de una plataforma de telemedicina: capa de integración FHIR (190h), agenda de citas (150h), sesiones de vídeo de telemedicina (160h) y módulo de consentimiento y auditoría (60h). Los registros clínicos y los paneles del equipo asistencial pueden apoyarse en el presupuesto de monitorización remota de pacientes (150h).",
       "note": "Healthcare telemedicine. Trap: BUD-2024-011 (pharmacy inventory) and BUD-2024-012 (clinical trials) share the healthcare sector but cover different functionality."
     },
     {
@@ -30,6 +33,7 @@
       "query": "Industrial IoT platform ingesting sensor telemetry for predictive maintenance and real-time equipment monitoring in a factory.",
       "relevant_budget_ids": ["BUD-2024-013", "BUD-2024-015"],
       "relevant_source_ids": ["BUD-2024-013", "BUD-2024-015"],
+      "ground_truth": "Unos 60-65 engineer-days (≈500h a 8h/día). Módulos esperados, tomados del presupuesto histórico de mantenimiento predictivo industrial: ingesta de telemetría de sensores (170h), modelos de mantenimiento predictivo (200h) e integración con el panel SCADA (130h). El pipeline de datos a escala y la previsión pueden apoyarse en el presupuesto de smart metering (200h y 140h).",
       "note": "Industrial telemetry/monitoring. Trap: BUD-2024-014 (warehouse AGV coordination) is industrial but logistics, not telemetry-driven maintenance."
     },
     {
@@ -37,6 +41,7 @@
       "query": "Real-time payments gateway with fraud detection, transaction reconciliation and a double-entry ledger.",
       "relevant_budget_ids": ["BUD-2024-003", "BUD-2024-001"],
       "relevant_source_ids": ["BUD-2024-003", "BUD-2024-001"],
+      "ground_truth": "Unos 70-75 engineer-days (≈600h a 8h/día). Módulos esperados, tomados del presupuesto histórico de una pasarela de pagos: núcleo de la pasarela (220h), detección de fraude en tiempo real (200h), conciliación de liquidaciones (120h) y panel de comercio (60h). El ledger de doble entrada se apoya en el servicio de ledger transaccional del presupuesto de banca móvil (140h).",
       "note": "Fintech payments. Trap: BUD-2024-006 (e-commerce vendor payouts) and BUD-2024-007 (grocery delivery payments) are lexically near but wrong domain."
     },
     {

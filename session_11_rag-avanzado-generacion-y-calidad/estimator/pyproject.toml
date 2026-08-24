@@ -64,6 +64,16 @@ dev = [
     "ruff>=0.5",
     "fakeredis>=2.20",
     "deepeval>=1.0",
+    # Session 11 — RAGAS evaluation harness (scripts/eval_ragas_s11.py). Dev-only:
+    # the runtime image builds with `uv sync --no-install-project --no-dev`, so none
+    # of this ships to production.
+    "ragas>=0.4.3",
+    # ragas 0.4.3 hard-imports `langchain_community.chat_models.vertexai`, which the
+    # sunset langchain-community 0.4.x removed: `import ragas` raises ModuleNotFound
+    # without this ceiling. Holding community below 0.4 keeps the whole langchain
+    # stack on 0.3.x, which still satisfies every range this project declares
+    # (langchain-text-splitters, -experimental, -openai) and keeps the suite green.
+    "langchain-community<0.4",
 ]
 
 [tool.ruff]

@@ -126,7 +126,7 @@ Cuatro hallazgos sobrevivieron y están corregidos, todos con test de regresión
 
 ## 6.1 Cobertura
 
-`agent_loop.py`, `agent_schemas.py` y `agent_tools.py` al **100%** de línea; 41 tests, todos sin red.
+`agent_loop.py`, `agent_schemas.py` y `agent_tools.py` al **100%** de línea; 38 tests, todos sin red.
 
 El primer informe daba 96% y era engañoso: el adaptador que hace el trabajo real
 (`get_budget_search_backend`, ~60 sentencias) vive en el composition root, no en el paquete

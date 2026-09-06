@@ -186,6 +186,28 @@ class Settings(BaseSettings):
     # this gets NO hours (red flag in the UI) instead of a low-confidence guess.
     TASK_HOURS_DISTANCE_THRESHOLD: float = 0.45
 
+    # --- Session 12 fields (hand-written agentic layer) -------------------------
+    # The agent drives a MANUAL tool loop over the raw OpenAI Responses API, so it
+    # needs its own model knob: this path does NOT go through LLMWrapper and does
+    # not read GENERATION_MODEL. Plain settings, not runtime config — there is no
+    # HTTP endpoint this session, only scripts/run_agent_s12.py, which overrides
+    # them per run (gpt-5-mini while debugging the loop, gpt-5 for the real run).
+    AGENT_MODEL: str = "gpt-5"
+    AGENT_REASONING_EFFORT: Literal["minimal", "low", "medium", "high"] = "medium"
+    # Safeguard on top of the natural stop (a turn with no function_call). One
+    # iteration == one Responses API round-trip, plus one closing call that
+    # asks for the typed estimate.
+    AGENT_MAX_ITERATIONS: int = 10
+    # What the search_budgets tool passes to retrieve(). Looser than the per-task
+    # defaults on purpose: the agent asks broad per-component questions, not
+    # task-level ones, so it needs a wider net to find comparable budgets.
+    AGENT_SEARCH_TOP_K: int = 5
+    # search_budgets answers with historical MODULES (subsystems), not single
+    # tasks, so it over-fetches this many tasks per module wanted: several
+    # tasks of the same module usually match the same query.
+    AGENT_TASKS_PER_MODULE: int = 4
+    AGENT_SEARCH_DISTANCE_THRESHOLD: float = 0.6
+
     @model_validator(mode="after")
     def validate_at_least_one_api_key(self) -> "Settings":
         """LiteLLM may try either provider via fallback, so we require at least one key."""

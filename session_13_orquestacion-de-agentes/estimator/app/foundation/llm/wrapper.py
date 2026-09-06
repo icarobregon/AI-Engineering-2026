@@ -52,14 +52,21 @@ MODEL_COSTS: dict[str, dict[str, float]] = {
 T = TypeVar("T", bound=BaseModel)
 
 
-def _usage_from(result: Any) -> dict[str, Any]:
-    """Read token usage and cost off an Instructor result, if it carries them."""
+def _usage_from(result: Any, target_model: str) -> dict[str, Any]:
+    """Read token usage and cost off an Instructor result, if it carries them.
+
+    The price is looked up by the model we ASKED for, not the one the API says it
+    served: providers answer with a dated snapshot (``gpt-5-mini-2025-08-07``)
+    that is not a key in the price table, and the lookup's 0.0 default then
+    reports every call as free. A cost of zero is worse than no cost at all —
+    it is a number, and a dashboard will believe it.
+    """
     usage = getattr(getattr(result, "_raw_response", None), "usage", None)
     if usage is None:
         return {}
     input_tokens = getattr(usage, "prompt_tokens", 0) or 0
     output_tokens = getattr(usage, "completion_tokens", 0) or 0
-    model = getattr(getattr(result, "_raw_response", None), "model", "") or ""
+    model = target_model
     return {
         "usage": {
             "input_tokens": input_tokens,
@@ -378,7 +385,7 @@ class LLMWrapper:
             # missing one costs the cost figure, never the call. Session 13 puts
             # this on every node's span, which is what turns "what does an
             # estimate cost" into a query instead of an estimate.
-            **_usage_from(result),
+            **_usage_from(result, target_model),
         }
         log.info(
             "llm_structured_call_completed",

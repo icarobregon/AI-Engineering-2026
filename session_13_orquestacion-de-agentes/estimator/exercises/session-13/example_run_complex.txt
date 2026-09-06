@@ -1,63 +1,61 @@
-GRAPH RUN — thread_id=run-sample_transcript_complex-1788734785 checkpointer=postgres retrieval=real
+GRAPH RUN — thread_id=run-sample_transcript_complex-1788736483 checkpointer=postgres retrieval=real
 ===================================================================================================
 
-STEP 1 — extract_requirements  (19027 ms)
-  requirements: 16 item(s)
-      - "Construir el backend de negocio \"RUTA\" que gestione pedidos, asignación de rutas, seguimiento de envíos y cálculo de tarifas."
-      - "El backend deberá exponer una API para que lo consuman todos los demás componentes."
-      - "Integración con el ERP SAP para sincronizar facturación, clientes y el maestro de artículos."
-      - "La integración con SAP deberá mapear IDocs, montar una capa de middleware y gestionar reintentos ante fallos."
-      - "Desarrollar una app móvil para repartidores en Android e iOS que muestre la hoja de ruta del día."
-      - "La app móvil debe permitir confirmar entregas con firma y con foto."
-      … 10 more
+STEP 1 — extract_requirements  (14290 ms)
+  requirements: 10 item(s)
+      - "Backend de negocio desde cero que implemente gestión de pedidos, asignación de rutas, seguimiento de envíos y cálculo de tarifas, y que exponga una A
+      - "Integración con el ERP SAP para sincronizar facturación, clientes y maestro de artículos, incluyendo mapeo de IDocs, una capa de middleware y gestión
+      - "Aplicación móvil para repartidores en Android e iOS que muestre la hoja de ruta diaria, permita confirmar entregas con firma y foto, y tenga una inte
+      - "Modo offline en la aplicación móvil para que los repartidores puedan operar sin cobertura y con sincronización automática cuando vuelva la conexión."
+      - "Panel de analítica para dirección con cuadros de mando que muestren KPIs (entregas a tiempo, costes por ruta, incidencias), visualización de tendenci
+      - "Priorizar en la fase inicial la entrega del backend de negocio y la integración con SAP; la app móvil y el panel de analítica se desarrollarán despué
+      … 4 more
 
-STEP 2 — classify_components  (22032 ms)
-  components: 8 item(s)
-      - {"id": "c1", "name": "Backend de negocio RUTA", "category": "backend", "search_query": "Business backend for delivery platform 'RUTA' implemented in P
-      - {"id": "c2", "name": "Integración con ERP SAP", "category": "integration", "search_query": "SAP ERP integration project: map IDocs, design and impleme
-      - {"id": "c3", "name": "App móvil repartidores (Android/iOS)", "category": "mobile", "search_query": "Courier mobile application for Android and iOS (na
-      - {"id": "c4", "name": "Panel de analítica y dashboard de dirección", "category": "analytics", "search_query": "Management analytics dashboard (React re
-      - {"id": "c5", "name": "Plataforma de datos y ETL para analítica", "category": "data", "search_query": "Data platform and ETL: ingest transactional data
-      - {"id": "c6", "name": "Consolidación y migración de los cuatro sistemas actuales", "category": "other", "search_query": "Platform consolidation and mig
-      … 2 more
+STEP 2 — classify_components  (9318 ms)
+  components: 7 item(s)
+      - {"id": "c1", "name": "Backend de negocio (API central)", "category": "backend", "search_query": "Develop Python-based business backend (FastAPI/Django
+      - {"id": "c2", "name": "Integración con SAP ERP", "category": "integration", "search_query": "Integrate with SAP ERP (IDoc mapping) to synchronize invoi
+      - {"id": "c3", "name": "Aplicación móvil para repartidores (Android + iOS)", "category": "mobile", "search_query": "Mobile delivery app for drivers on A
+      - {"id": "c4", "name": "Panel de analítica y dashboards para dirección", "category": "analytics", "search_query": "Web analytics dashboard (React) with 
+      - {"id": "c5", "name": "Consolidación y migración a plataforma RUTA", "category": "data", "search_query": "Consolidate functionality and data from four 
+      - {"id": "c6", "name": "Infraestructura y base de datos", "category": "infrastructure", "search_query": "Design and provision infrastructure and databas
+      … 1 more
 
-STEP 3 — search_budgets  (2273 ms)
-  budget_matches: 40 item(s)
-      - {"component": "Backend de negocio RUTA", "reference_budget_id": "TASK-2024-0060/Integrations Platform", "amount": 87.0}
-      - {"component": "Backend de negocio RUTA", "reference_budget_id": "TASK-2025-0017/Integrations Platform", "amount": 68.0}
-      - {"component": "Backend de negocio RUTA", "reference_budget_id": "TASK-2025-0043/Integrations Platform", "amount": 70.0}
-      - {"component": "Backend de negocio RUTA", "reference_budget_id": "TASK-2024-0009/Integrations Platform", "amount": 117.0}
-      - {"component": "Backend de negocio RUTA", "reference_budget_id": "TASK-2024-0012/Checkout & Cart", "amount": 91.0}
-      - {"component": "Integración con ERP SAP", "reference_budget_id": "TASK-2024-0012/Integrations Platform", "amount": 67.0}
-      … 34 more
+STEP 3 — search_budgets  (1792 ms)
+  budget_matches: 35 item(s)
+      - {"component": "Backend de negocio (API central)", "reference_budget_id": "TASK-2025-0043/Integrations Platform", "amount": 70.0}
+      - {"component": "Backend de negocio (API central)", "reference_budget_id": "TASK-2025-0017/Integrations Platform", "amount": 68.0}
+      - {"component": "Backend de negocio (API central)", "reference_budget_id": "TASK-2024-0009/Integrations Platform", "amount": 117.0}
+      - {"component": "Backend de negocio (API central)", "reference_budget_id": "TASK-2024-0060/Integrations Platform", "amount": 87.0}
+      - {"component": "Backend de negocio (API central)", "reference_budget_id": "TASK-2023-0046/Integrations Platform", "amount": 83.0}
+      - {"component": "Integración con SAP ERP", "reference_budget_id": "TASK-2025-0025/Data & Integrations", "amount": 83.0}
+      … 29 more
   errors: 0 item(s)
 
-STEP 4 — generate_estimate  (36801 ms)
-  estimate: 721.0h across 8 components
+STEP 4 — generate_estimate  (38335 ms)
+  estimate: 606.0h across 7 components
 
-STEP 5 — validate_and_consolidate  (12 ms)
+STEP 5 — validate_and_consolidate  (25 ms)
   status: validated
   errors: 0 item(s)
 
-FINAL — Proyecto RUTA  [status: validated]
-==========================================
+FINAL — Estimación de esfuerzo basada en referencias históricas  [status: validated]
+====================================================================================
 
-- Backend de negocio RUTA: 87.0h
-    Mediana de las 5 referencias: 68, 70, 87, 91, 117.
-- Integración con ERP SAP: 77.0h
-    Mediana de las 5 referencias: 67, 68, 77, 83, 117.
-- App móvil repartidores (Android/iOS): 84.0h
-    Mediana de las 5 referencias: 66, 82, 84, 107, 125.
-- Panel de analítica y dashboard de dirección: 91.0h
-    Mediana de las 5 referencias: 69, 81, 91, 104, 116.
-- Plataforma de datos y ETL para analítica: 102.0h
-    Mediana de las 5 referencias: 70, 95, 102, 102, 102.
-- Consolidación y migración de los cuatro sistemas actuales: 74.0h
-    Mediana de las 5 referencias: 51, 73, 74, 115, 117.
-- Selección y diseño de base de datos: 89.0h
-    Mediana de las 5 referencias: 40, 63, 89, 90, 107.
-- Infraestructura, despliegue y operaciones (CI/CD, monitoring): 117.0h
-    Mediana de las 5 referencias: 44, 102, 117, 124, 126.
+- Backend de negocio (API central): 83.0h
+    Mediana de [70.0, 68.0, 117.0, 87.0, 83.0] = 83 h.
+- Integración con SAP ERP: 83.0h
+    Mediana de [83.0, 83.0, 74.0, 115.0, 67.0] = 83 h.
+- Aplicación móvil para repartidores (Android + iOS): 84.0h
+    Mediana de [82.0, 125.0, 84.0, 107.0, 66.0] = 84 h.
+- Panel de analítica y dashboards para dirección: 99.0h
+    Mediana de [104.0, 116.0, 91.0, 99.0, 81.0] = 99 h.
+- Consolidación y migración a plataforma RUTA: 90.0h
+    Mediana de [68.0, 75.0, 90.0, 116.0, 124.0] = 90 h.
+- Infraestructura y base de datos: 76.0h
+    Mediana de [90.0, 69.0, 76.0, 84.0, 61.0] = 76 h.
+- Arquitectura, decisiones tecnológicas y prototipado: 91.0h
+    Mediana de [91.0, 113.0, 140.0, 56.0, 78.0] = 91 h.
 
-TOTAL: 721.0h
-Notes: Método: mediana de cada conjunto de 5 referencias para atenuar outliers; todas las partidas están respaldadas (grounded=true). Observaciones: alta dispersión en c6 (51–117) y c8 (44–126); si la migración incluye saneamiento complejo, múltiples entornos o requisitos de compliance adicionales, revisar supuestos. La suma es aritmética (721 h) y no considera solapes ni paralelización; afecta al calendario pero no a horas totales. No se contemplan explícitamente actividades como formación, soporte post go-live o gestión del cambio si no están en las referencias.
+TOTAL: 606.0h
+Notes: Metodología: se utilizó la mediana de las horas de las referencias provistas por componente; no se aplicaron ajustes fuera de esos datos. Todos los componentes tienen respaldo histórico (grounded=true). Variabilidad: algunos conjuntos muestran alta dispersión (p. ej., c2: 67–115 h; c3: 66–125 h), por lo que, si el alcance real se parece a los extremos históricos, el esfuerzo podría desplazarse. Verificaciones sugeridas: detalle de alcance del panel de analítica (número de dashboards, fuentes), supuestos de la migración a RUTA (volumen, calidad de datos, ventanas de corte), requisitos de infraestructura (HA/DR, IaC, monitoreo/alertas), y profundidad esperada en arquitectura/prototipado (POCs, spikes, selección de tecnologías).

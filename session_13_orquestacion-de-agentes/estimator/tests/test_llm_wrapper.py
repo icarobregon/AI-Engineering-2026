@@ -8,7 +8,9 @@ from app.generation.cag.exact import EstimationCache
 from app.foundation.llm.wrapper import LLMWrapper, _estimate_cost
 
 
-def _fake_completion(model: str, content: str = "the answer", input_tokens: int = 100, output_tokens: int = 50):
+def _fake_completion(
+    model: str, content: str = "the answer", input_tokens: int = 100, output_tokens: int = 50
+):
     """Build a SimpleNamespace shaped like a litellm.ModelResponse."""
     return SimpleNamespace(
         model=model,
@@ -82,8 +84,10 @@ def test_complete_returns_normalised_dict_and_caches(wrapper: LLMWrapper) -> Non
 
 def test_complete_with_model_override_bypasses_router(wrapper: LLMWrapper) -> None:
     fake = _fake_completion(model="gpt-4o", content="overridden")
-    with patch("app.foundation.llm.wrapper.litellm.completion", return_value=fake) as direct, \
-        patch.object(wrapper.router, "completion") as router_call:
+    with (
+        patch("app.foundation.llm.wrapper.litellm.completion", return_value=fake) as direct,
+        patch.object(wrapper.router, "completion") as router_call,
+    ):
         result = wrapper.complete(
             system_prompt="sys",
             user_message="usr",
@@ -235,10 +239,41 @@ def test_complete_takes_direct_path_when_runtime_override_active() -> None:
     # Router untouched (its deployments are frozen at construction).
     wrapper = _wrapper_with_runtime("gpt-4o")
     fake = _fake_completion(model="gpt-4o", content="runtime override")
-    with patch("app.foundation.llm.wrapper.litellm.completion", return_value=fake) as direct, \
-        patch.object(wrapper.router, "completion") as router_call:
+    with (
+        patch("app.foundation.llm.wrapper.litellm.completion", return_value=fake) as direct,
+        patch.object(wrapper.router, "completion") as router_call,
+    ):
         result = wrapper.complete(system_prompt="sys", user_message="usr")
     assert direct.call_count == 1
     assert router_call.call_count == 0
     assert direct.call_args.kwargs["model"] == "gpt-4o"
     assert result["model"] == "gpt-4o"
+
+
+def test_structured_usage_is_priced_by_the_model_we_asked_for():
+    """Providers answer with a dated snapshot the price table has no key for.
+
+    Pricing on that name falls through to the 0.0 default and reports every call
+    as free — a number a dashboard will believe, which is worse than no number.
+    """
+    from app.foundation.llm import wrapper as w
+
+    result = type(
+        "R",
+        (),
+        {
+            "_raw_response": type(
+                "Raw",
+                (),
+                {
+                    "model": "gpt-5-mini-2025-08-07",  # what the API answered
+                    "usage": type("U", (), {"prompt_tokens": 1000, "completion_tokens": 500})(),
+                },
+            )()
+        },
+    )()
+
+    meta = w._usage_from(result, "gpt-5-mini")
+
+    assert meta["usage"]["total_tokens"] == 1500
+    assert meta["cost_usd"] > 0

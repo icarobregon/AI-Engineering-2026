@@ -15,6 +15,7 @@ from app.api.rate_limiting import limiter, rate_limit_exceeded_handler
 from app.api.routers.estimate import router as estimate_router
 from app.api.routers.estimate_stages import router as estimate_stages_router
 from app.api.routers.estimate_tasks import router as estimate_tasks_router
+from app.api.routers.estimate_graph import router as estimate_graph_router
 from app.api.routers.retrieval import router as retrieval_router
 from app.api.routers.retrieval_advanced import router as retrieval_advanced_router
 
@@ -65,8 +66,35 @@ async def lifespan(app: FastAPI):
         )
     except Exception as exc:  # noqa: BLE001
         log.error("catalog_load_failed", error=str(exc)[:400])
-    log.info("application_started", environment=settings.APP_ENV)
-    yield
+    # Session 13: one graph and one connection pool for the whole process. The
+    # checkpointer is an async context manager, so it is entered here and stays
+    # open for the lifetime of the app; building it per request would reconnect
+    # to Postgres on every estimate.
+    from app.domain.graph.build import build_graph
+    from app.domain.graph.checkpointer import open_checkpointer
+    from app.domain.graph.observability import configure_observability
+
+    configure_observability(app)
+    app.state.graph = None
+    graph_ready = False
+    try:
+        async with open_checkpointer(settings.DATABASE_URL) as checkpointer:
+            from app.dependencies import get_graph_nodes
+
+            app.state.graph = build_graph(get_graph_nodes(), checkpointer=checkpointer)
+            graph_ready = True
+            log.info("application_started", environment=settings.APP_ENV, graph=True)
+            yield
+    except Exception as exc:  # noqa: BLE001
+        if graph_ready:
+            raise
+        # A graph without its checkpointer is not the same product, so the
+        # service starts WITHOUT it rather than silently running unpersisted:
+        # POST /v1/estimate/graph answers 503 and every other endpoint is
+        # unaffected.
+        log.error("graph_unavailable", error_type=type(exc).__name__, error=str(exc)[:300])
+        log.info("application_started", environment=settings.APP_ENV, graph=False)
+        yield
     log.info("application_shutdown")
 
 
@@ -124,6 +152,9 @@ app.include_router(estimate_router)
 app.include_router(estimate_stages_router)
 # Session 10 — per-task hours estimation by vector search (structure → hours).
 app.include_router(estimate_tasks_router)
+
+# Session 13 — the same estimate, produced by an explicit graph.
+app.include_router(estimate_graph_router)
 
 
 @app.get("/health")

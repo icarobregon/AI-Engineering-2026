@@ -54,6 +54,9 @@ dependencies = [
     "spacy>=3.7",
     "faker>=24.0",
     "unstructured[all-docs]>=0.14",
+    "langgraph>=1.0.1",
+    "langgraph-checkpoint-postgres>=3.0.5",
+    "logfire[asyncpg,fastapi,httpx]>=5.0.0",
 ]
 
 [dependency-groups]
@@ -79,6 +82,12 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.logfire]
+# The service configures Logfire in its lifespan; tests and one-off scripts
+# import the nodes without it and would otherwise warn on every span. Spans with
+# no configuration are a supported mode here, not a mistake.
+ignore_no_config = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

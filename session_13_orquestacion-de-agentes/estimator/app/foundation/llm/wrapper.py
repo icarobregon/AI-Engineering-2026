@@ -52,6 +52,24 @@ MODEL_COSTS: dict[str, dict[str, float]] = {
 T = TypeVar("T", bound=BaseModel)
 
 
+def _usage_from(result: Any) -> dict[str, Any]:
+    """Read token usage and cost off an Instructor result, if it carries them."""
+    usage = getattr(getattr(result, "_raw_response", None), "usage", None)
+    if usage is None:
+        return {}
+    input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+    output_tokens = getattr(usage, "completion_tokens", 0) or 0
+    model = getattr(getattr(result, "_raw_response", None), "model", "") or ""
+    return {
+        "usage": {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": getattr(usage, "total_tokens", input_tokens + output_tokens) or 0,
+        },
+        "cost_usd": _estimate_cost(model, input_tokens, output_tokens),
+    }
+
+
 def _estimate_cost(model: str, tokens_in: int, tokens_out: int) -> float:
     base = _normalise_model_name(model)
     costs = MODEL_COSTS.get(base) or MODEL_COSTS.get(model) or {"input": 0.0, "output": 0.0}
@@ -355,12 +373,19 @@ class LLMWrapper:
             "model": _normalise_model_name(target_model),
             "provider": _provider_from_model(target_model),
             "latency_ms": latency_ms,
+            # Usage rides on the raw completion Instructor keeps beside the parsed
+            # model. It is read defensively because it is a private attribute: a
+            # missing one costs the cost figure, never the call. Session 13 puts
+            # this on every node's span, which is what turns "what does an
+            # estimate cost" into a query instead of an estimate.
+            **_usage_from(result),
         }
         log.info(
             "llm_structured_call_completed",
             model=meta["model"],
             provider=meta["provider"],
             latency_ms=latency_ms,
+            cost_usd=meta.get("cost_usd"),
         )
         return result, meta
 

@@ -77,14 +77,18 @@ def get_reranker():
 
 
 @lru_cache
-def get_llm_wrapper() -> LLMWrapper:
+def get_llm_wrapper(timeout: int | None = None) -> LLMWrapper:
+    """The shared LLM wrapper. ``timeout`` overrides ``LLM_TIMEOUT`` for callers
+    whose calls legitimately take longer — a reasoning model at medium effort
+    spends minutes before its first token, and the 30s default is sized for the
+    chat-shaped calls the rest of the service makes."""
     settings = get_settings()
     return LLMWrapper(
         openai_api_key=settings.OPENAI_API_KEY,
         anthropic_api_key=settings.ANTHROPIC_API_KEY,
         primary_model=settings.PRIMARY_MODEL,
         fallback_model=settings.FALLBACK_MODEL,
-        timeout=settings.LLM_TIMEOUT,
+        timeout=timeout if timeout is not None else settings.LLM_TIMEOUT,
         num_retries=settings.LLM_RETRIES,
         cache=get_cache(),
         runtime_config=get_runtime_config(),
@@ -534,3 +538,31 @@ def get_budget_search_backend():
         return items[:k]
 
     return search
+
+
+def get_graph_nodes(search_backend=None):
+    """Bind the estimation graph's nodes to their collaborators (Session 13).
+
+    ``app/domain/graph`` may not import this module (ARCHITECTURE.md §3), so the
+    direction is inverted here: the composition root builds the nodes and hands
+    them to whoever compiles the graph. The two model knobs reuse the project's
+    existing settings — the mechanical steps run on the cheap model, the estimate
+    on the strong one — rather than introducing a parallel set.
+
+    ``search_backend`` overrides retrieval, which is what the demo script's
+    ``--stub`` swaps. It is a parameter rather than a second wiring site on
+    purpose: when the script built its own nodes, a timeout fix applied here
+    never reached it and the deliverable run kept dying on the same error.
+    """
+    from app.domain.graph.nodes import build_nodes
+
+    settings = get_settings()
+    return build_nodes(
+        llm=get_llm_wrapper(timeout=settings.GRAPH_LLM_TIMEOUT),
+        search_backend=search_backend or get_budget_search_backend(),
+        fast_model=settings.REFORMULATION_MODEL,
+        estimate_model=settings.GENERATION_MODEL,
+        reasoning_effort=settings.GENERATION_REASONING_EFFORT,
+        search_top_k=settings.AGENT_SEARCH_TOP_K,
+        estimate_max_tokens=settings.GENERATION_MAX_TOKENS,
+    )

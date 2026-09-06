@@ -208,6 +208,20 @@ class Settings(BaseSettings):
     AGENT_TASKS_PER_MODULE: int = 4
     AGENT_SEARCH_DISTANCE_THRESHOLD: float = 0.6
 
+    # --- Session 13 fields (graph orchestration) --------------------------------
+    # Write token for https://logfire.pydantic.dev. Unset is a supported mode, not
+    # a degraded one: the spans still open and close, they just are not exported,
+    # so the service behaves identically on a laptop with no account.
+    LOGFIRE_TOKEN: str | None = None
+    # Nodes the graph may run before LangGraph aborts. The sequential flow needs
+    # six; the headroom is what a cycle would burn through instead of hanging.
+    GRAPH_RECURSION_LIMIT: int = 25
+    # The estimate node runs a reasoning model at GENERATION_REASONING_EFFORT,
+    # which spends minutes thinking before it answers. LLM_TIMEOUT (30s) is sized
+    # for the chat-shaped calls the rest of the service makes and times this one
+    # out on every attempt.
+    GRAPH_LLM_TIMEOUT: int = 300
+
     @model_validator(mode="after")
     def validate_at_least_one_api_key(self) -> "Settings":
         """LiteLLM may try either provider via fallback, so we require at least one key."""

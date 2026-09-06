@@ -1,0 +1,63 @@
+GRAPH RUN — thread_id=run-sample_transcript_complex-1788734785 checkpointer=postgres retrieval=real
+===================================================================================================
+
+STEP 1 — extract_requirements  (19027 ms)
+  requirements: 16 item(s)
+      - "Construir el backend de negocio \"RUTA\" que gestione pedidos, asignación de rutas, seguimiento de envíos y cálculo de tarifas."
+      - "El backend deberá exponer una API para que lo consuman todos los demás componentes."
+      - "Integración con el ERP SAP para sincronizar facturación, clientes y el maestro de artículos."
+      - "La integración con SAP deberá mapear IDocs, montar una capa de middleware y gestionar reintentos ante fallos."
+      - "Desarrollar una app móvil para repartidores en Android e iOS que muestre la hoja de ruta del día."
+      - "La app móvil debe permitir confirmar entregas con firma y con foto."
+      … 10 more
+
+STEP 2 — classify_components  (22032 ms)
+  components: 8 item(s)
+      - {"id": "c1", "name": "Backend de negocio RUTA", "category": "backend", "search_query": "Business backend for delivery platform 'RUTA' implemented in P
+      - {"id": "c2", "name": "Integración con ERP SAP", "category": "integration", "search_query": "SAP ERP integration project: map IDocs, design and impleme
+      - {"id": "c3", "name": "App móvil repartidores (Android/iOS)", "category": "mobile", "search_query": "Courier mobile application for Android and iOS (na
+      - {"id": "c4", "name": "Panel de analítica y dashboard de dirección", "category": "analytics", "search_query": "Management analytics dashboard (React re
+      - {"id": "c5", "name": "Plataforma de datos y ETL para analítica", "category": "data", "search_query": "Data platform and ETL: ingest transactional data
+      - {"id": "c6", "name": "Consolidación y migración de los cuatro sistemas actuales", "category": "other", "search_query": "Platform consolidation and mig
+      … 2 more
+
+STEP 3 — search_budgets  (2273 ms)
+  budget_matches: 40 item(s)
+      - {"component": "Backend de negocio RUTA", "reference_budget_id": "TASK-2024-0060/Integrations Platform", "amount": 87.0}
+      - {"component": "Backend de negocio RUTA", "reference_budget_id": "TASK-2025-0017/Integrations Platform", "amount": 68.0}
+      - {"component": "Backend de negocio RUTA", "reference_budget_id": "TASK-2025-0043/Integrations Platform", "amount": 70.0}
+      - {"component": "Backend de negocio RUTA", "reference_budget_id": "TASK-2024-0009/Integrations Platform", "amount": 117.0}
+      - {"component": "Backend de negocio RUTA", "reference_budget_id": "TASK-2024-0012/Checkout & Cart", "amount": 91.0}
+      - {"component": "Integración con ERP SAP", "reference_budget_id": "TASK-2024-0012/Integrations Platform", "amount": 67.0}
+      … 34 more
+  errors: 0 item(s)
+
+STEP 4 — generate_estimate  (36801 ms)
+  estimate: 721.0h across 8 components
+
+STEP 5 — validate_and_consolidate  (12 ms)
+  status: validated
+  errors: 0 item(s)
+
+FINAL — Proyecto RUTA  [status: validated]
+==========================================
+
+- Backend de negocio RUTA: 87.0h
+    Mediana de las 5 referencias: 68, 70, 87, 91, 117.
+- Integración con ERP SAP: 77.0h
+    Mediana de las 5 referencias: 67, 68, 77, 83, 117.
+- App móvil repartidores (Android/iOS): 84.0h
+    Mediana de las 5 referencias: 66, 82, 84, 107, 125.
+- Panel de analítica y dashboard de dirección: 91.0h
+    Mediana de las 5 referencias: 69, 81, 91, 104, 116.
+- Plataforma de datos y ETL para analítica: 102.0h
+    Mediana de las 5 referencias: 70, 95, 102, 102, 102.
+- Consolidación y migración de los cuatro sistemas actuales: 74.0h
+    Mediana de las 5 referencias: 51, 73, 74, 115, 117.
+- Selección y diseño de base de datos: 89.0h
+    Mediana de las 5 referencias: 40, 63, 89, 90, 107.
+- Infraestructura, despliegue y operaciones (CI/CD, monitoring): 117.0h
+    Mediana de las 5 referencias: 44, 102, 117, 124, 126.
+
+TOTAL: 721.0h
+Notes: Método: mediana de cada conjunto de 5 referencias para atenuar outliers; todas las partidas están respaldadas (grounded=true). Observaciones: alta dispersión en c6 (51–117) y c8 (44–126); si la migración incluye saneamiento complejo, múltiples entornos o requisitos de compliance adicionales, revisar supuestos. La suma es aritmética (721 h) y no considera solapes ni paralelización; afecta al calendario pero no a horas totales. No se contemplan explícitamente actividades como formación, soporte post go-live o gestión del cambio si no están en las referencias.

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from functools import lru_cache
 
 import anthropic
 import redis
 import structlog
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 from app.generation.cag.semantic import EstimationSemanticCache
 from app.config import get_settings
@@ -379,3 +380,157 @@ def get_session_store() -> SessionStore:
     """
     settings = get_settings()
     return SessionStore(max_turns=settings.MAX_CONVERSATION_TURNS)
+
+
+@lru_cache
+def get_async_openai_client() -> AsyncOpenAI | None:
+    """Async OpenAI client for the Session 12 agent loop.
+
+    The agent drives the Responses API with ``await`` (alongside the async
+    ``retrieve()`` its search tool wraps), so it needs an async client — the sync
+    one above serves moderation and embeddings. ``None`` when no OpenAI key is
+    configured: this path is OpenAI-specific (Responses API), it has no fallback
+    provider.
+    """
+    settings = get_settings()
+    if not settings.OPENAI_API_KEY:
+        return None
+    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+
+def get_budget_search_backend():
+    """Wire the agent's ``search_budgets`` tool to the real retrieval pipeline.
+
+    This adapter is why ``generation/agentic`` never imports ``generation/rag``
+    (ARCHITECTURE.md §3 forbids cross-sibling imports): the agent layer declares
+    the seam, the composition root fills it. The kit stub
+    (``exercises/session-12/reference_retrieval.py``) plugs into the same seam,
+    which is what ``--stub`` swaps.
+
+    **It searches tasks and answers with MODULES, and that granularity choice is
+    the whole design.** The corpus is one chunk per historical TASK (17-47h), but
+    the agent estimates what a discovery meeting calls a component — a business
+    backend, an ERP integration, a driver app — which is a subsystem, not a task.
+    Feeding task hours to ``calculate_estimate`` (a median) prices an ERP
+    integration at ~30h; a live gpt-5 run correctly refused to use numbers that
+    small and reported everything as unbudgeted. The corpus already carries the
+    right unit: every task is tagged with its ``module`` ("Fleet & Routing",
+    "Data & Integrations", "Analytics & Reporting"), and a module of a past
+    project IS a subsystem. So retrieval finds the closest tasks, and each
+    distinct (project, module) they belong to is returned once, priced at the sum
+    of ALL its tasks — a real, auditable subsystem cost, not an extrapolation.
+    """
+    from sqlalchemy import Float, and_, cast, func, or_, select
+
+    from app.generation.rag.retrieval.collections import Collection
+    from app.generation.rag.retrieval.pipeline import retrieve
+    from app.generation.rag.store.models import BudgetChunkRow
+
+    settings = get_settings()
+    _CHUNK_TYPE = "historical_task"
+    _BUDGET_ID = BudgetChunkRow.metadata_["budget_id"].astext
+    _MODULE = BudgetChunkRow.metadata_["module"].astext
+
+    async def _modules_of(hit_ids: list[int]) -> dict[int, tuple[str, str]]:
+        """Map each retrieved chunk id to the (project, module) it belongs to."""
+        stmt = select(BudgetChunkRow.id, _BUDGET_ID, _MODULE).where(BudgetChunkRow.id.in_(hit_ids))
+        async with get_async_session_factory()() as session:
+            rows = (await session.execute(stmt)).all()
+        return {row[0]: (row[1], row[2]) for row in rows if row[1] and row[2]}
+
+    async def _module_totals(
+        pairs: set[tuple[str, str]],
+    ) -> dict[tuple[str, str], tuple[float, int]]:
+        """Sum the hours of every task in each (project, module) pair."""
+        stmt = (
+            select(
+                _BUDGET_ID,
+                _MODULE,
+                func.sum(cast(BudgetChunkRow.metadata_["estimated_hours"].astext, Float)),
+                func.count(),
+            )
+            .where(BudgetChunkRow.chunk_type == _CHUNK_TYPE)
+            .where(or_(*(and_(_BUDGET_ID == b, _MODULE == m) for b, m in pairs)))
+            .group_by(_BUDGET_ID, _MODULE)
+        )
+        async with get_async_session_factory()() as session:
+            rows = (await session.execute(stmt)).all()
+        return {(row[0], row[1]): (float(row[2] or 0.0), int(row[3])) for row in rows}
+
+    async def search(
+        query: str,
+        *,
+        sectors: list[str] | None = None,
+        year_min: int | None = None,
+        year_max: int | None = None,
+        top_k: int | None = None,
+        distance_threshold: float | None = None,
+    ) -> list[dict]:
+        embedder = get_embedder()
+        if embedder is None:
+            raise RuntimeError("Embedding service is not available (no OpenAI key).")
+
+        # Search mode and reranking follow the runtime toggles, so the agent gets
+        # the same hybrid + cross-encoder quality the S9-S11 path gets.
+        runtime = get_runtime_retrieval_config()
+        k = top_k if top_k is not None else settings.AGENT_SEARCH_TOP_K
+        embedding = await asyncio.to_thread(embedder.embed_one, query)
+        result = await retrieve(
+            query_embedding=embedding,
+            query_text=query,
+            search_mode=runtime.effective_search_mode(),
+            rerank=runtime.effective_rerank(),
+            # Over-fetch tasks: many of them collapse into the same module, and we
+            # want k distinct SUBSYSTEMS back, not k tasks.
+            top_k=k * settings.AGENT_TASKS_PER_MODULE,
+            recall_k=settings.RETRIEVAL_RECALL_TOP_K,
+            rerank_top_n=k * settings.AGENT_TASKS_PER_MODULE,
+            distance_threshold=(
+                distance_threshold
+                if distance_threshold is not None
+                else settings.AGENT_SEARCH_DISTANCE_THRESHOLD
+            ),
+            rrf_k=settings.RRF_K,
+            collection=Collection.BUDGET,
+            sectors=sectors,
+            project_year_min=year_min,
+            project_year_max=year_max,
+            chunk_types=[_CHUNK_TYPE],
+        )
+        if not result.chunks:
+            return []
+
+        modules = await _modules_of([c.id for c in result.chunks])
+        # Best (closest) hit per module decides both its rank and which chunk id
+        # represents it, so the agent can trace the reference back to a row.
+        best: dict[tuple[str, str], object] = {}
+        for chunk in result.chunks:
+            pair = modules.get(chunk.id)
+            if pair and pair not in best:
+                best[pair] = chunk
+        if not best:
+            return []
+
+        totals = await _module_totals(set(best))
+        items = []
+        for pair, chunk in best.items():
+            hours, task_count = totals.get(pair, (0.0, 0))
+            if not hours:
+                continue
+            budget_id, module = pair
+            items.append(
+                {
+                    "id": chunk.id,
+                    "content_preview": (
+                        f"{module} module of {budget_id} "
+                        f"({task_count} tasks) — {chunk.content[:120].splitlines()[0]}"
+                    ),
+                    "sector": chunk.sector,
+                    "budget_id": f"{budget_id}/{module}",
+                    "estimated_hours": round(hours),
+                    "distance": round(chunk.distance, 4),
+                }
+            )
+        return items[:k]
+
+    return search

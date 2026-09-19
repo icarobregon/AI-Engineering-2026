@@ -91,14 +91,40 @@ El corpus y el histórico siguen ahí: ambos viven en volúmenes con nombre
 ## Sembrar el corpus
 
 Un sistema recién levantado arranca, pasa el healthcheck **y no estima**: sin
-corpus vectorial, cada componente vuelve con `has_match=false` y confianza
-`insufficient`. Verde por fuera, inútil por dentro. Se siembra una vez:
+corpus vectorial cada componente vuelve sin precedente, con confianza 0.0, y toda
+ejecución acaba en la bandeja de revisión. Verde por fuera, inútil por dentro.
+
+**Hay dos corpus y no son intercambiables.** Es el error que más caro sale aquí,
+porque sembrar el equivocado no da ningún fallo: el sistema responde, la traza se
+ve entera y todos los componentes salen «sin precedente», que es exactamente lo
+que se vería si el corpus estuviese vacío.
+
+| Corpus | Granularidad | `chunk_type` | Lo consume |
+| --- | --- | --- | --- |
+| `budgets_sample.json` | un chunk por componente de presupuesto | `budget_component` | el retrieval directo de la S08–S11 |
+| `task_corpus.json` | un chunk por tarea histórica | `historical_task` | **el agente y el supervisor** (S12–S14) |
+
+El backend de `search_budgets` filtra por `chunk_type='historical_task'`
+(`app/dependencies.py`, `get_budget_search_backend`), así que el camino agéntico
+—el que atraviesa la interfaz— necesita el segundo:
 
 ```bash
+# el que necesita el supervisor: corpus a nivel de tarea
+docker compose exec ai-service python scripts/build_task_corpus.py --ingest
+
+# opcional, para el retrieval directo de sesiones anteriores
 docker compose exec ai-service python scripts/query_examples.py
 ```
 
-Es idempotente: los presupuestos ya ingeridos devuelven 409 y se saltan.
+Ambos son idempotentes: lo ya ingerido devuelve 409 y se salta. Para comprobar
+que el corpus que hace falta está puesto:
+
+```bash
+docker compose exec -T estimator-postgres psql -U estimator -d estimator \
+  -tAc "select chunk_type, count(*) from public.budget_chunks group by chunk_type"
+```
+
+Si `historical_task` no aparece, la interfaz estimará sin evidencia.
 
 ## Qué NO está aquí
 

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRightOutlined } from "@ant-design/icons";
 import { Button, Card, Empty, Flex, Table, Tag, Typography } from "antd";
 
+import { percent } from "@/lib/format";
 import { AWAITING_REVIEW, statusLabel } from "@/lib/supervisor";
 
 export type RunRow = {
@@ -31,7 +33,7 @@ export function InboxView({ awaiting, recent }: { awaiting: RunRow[]; recent: Ru
       dataIndex: "confidence",
       width: 110,
       align: "right" as const,
-      render: (value: number | null) => (value == null ? "—" : `${Math.round(value * 100)}%`),
+      render: (value: number | null) => percent(value),
     },
     {
       title: "Estado",
@@ -48,7 +50,9 @@ export function InboxView({ awaiting, recent }: { awaiting: RunRow[]; recent: Ru
       width: 90,
       render: (_: unknown, row: RunRow) => (
         <Link href={`/supervisor/${row.id}`}>
-          {row.status === AWAITING_REVIEW ? "Revisar →" : "Ver →"}
+          <Button variant="outlined" size="small" icon={<ArrowRightOutlined />} iconPosition="end">
+            {row.status === AWAITING_REVIEW ? "Revisar" : "Ver"}
+          </Button>
         </Link>
       ),
     },

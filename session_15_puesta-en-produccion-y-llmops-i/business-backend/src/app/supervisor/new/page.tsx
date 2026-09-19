@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flex, Typography } from "antd";
+import { Button, Flex, Typography } from "antd";
 
 import { TranscriptForm } from "./transcript-form";
 
@@ -12,7 +12,9 @@ export default function NewSupervisorRunPage() {
         <Typography.Title level={3} style={{ margin: 0 }}>
           Nueva estimación supervisada
         </Typography.Title>
-        <Link href="/supervisor">Ver bandeja</Link>
+        <Link href="/supervisor">
+          <Button variant="outlined">Bandeja</Button>
+        </Link>
       </Flex>
       <TranscriptForm />
     </Flex>

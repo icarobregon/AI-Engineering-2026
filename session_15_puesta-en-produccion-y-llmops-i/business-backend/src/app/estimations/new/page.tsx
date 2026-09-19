@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Flex, Typography } from "antd";
+import { Button, Flex, Typography } from "antd";
 
 import { EstimationForm } from "./estimation-form";
 
@@ -12,7 +12,9 @@ export default function NewEstimationPage() {
         <Typography.Title level={3} style={{ margin: 0 }}>
           Nueva estimación
         </Typography.Title>
-        <Link href="/estimations">Ver histórico</Link>
+        <Link href="/estimations">
+          <Button variant="outlined">Histórico</Button>
+        </Link>
       </Flex>
       <EstimationForm />
     </Flex>

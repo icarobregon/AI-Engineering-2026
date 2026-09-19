@@ -9,6 +9,14 @@ import { estimationRequestSchema } from "@/lib/estimator/contracts";
 
 export type FormState = { error: string | null; reason?: string | null };
 
+/** The field names are the AI service's; what the form shows is the label. */
+const fieldLabels: Record<string, string> = {
+  description: "Descripción",
+  project_type: "Tipo de proyecto",
+  detail_level: "Nivel de detalle",
+  output_format: "Formato",
+};
+
 /**
  * Transport, nothing else: validate, call, persist, redirect. The estimation
  * itself is the AI service's job — if any sizing logic appeared in this file,
@@ -27,7 +35,8 @@ export async function createEstimation(
 
   if (!parsed.success) {
     const first = parsed.error.issues[0];
-    return { error: `${first.path.join(".") || "formulario"}: ${first.message}` };
+    const field = String(first.path[0] ?? "");
+    return { error: `${fieldLabels[field] ?? "Formulario"}: ${first.message}` };
   }
 
   let id: string;

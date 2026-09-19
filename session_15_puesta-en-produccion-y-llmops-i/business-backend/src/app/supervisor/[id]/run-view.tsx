@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowLeftOutlined } from "@ant-design/icons";
 import {
   Alert,
+  Button,
   Card,
   Descriptions,
   Flex,
@@ -21,9 +23,9 @@ import {
   type DraftEstimate,
 } from "@/lib/estimator/contracts";
 import { AWAITING_REVIEW, statusLabel } from "@/lib/supervisor";
+import { hours, percent } from "@/lib/format";
 import { ReviewForm } from "./review-form";
 
-const hours = (value: number) => `${Math.round(value)} h`;
 
 function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
   return (
@@ -110,7 +112,11 @@ export function RunView({ run }: { run: RunDetail }) {
         </Space>
         <Space>
           <Tag color={badge.color}>{badge.text}</Tag>
-          <Link href="/supervisor">← Bandeja</Link>
+          <Link href="/supervisor">
+            <Button variant="outlined" icon={<ArrowLeftOutlined />}>
+              Bandeja
+            </Button>
+          </Link>
         </Space>
       </Flex>
 
@@ -127,8 +133,7 @@ export function RunView({ run }: { run: RunDetail }) {
             <Card style={{ flex: "1 1 220px" }}>
               <Statistic
                 title="Confianza"
-                value={review.data.confidence == null ? "—" : Math.round(review.data.confidence * 100)}
-                suffix={review.data.confidence == null ? "" : "%"}
+                value={percent(review.data.confidence)}
               />
             </Card>
             <Card style={{ flex: "1 1 220px" }}>
@@ -136,7 +141,7 @@ export function RunView({ run }: { run: RunDetail }) {
                 title="Banda histórica"
                 value={
                   review.data.historical_band
-                    ? `${Math.round(review.data.historical_band.low)}–${Math.round(review.data.historical_band.high)} h`
+                    ? `${hours(review.data.historical_band.low).replace(" h", "")}–${hours(review.data.historical_band.high)}`
                     : "sin datos"
                 }
               />

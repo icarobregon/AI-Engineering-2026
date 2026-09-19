@@ -1,15 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Alert, Card, Col, Flex, Row, Space, Statistic, Table, Tag, Typography } from "antd";
+import { ArrowLeftOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Col, Flex, Row, Space, Statistic, Table, Tag, Typography } from "antd";
 
 import { estimationResponseSchema, isOutOfScope } from "@/lib/estimator/contracts";
-
-const eur = new Intl.NumberFormat("es-ES", {
-  style: "currency",
-  currency: "EUR",
-  maximumFractionDigits: 0,
-});
+import { eur } from "@/lib/format";
 
 export function EstimationView({
   promptVersion,
@@ -44,7 +40,11 @@ export function EstimationView({
         <Space>
           <Tag>{promptVersion}</Tag>
           {cached && <Tag color="blue">caché</Tag>}
-          <Link href="/estimations">← Histórico</Link>
+          <Link href="/estimations">
+            <Button variant="outlined" icon={<ArrowLeftOutlined />}>
+              Histórico
+            </Button>
+          </Link>
         </Space>
       </Flex>
 
@@ -69,7 +69,7 @@ export function EstimationView({
             </Col>
             <Col span={8}>
               <Card>
-                <Statistic title="Coste" value={eur.format(result.total_cost_eur)} />
+                <Statistic title="Coste" value={eur(result.total_cost_eur)} />
               </Card>
             </Col>
             <Col span={8}>
@@ -101,7 +101,7 @@ export function EstimationView({
                   dataIndex: "cost_eur",
                   width: 140,
                   align: "right",
-                  render: (value: number) => eur.format(value),
+                  render: (value: number) => eur(value),
                 },
               ]}
             />

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRightOutlined } from "@ant-design/icons";
 import { Button, Card, Empty, Flex, Space, Table, Tag, Typography } from "antd";
 
 const typeLabels: Record<string, string> = {
@@ -76,7 +77,13 @@ export function EstimationsView({ rows }: { rows: EstimationRow[] }) {
                 title: "",
                 key: "open",
                 width: 70,
-                render: (_, row) => <Link href={`/estimations/${row.id}`}>Ver →</Link>,
+                render: (_, row) => (
+                  <Link href={`/estimations/${row.id}`}>
+                    <Button variant="outlined" size="small" icon={<ArrowRightOutlined />} iconPosition="end">
+                      Ver
+                    </Button>
+                  </Link>
+                ),
               },
             ]}
           />

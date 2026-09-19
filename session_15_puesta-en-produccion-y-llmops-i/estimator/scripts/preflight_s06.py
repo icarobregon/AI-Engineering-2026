@@ -66,7 +66,6 @@ _MIN_VERSIONS = {
     "presidio-anonymizer": "2.2.0",
     "spacy": "3.7.0",
     "faker": "24.0.0",
-    "unstructured": "0.14.0",
 }
 
 
@@ -106,14 +105,6 @@ def check_spacy_model() -> str:
             "as PER — model may be too small or corrupted"
         )
     return f"loaded; detected PER entities: {persons}"
-
-
-def check_unstructured_parsers() -> str:
-    """unstructured.partition.auto must be importable for the reference repo."""
-    import unstructured  # noqa: F401
-    from unstructured.partition.auto import partition  # noqa: F401
-
-    return f"unstructured {importlib_metadata.version('unstructured')}"
 
 
 def check_corpus_seed() -> str:
@@ -164,7 +155,6 @@ CHECKS = [
     Check("Python version", check_python_version),
     Check("Required packages", check_packages),
     Check("spaCy es_core_news_md", check_spacy_model),
-    Check("unstructured parsers", check_unstructured_parsers),
     Check("Corpus seed present", check_corpus_seed),
     Check("Catalog validates", check_catalog),
     Check("Estimator /health", check_health_endpoint),

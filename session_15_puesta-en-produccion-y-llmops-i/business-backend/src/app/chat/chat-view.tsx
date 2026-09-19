@@ -23,7 +23,7 @@ import {
 } from "antd";
 
 import { SelectField } from "@/components/select-field";
-import { eur } from "@/lib/format";
+import { eur, usd } from "@/lib/format";
 import {
   detailLevels,
   isOutOfScope,
@@ -345,10 +345,10 @@ export function ChatView({ info }: { info: SessionInfo | null }) {
                         title="Tokens"
                         value={`${result.observation.tokens_in} / ${result.observation.tokens_out}`}
                       />
-                      <Statistic
-                        title="Coste"
-                        value={`$${result.observation.cost_usd.toFixed(4)}`}
-                      />
+                      {/* Dos "Coste" conviven en esta pantalla: el del
+                          presupuesto, en euros, y este, que es lo que costó
+                          pedirlo. La divisa es lo único que los distingue. */}
+                      <Statistic title="Coste" value={usd(result.observation.cost_usd)} />
                       <Statistic
                         title="Transcripción enriquecida"
                         value={result.observation.enriched_transcript_chars}

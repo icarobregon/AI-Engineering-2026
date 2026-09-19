@@ -4,11 +4,9 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Alert, Button, Card, Flex, Select, Space, Table, Tag, Typography } from "antd";
 
+import { usdPerMillion } from "@/lib/format";
 import { modelKnobs, type ModelKnob, type ModelsConfig } from "@/lib/estimator/contracts";
 import { saveModels, type FormState } from "./actions";
-
-/** Precios de 0,05 a 600: dos decimales como techo, sin ceros de relleno. */
-const usd = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
 
 /** "OpenAI y Anthropic", no "OpenAI, Anthropic". */
 const listFormatter = new Intl.ListFormat("es-ES", { style: "long", type: "conjunction" });
@@ -65,10 +63,10 @@ function KnobSelect({
     value: optionValue,
     label: (
       <Flex justify="space-between" align="center" gap={12}>
-        <span>{text}</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{text}</span>
         {prices[model] && (
           <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-            {usd.format(prices[model].input)} / {usd.format(prices[model].output)}
+            {usdPerMillion(prices[model].input, prices[model].output)}
           </Typography.Text>
         )}
       </Flex>
@@ -81,7 +79,7 @@ function KnobSelect({
       <Select
         value={value}
         onChange={setValue}
-        style={{ width: 320 }}
+        style={{ width: 360 }}
         options={[
           option("", `Por defecto (${state.default})`, state.default),
           ...options.map((m) => option(m, m, m)),
@@ -154,7 +152,7 @@ export function SettingsView({ config }: { config: ModelsConfig }) {
                 {
                   title: "Modelo",
                   key: "model",
-                  width: 350,
+                  width: 390,
                   render: (_, row) => (
                     <KnobSelect
                       // Keyed by what the server says: React keeps component
@@ -215,7 +213,8 @@ export function SettingsView({ config }: { config: ModelsConfig }) {
             <SubmitButton />
             <Typography.Text type="secondary">
               El catálogo sólo ofrece modelos cuyo proveedor tiene clave configurada. Junto a cada
-              uno, su precio en dólares por millón de tokens: entrada / salida.
+              uno, lo que cuesta un millón de tokens de entrada / salida, en dólares
+              estadounidenses. Ojo: las estimaciones van en euros, esto no.
             </Typography.Text>
           </Space>
 

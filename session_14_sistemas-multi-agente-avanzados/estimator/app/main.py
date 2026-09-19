@@ -70,18 +70,26 @@ async def lifespan(app: FastAPI):
     # checkpointer is an async context manager, so it is entered here and stays
     # open for the lifetime of the app; building it per request would reconnect
     # to Postgres on every estimate.
+    from app.dependencies import get_graph_nodes
     from app.domain.graph.build import build_graph
     from app.domain.graph.checkpointer import open_checkpointer
     from app.domain.graph.observability import configure_observability
+    from app.domain.security.grants import verify_tool_grants
 
     configure_observability(app)
     app.state.graph = None
+    # Session 14: least privilege is checked at DEPLOY time, outside the try
+    # below, and it raises rather than logs. An agent wired with a tool it was
+    # not granted is a configuration error; letting it degrade to a 503 would
+    # blur it into "Postgres is down", which is the one signal that status code
+    # already carries.
+    agents = get_graph_nodes()
+    verify_tool_grants(agents)
+
     graph_ready = False
     try:
         async with open_checkpointer(settings.DATABASE_URL) as checkpointer:
-            from app.dependencies import get_graph_nodes
-
-            app.state.graph = build_graph(get_graph_nodes(), checkpointer=checkpointer)
+            app.state.graph = build_graph(agents, checkpointer=checkpointer)
             graph_ready = True
             log.info("application_started", environment=settings.APP_ENV, graph=True)
             yield
@@ -153,7 +161,8 @@ app.include_router(estimate_stages_router)
 # Session 10 — per-task hours estimation by vector search (structure → hours).
 app.include_router(estimate_tasks_router)
 
-# Session 13 — the same estimate, produced by an explicit graph.
+# Sessions 13-14 — the same estimate, produced by a supervisor coordinating
+# specialist agents, with a human gate that can pause and resume the run.
 app.include_router(estimate_graph_router)
 
 

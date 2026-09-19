@@ -541,28 +541,56 @@ def get_budget_search_backend():
 
 
 def get_graph_nodes(search_backend=None):
-    """Bind the estimation graph's nodes to their collaborators (Session 13).
+    """Bind the multi-agent system's nodes to their collaborators (Sessions 13-14).
 
     ``app/domain/graph`` may not import this module (ARCHITECTURE.md §3), so the
-    direction is inverted here: the composition root builds the nodes and hands
-    them to whoever compiles the graph. The two model knobs reuse the project's
+    direction is inverted here: the composition root builds the agents and hands
+    them to whoever compiles the graph. The model knobs reuse the project's
     existing settings — the mechanical steps run on the cheap model, the estimate
-    on the strong one — rather than introducing a parallel set.
+    on the strong one, the router on the cheap one with its own short timeout —
+    rather than introducing a parallel set.
 
     ``search_backend`` overrides retrieval, which is what the demo script's
     ``--stub`` swaps. It is a parameter rather than a second wiring site on
     purpose: when the script built its own nodes, a timeout fix applied here
     never reached it and the deliverable run kept dying on the same error.
+
+    The three tools are the Session 12 ones, redistributed rather than rewritten:
+    each agent gets exactly the one it is granted, and passing them in from here
+    is what lets a test drive an agent without a retrieval pipeline behind it.
     """
-    from app.domain.graph.nodes import build_nodes
+    from app.domain.graph.agents import build_agents, build_finalize
+    from app.domain.graph.hitl import build_human_review_gate
+    from app.domain.graph.supervisor import build_supervisor
+    from app.generation.agentic.agent_tools import (
+        calculate_estimate,
+        search_budgets,
+        validate_estimate,
+    )
 
     settings = get_settings()
-    return build_nodes(
+    agents = build_agents(
         llm=get_llm_wrapper(timeout=settings.GRAPH_LLM_TIMEOUT),
         search_backend=search_backend or get_budget_search_backend(),
+        search_tool=search_budgets,
+        calculate_tool=calculate_estimate,
+        validate_tool=validate_estimate,
         fast_model=settings.REFORMULATION_MODEL,
         estimate_model=settings.GENERATION_MODEL,
         reasoning_effort=settings.GENERATION_REASONING_EFFORT,
-        search_top_k=settings.AGENT_SEARCH_TOP_K,
         estimate_max_tokens=settings.GENERATION_MAX_TOKENS,
     )
+    agents["supervisor"] = build_supervisor(
+        # Its own wrapper: the routing decision is two fields on the cheap model,
+        # and reusing the estimate's 300s timeout would let one confused routing
+        # call block a run for five minutes without producing any work.
+        llm=get_llm_wrapper(timeout=settings.GRAPH_SUPERVISOR_TIMEOUT),
+        model=settings.GRAPH_SUPERVISOR_MODEL,
+        max_routing_steps=settings.GRAPH_MAX_ROUTING_STEPS,
+    )
+    agents["human_review_gate"] = build_human_review_gate(
+        confidence_threshold=settings.GRAPH_CONFIDENCE_THRESHOLD,
+        band_tolerance=settings.GRAPH_HISTORICAL_BAND_TOLERANCE,
+    )
+    agents["finalize"] = build_finalize()
+    return agents

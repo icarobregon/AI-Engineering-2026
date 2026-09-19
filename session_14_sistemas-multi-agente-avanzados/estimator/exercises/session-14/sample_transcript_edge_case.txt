@@ -1,0 +1,69 @@
+Reunión de descubrimiento — Proyecto "AGROVISIÓN"
+Cliente: Marta Ribó (Directora de Innovación) y Kepa Aranzadi (Responsable de Campo), Agrícola Sant Roc
+Consultor: equipo de estimación
+Fecha: reunión inicial
+
+[00:00:10] Consultor: Contadnos qué tenéis en la cabeza y luego lo desmenuzamos.
+
+[00:00:25] Marta: Somos una cooperativa agrícola. Gestionamos unas 4.000 hectáreas de frutal y
+viña entre Lleida y la Ribera. Lo que queremos montar no se parece a nada de lo que hemos
+encargado antes, os aviso desde ya. No es un portal ni una tienda.
+
+[00:01:05] Consultor: Mejor. Empecemos por la pieza que más os preocupa.
+
+[00:01:12] Kepa: La primera es visión artificial embarcada. Queremos montar cámaras en los
+tractores que reconozcan mala hierba entre las hileras mientras se pasa, en tiempo real, para que
+la barra de tratamiento solo pulverice donde hace falta. El reconocimiento tiene que correr en el
+propio tractor, sin cobertura, con un acelerador en el borde. Hay que entrenar el modelo con
+nuestras propias fotos de campo, que son unas 80.000 y están sin etiquetar.
+
+[00:02:40] Consultor: ¿Habéis hecho algo parecido antes, vosotros o alguien de vuestro sector?
+
+[00:02:48] Kepa: No. Hay gente que lo compra hecho, pero nosotros queremos el modelo propio
+porque nuestras variedades no salen en los datasets públicos.
+
+[00:03:30] Marta: La segunda pieza es un modelo de predicción de cosecha. Queremos estimar
+kilos por parcela con ocho semanas de antelación, cruzando histórico de rendimiento, datos
+meteorológicos y lo que vayan viendo las cámaras. Eso condiciona la contratación de temporeros y
+la venta a futuro, así que el error importa mucho. Necesitamos reentrenar cada campaña y poder
+explicar por qué el modelo dice lo que dice.
+
+[00:05:10] Consultor: Entendido. ¿Qué más?
+
+[00:05:18] Kepa: La tercera es firmware para los sensores de suelo. Tenemos que fabricar y
+programar nuestras propias sondas de humedad y conductividad: microcontrolador, gestión de
+batería para tres campañas sin tocarlas, y radio de largo alcance hasta las pasarelas. Son unas
+1.200 sondas. El firmware tiene que poder actualizarse por radio, porque ir sonda a sonda por el
+campo no es viable.
+
+[00:07:00] Marta: La cuarta es un gemelo digital de la finca. Una representación tridimensional de
+las parcelas donde puedas simular riego, poda y tratamientos antes de hacerlos, y ver el efecto
+estimado sobre la cosecha. Queremos que el técnico de campo lo mueva desde una tableta.
+
+[00:08:45] Consultor: Esto es bastante distinto de lo que solemos estimar. ¿Hay algo más
+convencional en el proyecto?
+
+[00:08:55] Marta: Sí, dos cosas. Una es sacar doce años de datos agronómicos de una base de datos
+de escritorio que montó un ingeniero que ya no está. Está en un Access con formularios, hay campos
+libres, duplicados y unidades mezcladas. Nadie sabe del todo qué significa cada columna.
+
+[00:10:20] Kepa: Y la otra es que el técnico de campo necesita algo en el móvil para anotar
+incidencias en la parcela, hacer fotos y que se sincronice cuando vuelva a tener cobertura. Eso sí
+se parece a cosas que ya existen.
+
+[00:11:30] Consultor: ¿Plazos y condicionantes?
+
+[00:11:38] Marta: La campaña de poda empieza en enero, así que el gemelo digital y la predicción
+nos gustaría tenerlos antes. Las cámaras pueden esperar a la siguiente. Y hay una condición: la
+cooperativa tiene ayudas europeas, así que todo lo que se genere tiene que quedar documentado y
+auditable, con trazabilidad de qué dato viene de dónde.
+
+[00:13:00] Kepa: Una cosa más, y es importante: no tenemos equipo técnico propio. Lo que nos
+entreguéis lo va a mantener una persona a media jornada. Si hace falta un doctorado para tocarlo,
+no nos sirve.
+
+[00:14:15] Consultor: Anotado. Os llevamos una estimación por piezas, y os avisamos ya de que las
+tres primeras se salen de lo que hemos hecho hasta ahora, así que las trataremos aparte.
+
+[00:14:40] Marta: Preferimos que nos lo digáis así a que nos deis un número bonito y luego se
+tuerza.

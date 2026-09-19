@@ -1,53 +1,49 @@
-"""Wiring and compilation of the estimation graph.
+"""Wiring and compilation of the multi-agent estimation system.
 
-The topology is the whole point of this session, so it is written once, here,
-and nowhere else. Five nodes in sequence and one decision:
+One declared edge, and that is the point:
 
-    START → extract_requirements → classify_components → search_budgets
-          → generate_estimate → validate_and_consolidate ─┬─ validated → END
-                                                          └─ otherwise → flag_for_review → END
+    START → supervisor
 
-The one conditional edge is a real decision point (did the guardrails pass?),
-not a formality. Adding more of them for things the nodes already know is how a
-graph becomes harder to read than the loop it replaced.
+Everything else travels inside a ``Command``, which moves the control AND writes
+the state in the same return value. The graph no longer describes a flow — it
+describes a set of capabilities and a router — and the shape of any particular
+run only exists afterwards, recorded in ``routing_trail``.
+
+**The checkpointer is required, not optional.** ``compile(checkpointer=None)``
+with an ``interrupt()`` in the graph does not raise: the run silently halts, the
+result looks like a truncated success, and the failure only surfaces much later
+as ``RuntimeError: Cannot use Command(resume=...) without checkpointer``. Nothing
+in LangGraph will tell you, so it is asserted here.
 """
 
 from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
 
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import START, StateGraph
 
 from app.domain.graph.state import EstimationState
 
-NodeMap = dict[str, Callable[[EstimationState], Awaitable[dict]]]
+AgentMap = dict[str, Callable[[EstimationState], Awaitable[Any]]]
 
 
-def route_after_validation(state: EstimationState) -> str:
-    """Where to go once the guardrails have run.
+def build_graph(agents: AgentMap, *, checkpointer: Any):
+    """Compile the supervisor/worker graph over ``agents``, persisting to ``checkpointer``.
 
-    Reads the status the validator set — the routing lives in the edge, so the
-    node never has to know what comes after it.
+    ``agents`` is injected rather than imported: ``app/domain/graph`` may not
+    reach the composition root (ARCHITECTURE.md §3), and one factory filled in
+    one place is what stops the demo script and the service from drifting apart.
     """
-    return END if state.get("status") == "validated" else "flag_for_review"
+    if checkpointer is None:
+        raise ValueError(
+            "The multi-agent graph requires a checkpointer: without one interrupt() "
+            "halts the run and the resume can never happen."
+        )
 
-
-def build_graph(nodes: NodeMap, *, checkpointer: Any | None = None):
-    """Compile the graph over ``nodes``, persisting to ``checkpointer``."""
     builder = StateGraph(EstimationState)
-    for name, node in nodes.items():
-        builder.add_node(name, node)
+    for name, agent in agents.items():
+        builder.add_node(name, agent)
 
-    builder.add_edge(START, "extract_requirements")
-    builder.add_edge("extract_requirements", "classify_components")
-    builder.add_edge("classify_components", "search_budgets")
-    builder.add_edge("search_budgets", "generate_estimate")
-    builder.add_edge("generate_estimate", "validate_and_consolidate")
-    builder.add_conditional_edges(
-        "validate_and_consolidate",
-        route_after_validation,
-        {END: END, "flag_for_review": "flag_for_review"},
-    )
-    builder.add_edge("flag_for_review", END)
+    builder.add_edge(START, "supervisor")
 
     return builder.compile(checkpointer=checkpointer)

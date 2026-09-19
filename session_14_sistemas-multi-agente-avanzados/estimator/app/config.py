@@ -213,14 +213,42 @@ class Settings(BaseSettings):
     # a degraded one: the spans still open and close, they just are not exported,
     # so the service behaves identically on a laptop with no account.
     LOGFIRE_TOKEN: str | None = None
-    # Nodes the graph may run before LangGraph aborts. The sequential flow needs
-    # six; the headroom is what a cycle would burn through instead of hanging.
-    GRAPH_RECURSION_LIMIT: int = 25
+    # Supersteps the graph may run before LangGraph aborts. Raised from 25 in
+    # Session 14: a supervisor↔specialist round trip costs TWO supersteps, so
+    # GRAPH_MAX_ROUTING_STEPS dispatches need 2N+2 plus the gate. At 25 the
+    # recursion limit fired BEFORE the routing budget and turned a controlled
+    # "routing_budget_exhausted" into a GraphRecursionError — the net catching the
+    # ball before the strategy could.
+    GRAPH_RECURSION_LIMIT: int = 40
     # The estimate node runs a reasoning model at GENERATION_REASONING_EFFORT,
     # which spends minutes thinking before it answers. LLM_TIMEOUT (30s) is sized
     # for the chat-shaped calls the rest of the service makes and times this one
     # out on every attempt.
     GRAPH_LLM_TIMEOUT: int = 300
+
+    # --- Session 14 fields (multi-agent supervisor + human-in-the-loop) ---------
+    # The supervisor only ever asks for a two-field decision, so it runs on the
+    # cheap model and with its own short timeout: reusing GRAPH_LLM_TIMEOUT (300s,
+    # sized for the reasoning estimate) would let one confused routing call block
+    # a run for five minutes without producing any work.
+    GRAPH_SUPERVISOR_MODEL: str = "gpt-5-mini"
+    GRAPH_SUPERVISOR_TIMEOUT: int = 30
+    # How many times the supervisor may dispatch a specialist. This is the
+    # STRATEGY; GRAPH_RECURSION_LIMIT below is the safety net. It has to be a
+    # counter in the state rather than a recursion limit because LangGraph counts
+    # its budget per invoke, so a run that pauses and resumes gets a fresh one.
+    GRAPH_MAX_ROUTING_STEPS: int = 8
+    # Below this the estimate goes to a human. Deliberately not a module constant:
+    # the right threshold is corpus-dependent and gets calibrated against real
+    # runs, and one that sends everything to review destroys the reviewer's signal.
+    GRAPH_CONFIDENCE_THRESHOLD: float = 0.7
+    # How far outside the historical band an estimate may fall before it is sent
+    # to a human, as a fraction of the band's own bounds. At 0.25 the trigger
+    # fires once roughly a third of the project has no precedent, and it cannot
+    # fire on a fully covered estimate: calculate_estimate prices from the same
+    # references the band is built from, so the result is inside it by
+    # construction. Raising it much past 0.4 makes the trigger unreachable.
+    GRAPH_HISTORICAL_BAND_TOLERANCE: float = 0.25
 
     @model_validator(mode="after")
     def validate_at_least_one_api_key(self) -> "Settings":

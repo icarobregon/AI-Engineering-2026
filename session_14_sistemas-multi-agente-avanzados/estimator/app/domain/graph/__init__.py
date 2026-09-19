@@ -1,9 +1,11 @@
-"""Graph orchestration for the estimation flow (Session 13).
+"""The multi-agent estimation system (Sessions 13-14).
 
-The Session 12 agent decided its own control flow inside a hand-written loop.
-Here the same work is expressed as an explicit LangGraph: typed shared state,
-one responsibility per node, edges that own the control, a checkpoint after every
-step and a span per node.
+Session 13 turned a hand-written agent loop into an explicit graph: typed shared
+state, one responsibility per node, edges that owned the control. Session 14
+takes the control away from the edges and gives it to a supervisor, which is the
+line between a workflow and an agentic system — not the number of nodes, but who
+decides what happens next. A human gate can stop the run mid-flight and a
+different process resumes it from the checkpoint.
 
 This package sits at the CONDUCTOR level (``app/domain/``), which is the layer
 allowed to compose siblings of ``generation`` — the same seat

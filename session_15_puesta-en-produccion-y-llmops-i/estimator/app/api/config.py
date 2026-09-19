@@ -66,6 +66,12 @@ def _config_payload(runtime_config: RuntimeModelConfig, settings: Settings) -> d
         "available_models": _available_models(settings),
         "embedding_model": settings.EMBEDDING_MODEL,
         "embedding_model_note": EMBEDDING_MODEL_NOTE,
+        # The catalogue is hand-curated, so it carries its own provenance: when
+        # it was built and from whose model lists. Nothing refreshes it — a new
+        # provider key or a new model release leaves it stale and silent, and
+        # the only defence against that is saying the date out loud.
+        "catalog_generated_at": settings.MODEL_CATALOG_GENERATED_AT,
+        "catalog_sources": settings.MODEL_CATALOG_SOURCES,
     }
 
 

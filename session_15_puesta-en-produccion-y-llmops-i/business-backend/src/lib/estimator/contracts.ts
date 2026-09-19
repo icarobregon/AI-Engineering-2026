@@ -395,5 +395,8 @@ export const modelsConfigSchema = z.object({
   /** Outside the knobs on purpose: changing it would invalidate every stored vector. */
   embedding_model: z.string(),
   embedding_model_note: z.string(),
+  /** El catálogo se cura a mano: viaja con su fecha y sus fuentes. */
+  catalog_generated_at: z.string(),
+  catalog_sources: z.array(z.string()),
 });
 export type ModelsConfig = z.infer<typeof modelsConfigSchema>;

@@ -8,6 +8,9 @@ import { modelKnobs, type ModelKnob, type ModelsConfig } from "@/lib/estimator/c
 import { saveModels, type FormState } from "./actions";
 
 /** Hardcoded here, as in the reference app: the AI service ships keys, not prose. */
+/** "OpenAI y Anthropic", no "OpenAI, Anthropic". */
+const listFormatter = new Intl.ListFormat("es-ES", { style: "long", type: "conjunction" });
+
 const knobLabels: Record<ModelKnob, { label: string; description: string }> = {
   PRIMARY_MODEL: { label: "Modelo principal", description: "El que atiende las estimaciones." },
   FALLBACK_MODEL: {
@@ -190,6 +193,14 @@ export function SettingsView({ config }: { config: ModelsConfig }) {
               El catálogo sólo ofrece modelos cuyo proveedor tiene clave configurada.
             </Typography.Text>
           </Space>
+
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Catálogo generado el{" "}
+            <strong>{new Date(config.catalog_generated_at).toLocaleString("es-ES")}</strong> a
+            partir de los modelos publicados por{" "}
+            <strong>{listFormatter.format(config.catalog_sources)}</strong>. Se cura a mano: ni un
+            proveedor nuevo ni un modelo nuevo aparecen aquí solos. Hay que pedir que se regenere.
+          </Typography.Text>
         </Flex>
       </form>
     </Flex>

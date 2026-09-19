@@ -21,6 +21,7 @@ Design notes
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any, TypeVar
 
@@ -60,16 +61,64 @@ def _failure_fields(exc: Exception) -> dict[str, Any]:
     return fields
 
 
-# Cost per 1M tokens (USD). Update as pricing changes.
+# Cost per 1M tokens (USD), standard API tier — no batch, no cache-hit, no fast
+# mode. Curated by hand alongside AVAILABLE_MODELS in app/config.py: a model that
+# is selectable but missing here is priced at zero, and a zero cost is worse than
+# no cost at all (see ``_usage_from``). Provenance and date live next to the
+# catalogue, in MODEL_CATALOG_GENERATED_AT.
+#
+# Aliases carry their own row on purpose: the lookup uses the name we ASKED for,
+# so ``claude-sonnet-4-5`` and ``claude-sonnet-4-5-20250929`` both need pricing
+# even though they are the same model.
 MODEL_COSTS: dict[str, dict[str, float]] = {
+    # --- OpenAI · GPT-4 ---
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "gpt-4o": {"input": 2.50, "output": 10.00},
-    # Session 9 — reasoning models used by the RAG estimation pipeline.
-    "gpt-5": {"input": 1.25, "output": 10.00},
+    "gpt-4.1-nano": {"input": 0.10, "output": 0.40},
+    "gpt-4.1-mini": {"input": 0.40, "output": 1.60},
+    "gpt-4.1": {"input": 2.00, "output": 8.00},
+    # --- OpenAI · GPT-5 ---
+    "gpt-5-nano": {"input": 0.05, "output": 0.40},
     "gpt-5-mini": {"input": 0.25, "output": 2.00},
+    "gpt-5": {"input": 1.25, "output": 10.00},
+    "gpt-5-pro": {"input": 15.00, "output": 120.00},
+    "gpt-5.1": {"input": 1.25, "output": 10.00},
+    "gpt-5.2": {"input": 1.75, "output": 14.00},
+    "gpt-5.2-pro": {"input": 21.00, "output": 168.00},
+    "gpt-5.4-nano": {"input": 0.20, "output": 1.25},
+    "gpt-5.4-mini": {"input": 0.75, "output": 4.50},
+    "gpt-5.4": {"input": 2.50, "output": 15.00},
+    "gpt-5.4-pro": {"input": 30.00, "output": 180.00},
+    "gpt-5.5": {"input": 5.00, "output": 30.00},
+    "gpt-5.5-pro": {"input": 30.00, "output": 180.00},
+    "gpt-5.6-luna": {"input": 0.20, "output": 1.20},
+    "gpt-5.6-terra": {"input": 2.00, "output": 12.00},
+    "gpt-5.6-sol": {"input": 4.00, "output": 20.00},
+    # --- OpenAI · GPT-6 ---
+    "gpt-6-astra": {"input": 10.00, "output": 50.00},
+    # --- OpenAI · razonadores de la serie o ---
+    "o3-mini": {"input": 1.10, "output": 4.40},
+    "o4-mini": {"input": 1.10, "output": 4.40},
+    "o3": {"input": 2.00, "output": 8.00},
+    "o1": {"input": 15.00, "output": 60.00},
+    "o1-pro": {"input": 150.00, "output": 600.00},
+    # --- Anthropic · Haiku ---
     "claude-haiku-4-5": {"input": 1.00, "output": 5.00},
     "claude-haiku-4-5-20251001": {"input": 1.00, "output": 5.00},
+    # --- Anthropic · Sonnet ---
     "claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
+    "claude-sonnet-4-5-20250929": {"input": 3.00, "output": 15.00},
+    "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
+    "claude-sonnet-5": {"input": 2.00, "output": 10.00},
+    # --- Anthropic · Opus ---
+    "claude-opus-4-5-20251101": {"input": 5.00, "output": 25.00},
+    "claude-opus-4-6": {"input": 5.00, "output": 25.00},
+    "claude-opus-4-7": {"input": 5.00, "output": 25.00},
+    "claude-opus-4-8": {"input": 5.00, "output": 25.00},
+    "claude-opus-5": {"input": 5.00, "output": 25.00},
+    # --- Anthropic · Fable ---
+    "claude-fable-5": {"input": 10.00, "output": 50.00},
+    "claude-fable-5-1": {"input": 10.00, "output": 50.00},
 }
 
 
@@ -107,16 +156,26 @@ def _estimate_cost(model: str, tokens_in: int, tokens_out: int) -> float:
     return round((tokens_in * costs["input"] + tokens_out * costs["output"]) / 1_000_000, 6)
 
 
+_O_SERIES = re.compile(r"^o\d")
+
+
 def _normalise_model_name(model: str) -> str:
     """Strip provider prefixes like ``anthropic/`` that LiteLLM may emit."""
     return model.split("/", 1)[1] if "/" in model else model
 
 
 def _provider_from_model(model: str) -> str:
+    """Infer the provider from the model name.
+
+    The o-series is matched by shape (``o`` + digit) rather than by listing
+    ``o1``/``o3``: an unmatched name falls through to "unknown", and "unknown"
+    has no key field, so ``/api/v1/config/models`` would drop the model from the
+    catalogue without a word. ``o4-mini`` was doing exactly that.
+    """
     name = _normalise_model_name(model).lower()
     if name.startswith("claude"):
         return "anthropic"
-    if name.startswith("gpt") or name.startswith("o1") or name.startswith("o3"):
+    if name.startswith("gpt") or _O_SERIES.match(name):
         return "openai"
     return "unknown"
 

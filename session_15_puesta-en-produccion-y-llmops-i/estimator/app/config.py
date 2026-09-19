@@ -24,17 +24,71 @@ class Settings(BaseSettings):
     FALLBACK_MODEL: str = "claude-haiku-4-5-20251001"
     LLM_TIMEOUT: int = 30
     LLM_RETRIES: int = 2
-    # Catalog of models selectable at runtime via PUT /api/v1/config/models
-    # (kept aligned with MODEL_COSTS in app/foundation/llm/wrapper.py). The
-    # endpoint filters this list by the API keys actually configured.
+    # Catalogo de modelos seleccionables en caliente vIa PUT /api/v1/config/models.
+    # Curado A MANO contra los catalogos que las claves alcanzan de verdad
+    # (GET /v1/models de cada proveedor) y alineado con MODEL_COSTS en
+    # app/foundation/llm/wrapper.py: lo que este aqui sin precio alli se
+    # contabiliza a cero. El endpoint lo filtra ademas por las claves
+    # configuradas. Ordenado por proveedor, familia y precio, que es como se
+    # lee el desplegable.
+    #
+    # Fuera a proposito: modelos retirados (gpt-3.5, gpt-4-0613, davinci,
+    # babbage), los `-instruct`, los que no son de texto (voz, realtime,
+    # imagen, embeddings) y los alias `*-chat-latest`, que apuntan a un modelo
+    # movil; aqui el nombre del modelo particiona las caches, asi que un alias
+    # que cambia debajo invalidaria comparaciones sin avisar.
     AVAILABLE_MODELS: list[str] = [
+        # OpenAI · GPT-4
         "gpt-4o-mini",
         "gpt-4o",
-        "gpt-5",
+        "gpt-4.1-nano",
+        "gpt-4.1-mini",
+        "gpt-4.1",
+        # OpenAI · GPT-5
+        "gpt-5-nano",
         "gpt-5-mini",
+        "gpt-5",
+        "gpt-5-pro",
+        "gpt-5.1",
+        "gpt-5.2",
+        "gpt-5.2-pro",
+        "gpt-5.4-nano",
+        "gpt-5.4-mini",
+        "gpt-5.4",
+        "gpt-5.4-pro",
+        "gpt-5.5",
+        "gpt-5.5-pro",
+        "gpt-5.6-luna",
+        "gpt-5.6-terra",
+        "gpt-5.6-sol",
+        # OpenAI · GPT-6
+        "gpt-6-astra",
+        # OpenAI · razonadores de la serie o
+        "o3-mini",
+        "o4-mini",
+        "o3",
+        "o1",
+        "o1-pro",
+        # Anthropic
         "claude-haiku-4-5-20251001",
         "claude-sonnet-4-5",
+        "claude-sonnet-4-6",
+        "claude-sonnet-5",
+        "claude-opus-4-5-20251101",
+        "claude-opus-4-6",
+        "claude-opus-4-7",
+        "claude-opus-4-8",
+        "claude-opus-5",
+        "claude-fable-5",
+        "claude-fable-5-1",
     ]
+
+    # Procedencia del catalogo de arriba. Se cura A MANO, asi que dice cuando se
+    # genero y de que catalogos: nada lo mantiene fresco solo. Si aparece un
+    # proveedor nuevo o el proveedor publica modelos nuevos, esta lista no se
+    # entera — hay que pedir explicitamente que se regenere.
+    MODEL_CATALOG_GENERATED_AT: str = "2026-09-20T01:14:55+02:00"
+    MODEL_CATALOG_SOURCES: list[str] = ["OpenAI", "Anthropic"]
 
     REDIS_URL: str = "redis://localhost:6379"
     CACHE_TTL: int = 86400

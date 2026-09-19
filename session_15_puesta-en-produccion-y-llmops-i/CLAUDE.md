@@ -94,6 +94,19 @@ Key design points future changes should respect:
 - **Field order matters with Instructor.** `phases` is declared BEFORE `total_cost_eur` / `total_duration_weeks` on purpose: the LLM emits phases first (autoregressive) and then only needs to sum, instead of picking a round total and back-fitting phases. With smaller models like `gpt-4o-mini` this is the difference between consistent success and arithmetic failures.
 - **Two caches in series.** Both live in the CAG layer (`app/generation/cag/`). The exact-match cache (`app/generation/cag/exact.py`) keys on SHA-256 of the typed request + prompt_version + model. The semantic cache (`app/generation/cag/semantic.py`) layers on top: same bucket (`prompt_version:project_type:detail_level:output_format`) + cosine similarity ≥ `SEMANTIC_CACHE_THRESHOLD` (default 0.85). The semantic cache requires Redis Stack (`redis/redis-stack:7.4.0-v0`), not vanilla Redis — RediSearch is mandatory for vector queries.
 - **Guardrails are policies, not features.** `check_input` uses `exception` policy (raise on violation). `enforce_scope_response` uses `filter` (rewrite the summary). The schema validators use `re-prompt` (Instructor handles it). The split is documented in the live-session guide.
+- **The model catalogue is hand-curated, and says so.** `AVAILABLE_MODELS`
+  (`app/config.py`) is a hand-written list kept in lockstep with `MODEL_COSTS`
+  (`app/foundation/llm/wrapper.py`): a model selectable without a price row is
+  billed at zero, and `_estimate_cost` defaults to zero silently. It is NOT
+  everything the API keys can reach — the keys reach far more — and the endpoint's
+  filter only checks that the provider's key is non-empty, never that the key can
+  actually serve that model. Because nothing refreshes it, the catalogue carries
+  its own provenance (`MODEL_CATALOG_GENERATED_AT` / `MODEL_CATALOG_SOURCES`),
+  surfaced verbatim on the Settings screen. Regenerating it is an explicit,
+  human-initiated task: query each provider's `GET /v1/models` with the real keys,
+  price every entry against the provider's published pricing page (standard tier —
+  fast-mode figures are roughly double and circulate widely), and update both lists
+  plus the timestamp together.
 - **Settings are a cached singleton** via `app/config.py::get_settings` (`@lru_cache`). Any change to `.env` requires recreating the container (`docker compose up -d --force-recreate`); a `--reload` is not enough. **Exception: the LLM model knobs** (`PRIMARY_MODEL`, `FALLBACK_MODEL`, `CRITIC_MODEL`, metadata/compression/chunker models) can be overridden at runtime via `PUT /api/v1/config/models` (Redis-backed `app/foundation/llm/runtime_config.py`) — overrides survive `--reload` and restarts, and both caches partition by model.
 - **Logging** is `structlog`. JSON in `production`, console in dev. Use `structlog.get_logger()` rather than stdlib `logging`.
 - **The LLM wrapper bypasses the Router for streaming and for structured calls** (see `_dispatch`). LiteLLM's Router does round-robin between deployments, which would non-deterministically route to a fallback that may be unreachable. For deterministic behaviour `complete_structured` always uses the primary model directly.

@@ -8,11 +8,11 @@ The AI service for the Master en AI Engineering programme:
 
 - `estimator/` — FastAPI service. The AI side: prompts, LLM calls, structured output, guardrails, semantic cache. All AI logic lives here; the rest of the programme evolves this codebase module by module.
 
-The business frontend/client is out of scope in this repo — we will build our own. The live sessions invoke `estimator` directly via httpie/curl (stack-agnostic).
+The business frontend/client lives in `business-backend/` as of Session 15: a Next.js app that is both the UI and the BFF, and the only public entry point of the system. The live sessions invoke the AI service directly via httpie/curl (stack-agnostic), from inside the Compose network.
 
-A root-level `docker-compose.yml` pulls in `estimator/docker-compose.yml` via the `include:` directive (Compose v2.20+). Running `docker compose up` from the repo root brings up the three services (`estimator`, `redis`, `estimator-postgres`) on a shared network. The Postgres service is named `estimator-postgres` (not plain `postgres`), uses the pgvector image on host port 5433 and the volume `estimator_postgres_data`.
+There is ONE `docker-compose.yml`, at the root of the session folder, and it defines every service: `business-backend` (the only one publishing a port, `3000:3000`), `ai-service`, `estimator-postgres` and `redis`. Run it from that directory, always — Compose derives the project name, and therefore the volume names, from where it is launched, so starting from a subdirectory would create a second, empty corpus.
 
-**Trap to be aware of**: launching from the root vs from `estimator/` creates *different* Compose projects, which means the named volumes (`estimator_postgres_data`, `redis_data`) are not shared between the two modes. Pick a mode per workflow and stay with it.
+**The frontier is not negotiable**: only `business-backend` publishes a port. The AI service custodies the LLM key and sits below the business rules, so it is reachable only from inside the network, by service name (`http://ai-service:8000`) and with the `X-API-Key` shared secret. The datastores are private for the same reason — which is why `estimator-postgres` no longer publishes 5433 and `redis` no longer publishes 6379.
 
 Session guides for the instructor live in `guides/` (git-ignored). `guides/session-4-live-guide.md` is the most recent.
 
@@ -178,9 +178,9 @@ For running tests inside the container the prod image lacks pytest. Two options:
 cd estimator && uv sync && uv run pytest
 
 # 2. Install ad-hoc inside the container (lost on rebuild)
-docker compose exec estimator bash -c '
+docker compose exec ai-service bash -c '
   python -m ensurepip --upgrade && \
   python -m pip install --quiet pytest pytest-asyncio fakeredis httpx
 '
-docker compose exec estimator python -m pytest tests/ -v
+docker compose exec ai-service python -m pytest tests/ -v
 ```

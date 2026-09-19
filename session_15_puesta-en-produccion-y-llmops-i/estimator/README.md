@@ -14,12 +14,17 @@ La inteligencia adicional (output estructurado, guardrails, cache semántico) se
 ### Con Docker (recomendado)
 
 ```bash
-cd estimator
-cp .env.example .env  # añade al menos OPENAI_API_KEY o ANTHROPIC_API_KEY
+cd ..                 # el compose vive en la raíz de la carpeta de la sesión
+cp estimator/.env.example estimator/.env   # al menos OPENAI_API_KEY o ANTHROPIC_API_KEY
+cp .env.example .env                       # secreto de servicio y credenciales de Postgres
 docker compose up --build
 ```
 
-El servicio queda en `http://localhost:8000` (Swagger en `/docs`, health en `/health`). Redis arranca como servicio vecino para el cache exact-match del wrapper.
+Desde la Sesión 15 el servicio IA **no publica puerto al host**: es alcanzable solo desde la red interna, por nombre de servicio (`http://ai-service:8000`) y con la cabecera `X-API-Key`. El punto de entrada público es `http://localhost:3000`, el backend de negocio. Para hablar con la API a mano:
+
+```bash
+docker compose exec business-backend curl -sS http://ai-service:8000/health
+```
 
 ### Sin Docker
 
@@ -107,7 +112,6 @@ estimator/
 │   └── test_cache.py
 ├── streamlit_app.py                   # Formulario que consume /api/v1/estimate
 ├── Dockerfile                         # Multi-stage con uv
-├── docker-compose.yml                 # Servicio IA + Redis
 └── pyproject.toml
 ```
 
@@ -260,7 +264,7 @@ uv run python scripts/compare.py \
   --text-b "JWT-based authorization service for banking app"
 
 # Dentro del contenedor (scripts/ está bind-montado en docker-compose.yml):
-docker compose exec estimator python scripts/compare.py \
+docker compose exec ai-service python scripts/compare.py \
   --text-a "..." --text-b "..."
 ```
 
@@ -329,7 +333,7 @@ Ingesta el corpus completo (idempotente: los 409 se saltan) y lanza 5 queries qu
 
 ```bash
 docker compose up -d
-docker compose run --rm estimator python scripts/query_examples.py
+docker compose run --rm ai-service python scripts/query_examples.py
 ```
 
 No hay tests de integración con BD viva (no existen fixtures de Postgres en la suite); la evidencia end-to-end es este script. Los tests HTTP usan fakes vía `dependency_overrides`.
@@ -351,7 +355,7 @@ Material de la sesión en vivo que cierra el Módulo 3: cómo se **indexa** (HNS
 
 ### Scripts Python (`scripts/*_s08.py`)
 
-Todos se ejecutan con `docker compose run --rm estimator python scripts/<script>` (o `docker compose exec estimator python scripts/<script>` con el stack levantado). Reutilizan la configuración, la sesión async y el embedder del proyecto; `s08_common.py` es el módulo compartido (no es un script).
+Todos se ejecutan con `docker compose run --rm ai-service python scripts/<script>` (o `docker compose exec ai-service python scripts/<script>` con el stack levantado). Reutilizan la configuración, la sesión async y el embedder del proyecto; `s08_common.py` es el módulo compartido (no es un script).
 
 | Script | Qué hace |
 |---|---|

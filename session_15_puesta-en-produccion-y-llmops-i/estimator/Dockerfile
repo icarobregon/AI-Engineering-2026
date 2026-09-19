@@ -36,13 +36,22 @@ RUN groupadd --system appgroup && \
 WORKDIR /app
 
 # Bring in the pre-built virtual environment from the builder stage.
-COPY --from=builder /app/.venv /app/.venv
+# --chown does the ownership in the same layer: a later `RUN chown -R` would
+# touch every file in the venv and make OverlayFS store a second full copy of
+# it, roughly doubling the image for nothing.
+COPY --from=builder --chown=appuser:appgroup /app/.venv /app/.venv
 
-# Copy application source code.
-COPY app/ /app/app/
+# Application source.
+COPY --chown=appuser:appgroup app/ /app/app/
 
-# Ensure the non-root user owns everything it needs to run.
-RUN chown -R appuser:appgroup /app
+# Everything the container needs to START on its own, with no bind-mounts:
+# the migrations it applies before serving, the seed corpus and the scripts that
+# ingest it. Without these the image only runs in development, which defeats
+# the point of building an image at all.
+COPY --chown=appuser:appgroup alembic/ /app/alembic/
+COPY --chown=appuser:appgroup alembic.ini /app/alembic.ini
+COPY --chown=appuser:appgroup data/ /app/data/
+COPY --chown=appuser:appgroup scripts/ /app/scripts/
 
 # Put the virtual environment's bin directory first on PATH so `python` and
 # `uvicorn` resolve to the versions installed inside the venv.

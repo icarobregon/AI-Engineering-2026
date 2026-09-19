@@ -1,13 +1,125 @@
-# Root Compose for the session. Pulls in each subproject's compose via the
-# `include:` directive (Compose v2.20+). Today only the `estimator` FastAPI
-# service lives in this repo; our own frontend/client will be added here when we
-# build it. Running `docker compose up` from this directory launches the
-# estimator stack (estimator + redis + estimator-postgres) on a shared network.
+# The whole system, one command.
 #
-# IMPORTANT: launching from this directory vs from `estimator/` creates SEPARATE
-# Compose projects (and therefore separate named volumes), so the database from
-# one mode is not visible from the other. Pick one mode per workflow and stick
-# with it.
+# The single decision this file encodes is the public/private frontier: ONLY the
+# business backend publishes a port to the host. The AI service custodies the LLM
+# key and sits below the business rules, so exposing it would both hand out our
+# invoice and let anyone bypass the layer that decides who may ask for an
+# estimate. The datastores are private for the same reason.
+#
+# Run it from THIS directory, always. Compose derives the project name — and
+# therefore the volume names — from where you launch it, so starting the same
+# services from a subdirectory would silently create a second, empty corpus.
 
-include:
-  - estimator/docker-compose.yml
+services:
+  # --- Public ---------------------------------------------------------------
+  business-backend:
+    build: ./business-backend
+    ports:
+      - "3000:3000" # the only door into the system
+    environment:
+      # Service name, never localhost: inside a container localhost is itself.
+      AI_SERVICE_URL: http://ai-service:8000
+      # `:?` fails the run loudly instead of starting with an empty secret.
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?set AI_SERVICE_TOKEN in .env}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@estimator-postgres:5432/${POSTGRES_DB}?schema=business
+    depends_on:
+      business-migrate:
+        condition: service_completed_successfully
+      ai-service:
+        condition: service_healthy
+      estimator-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # One-shot: applies the business schema and exits. It runs off the `builder`
+  # stage because that is where the Prisma CLI lives — keeping it out of the
+  # serving image saves 250 MB there. `docker compose up` still brings the whole
+  # system up with one command; this container just finishes before the app starts.
+  business-migrate:
+    build:
+      context: ./business-backend
+      target: builder
+    command: node_modules/prisma/build/index.js migrate deploy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@estimator-postgres:5432/${POSTGRES_DB}?schema=business
+    depends_on:
+      estimator-postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # --- Private --------------------------------------------------------------
+  ai-service:
+    build: ./estimator
+    # No `ports:`, on purpose and permanently. This is the pitfall the exercise
+    # calls "the serious one".
+    env_file:
+      - ./estimator/.env
+    environment:
+      # These override whatever the .env says: those values are written for
+      # running uvicorn outside Docker, where the hosts are localhost.
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@estimator-postgres:5432/${POSTGRES_DB}
+      # One shared secret per environment, set in one place.
+      ESTIMATE_API_KEY: ${AI_SERVICE_TOKEN}
+      RETRIEVAL_API_KEY: ${AI_SERVICE_RETRIEVAL_TOKEN:-${AI_SERVICE_TOKEN}}
+    depends_on:
+      redis:
+        condition: service_healthy
+      estimator-postgres:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+    restart: unless-stopped
+
+  estimator-postgres:
+    # pgvector ships the extension compiled: this one container is both the
+    # relational store and the vector store, which is why there are three
+    # services here and not four.
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    shm_size: 1gb
+    command: >
+      postgres
+      -c shared_buffers=512MB
+      -c effective_cache_size=1536MB
+      -c work_mem=64MB
+      -c maintenance_work_mem=512MB
+      -c max_parallel_maintenance_workers=2
+    volumes:
+      # The corpus cost time and tokens to build. Without this line a redeploy
+      # throws away everything the system knows.
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    # Redis Stack, not plain redis: redisvl needs the RediSearch/RedisJSON
+    # modules for the semantic cache's vector queries.
+    image: redis/redis-stack-server:7.4.0-v0
+    command: redis-stack-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

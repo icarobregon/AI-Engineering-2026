@@ -14,7 +14,21 @@ cd session_15_puesta-en-produccion-y-llmops-i
 
 cp .env.example .env                        # secreto de servicio + credenciales de Postgres
 cp estimator/.env.example estimator/.env    # claves del proveedor de LLM y ajustes del servicio IA
+```
 
+Rellena ahora `.env`, **antes de construir**: el arranque aborta con
+`required variable AI_SERVICE_TOKEN is missing a value` si lo dejas vacío, que es
+el comportamiento buscado —fallar ruidosamente en vez de servir con un secreto en
+blanco— pero conviene saberlo antes de toparse con él.
+
+| Variable | Qué es |
+| --- | --- |
+| `AI_SERVICE_TOKEN` | El secreto compartido entre el backend de negocio y el servicio IA. Un valor por entorno. |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Credenciales del datastore. Se interpolan en las cadenas de conexión de ambos servicios, así que no hay ninguna contraseña escrita en `docker-compose.yml`. |
+
+Y en `estimator/.env`, al menos `OPENAI_API_KEY` o `ANTHROPIC_API_KEY`.
+
+```bash
 docker compose build
 docker compose up
 ```
@@ -22,13 +36,6 @@ docker compose up
 **Arranca siempre desde este directorio.** Compose deriva el nombre del proyecto
 —y con él los nombres de los volúmenes— del sitio desde el que se lanza. Hacerlo
 desde una subcarpeta crearía un segundo corpus vacío sin avisar.
-
-Rellena en `.env`:
-
-| Variable | Qué es |
-| --- | --- |
-| `AI_SERVICE_TOKEN` | El secreto compartido entre el backend de negocio y el servicio IA. Un valor por entorno. Sin él, el arranque falla en vez de servir con un secreto vacío. |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Credenciales del datastore. Se interpolan en las cadenas de conexión de ambos servicios, así que no hay ninguna contraseña escrita en `docker-compose.yml`. |
 
 ## Las cinco comprobaciones
 
@@ -38,8 +45,10 @@ Rellena en `.env`:
 docker compose ps
 ```
 
-`business-backend`, `ai-service` y `estimator-postgres` deben aparecer en estado
-`healthy`; `redis` en `running`.
+Los cuatro —`business-backend`, `ai-service`, `estimator-postgres` y `redis`—
+deben aparecer en estado `healthy`; los cuatro llevan healthcheck. Además verás
+`business-migrate` en `Exited (0)`: es el contenedor de un solo uso que aplica el
+esquema de Prisma y termina antes de que arranque la aplicación.
 
 ### 2. El backend de negocio sirve desde el host
 
@@ -126,13 +135,21 @@ docker compose exec -T estimator-postgres psql -U estimator -d estimator \
 
 Si `historical_task` no aparece, la interfaz estimará sin evidencia.
 
+## Desviaciones respecto al enunciado
+
+Conscientes, y aquí para que quien revise no las tome por errores.
+
+| El enunciado dice | Aquí es | Por qué |
+| --- | --- | --- |
+| carpeta `ai-service/` | carpeta `estimator/` | Es el nombre que el proyecto arrastra desde la Sesión 2; renombrarlo rompería las referencias de trece sesiones. El **servicio** de compose sí se llama `ai-service`, que es lo que fija el criterio de aceptación: el backend de negocio lo alcanza por `http://ai-service:8000`. |
+| cabecera `X-Service-Token` | cabecera `X-API-Key` | Mismo mecanismo —un secreto compartido por entorno, exigido en las rutas de estimación y ausente en `/health`—. Renombrarla obliga a tocar el servicio IA, sus tests y su documentación. |
+| contrato en `/v1/estimate` | `/v1/estimate/graph`, `/v1/estimate/from-transcript`, `/v1/estimate/stages/*`, `/v1/estimate/tasks/*` | `/v1/estimate` a secas devuelve 404: es un prefijo, no una ruta. La pantalla del supervisor usa `/v1/estimate/graph`. |
+| cuatro servicios, con BBDD vectorial aparte | tres contenedores de datos + la app | pgvector hace de relacional y de vectorial en el mismo contenedor, que el propio enunciado autoriza. El cuarto es Redis Stack, que sostiene la caché semántica de sesiones anteriores. |
+| — | `business-migrate` | Contenedor de un solo uso que aplica el esquema de Prisma y sale con 0. No es un servicio permanente; mantener el CLI de Prisma en la imagen de runtime costaba 250 MB. |
+
 ## Qué NO está aquí
+
 
 - **Desarrollo del front fuera de Docker.** Cerrar la frontera significa que
   `localhost:8000` y `localhost:5433` ya no existen. Para iterar sobre la UI sin
   contenedores hay que publicar temporalmente esos puertos, a sabiendas.
-- **La cabecera se llama `X-API-Key`, no `X-Service-Token`.** El enunciado usa el
-  segundo nombre; el mecanismo es el mismo —un secreto compartido por entorno,
-  exigido en las rutas de estimación y ausente en `/health`— y renombrarlo
-  obligaría a tocar el servicio IA, sus tests y su documentación. Queda anotado
-  como desviación consciente.

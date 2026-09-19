@@ -43,7 +43,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT_PATH = ROOT / "data" / "task_corpus.json"
 DOCUMENT_TYPE = "historical_task_breakdown"
 CHUNK_TYPE = "historical_task"
-CANDIDATE_BASE_URLS = ("http://localhost:8000", "http://estimator:8000")
+CANDIDATE_BASE_URLS = ("http://localhost:8000", "http://ai-service:8000")
 DEFAULT_SEED = 90
 DEFAULT_COUNT = 60
 

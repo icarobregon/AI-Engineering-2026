@@ -112,7 +112,9 @@ services:
     image: redis/redis-stack-server:7.4.0-v0
     command: redis-stack-server --appendonly yes
     volumes:
-      - redis_data:/data
+      # redis-stack-server escribe en /var/lib/redis-stack, NO en /data: montarlo
+      # en /data deja un volumen de 0 B que parece persistencia y no lo es.
+      - redis_data:/var/lib/redis-stack
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

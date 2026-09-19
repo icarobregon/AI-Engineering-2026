@@ -20,7 +20,7 @@ Usage::
     uv run python scripts/query_examples.py
 
 The base URL is taken from ``ESTIMATOR_BASE_URL`` if set; otherwise the script
-probes ``http://localhost:8000`` and ``http://estimator:8000`` (the compose
+probes ``http://localhost:8000`` and ``http://ai-service:8000`` (the compose
 network alias) via ``GET /health``.
 """
 
@@ -36,7 +36,7 @@ import httpx
 ROOT = Path(__file__).resolve().parent.parent
 CORPUS_PATH = ROOT / "data" / "budgets_sample.json"
 
-CANDIDATE_BASE_URLS = ("http://localhost:8000", "http://estimator:8000")
+CANDIDATE_BASE_URLS = ("http://localhost:8000", "http://ai-service:8000")
 
 # Five angles on the same corpus — see the exercise statement.
 QUERIES: list[tuple[str, str]] = [

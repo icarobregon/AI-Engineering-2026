@@ -310,6 +310,7 @@ class EstimationService:
         #    reads ``response.observation`` straight from the JSON and never
         #    has to reconcile timestamps. ``cache_hit_kind`` is "none"
         #    because the conversational path bypasses both caches by design.
+        _usage = meta.get("usage") or {}
         observation = TurnObservation(
             turn_index=max(1, turn_index),
             session_id=session.session_id,
@@ -318,8 +319,11 @@ class EstimationService:
             messages_in_window=len(session.history.messages),
             anchors_count=len(session.history.anchors),
             summary_chars=len(session.history.summary or ""),
-            tokens_in=int(meta.get("tokens_in", 0) or 0),
-            tokens_out=int(meta.get("tokens_out", 0) or 0),
+            # ``_usage_from`` nests the counts under ``usage``; reading flat
+            # ``tokens_in``/``tokens_out`` keys off ``meta`` found nothing and
+            # reported every turn as 0 tokens.
+            tokens_in=int(_usage.get("input_tokens", 0) or 0),
+            tokens_out=int(_usage.get("output_tokens", 0) or 0),
             cost_usd=float(meta.get("cost_usd", 0.0) or 0.0),
             latency_ms=int(meta.get("latency_ms", 0) or 0),
             cache_hit_kind="none",

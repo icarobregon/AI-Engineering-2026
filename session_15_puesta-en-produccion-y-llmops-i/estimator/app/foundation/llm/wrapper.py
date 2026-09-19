@@ -60,7 +60,6 @@ def _failure_fields(exc: Exception) -> dict[str, Any]:
     return fields
 
 
-
 # Cost per 1M tokens (USD). Update as pricing changes.
 MODEL_COSTS: dict[str, dict[str, float]] = {
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
@@ -331,12 +330,16 @@ class LLMWrapper:
             "model": _normalise_model_name(target_model),
             "provider": _provider_from_model(target_model),
             "latency_ms": latency_ms,
+            # Same reading as the single-shot variant. Without it every
+            # conversational turn reported 0 tokens and $0.
+            **_usage_from(result, target_model),
         }
         log.info(
             "llm_structured_chat_completed",
             model=meta["model"],
             provider=meta["provider"],
             latency_ms=latency_ms,
+            cost_usd=meta.get("cost_usd"),
         )
         return result, meta
 

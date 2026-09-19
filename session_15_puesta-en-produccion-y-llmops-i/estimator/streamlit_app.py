@@ -20,6 +20,8 @@ from app.domain.schemas.estimation import DetailLevel, OutputFormat, ProjectType
 load_dotenv()
 
 API_BASE_URL = os.getenv("ESTIMATOR_API_BASE_URL", "http://localhost:8000")
+# El endpoint exige el token de servicio desde la Sesión 15.
+API_KEY = os.getenv("ESTIMATE_API_KEY", "")
 ESTIMATE_ENDPOINT = f"{API_BASE_URL.rstrip('/')}/api/v1/estimate"
 
 st.set_page_config(page_title="Software Estimator", page_icon="📊")
@@ -70,6 +72,7 @@ if submitted:
             try:
                 response = httpx.post(
                     ESTIMATE_ENDPOINT,
+                    headers={"X-API-Key": API_KEY},
                     json=payload,
                     timeout=httpx.Timeout(120.0, connect=10.0),
                 )

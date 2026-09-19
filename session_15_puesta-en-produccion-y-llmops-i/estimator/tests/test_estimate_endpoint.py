@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+import app.api.security as security
 from app.dependencies import get_estimation_service
 from app.main import app
 from app.domain.schemas.estimation import EstimationRequest, EstimationResponse, EstimationResult
@@ -54,6 +55,18 @@ def fake_service() -> FakeEstimationService:
     app.dependency_overrides.pop(get_estimation_service, None)
 
 
+EST_KEY = "estimate-secret"
+AUTH = {"X-API-Key": EST_KEY}
+
+
+@pytest.fixture(autouse=True)
+def stub_key(monkeypatch):
+    """The endpoint requires the service token since Session 15."""
+    monkeypatch.setattr(
+        security, "get_settings", lambda: type("S", (), {"ESTIMATE_API_KEY": EST_KEY})()
+    )
+
+
 VALID_PAYLOAD = {
     "description": "A small B2B SaaS to manage employee equipment loans across teams.",
     "project_type": "web_saas",
@@ -65,7 +78,7 @@ VALID_PAYLOAD = {
 def test_valid_payload_returns_structured_response(
     client: TestClient, fake_service: FakeEstimationService
 ) -> None:
-    response = client.post("/api/v1/estimate", json=VALID_PAYLOAD)
+    response = client.post("/api/v1/estimate", json=VALID_PAYLOAD, headers=AUTH)
     assert response.status_code == 200
     body = response.json()
     assert body["prompt_version"] == "v1"
@@ -79,7 +92,7 @@ def test_valid_payload_returns_structured_response(
 def test_endpoint_forwards_request_to_service(
     client: TestClient, fake_service: FakeEstimationService
 ) -> None:
-    client.post("/api/v1/estimate", json=VALID_PAYLOAD)
+    client.post("/api/v1/estimate", json=VALID_PAYLOAD, headers=AUTH)
     assert len(fake_service.calls) == 1
     received = fake_service.calls[0]
     assert received.description == VALID_PAYLOAD["description"]
@@ -88,7 +101,7 @@ def test_endpoint_forwards_request_to_service(
 
 def test_missing_project_type_returns_422(client: TestClient, fake_service) -> None:
     payload = {k: v for k, v in VALID_PAYLOAD.items() if k != "project_type"}
-    response = client.post("/api/v1/estimate", json=payload)
+    response = client.post("/api/v1/estimate", json=payload, headers=AUTH)
     assert response.status_code == 422
     detail = response.json()["detail"]
     assert any(err["loc"][-1] == "project_type" for err in detail)
@@ -96,11 +109,26 @@ def test_missing_project_type_returns_422(client: TestClient, fake_service) -> N
 
 def test_invalid_enum_value_returns_422(client: TestClient, fake_service) -> None:
     payload = {**VALID_PAYLOAD, "project_type": "not_a_real_enum"}
-    response = client.post("/api/v1/estimate", json=payload)
+    response = client.post("/api/v1/estimate", json=payload, headers=AUTH)
     assert response.status_code == 422
 
 
 def test_short_description_returns_422(client: TestClient, fake_service) -> None:
     payload = {**VALID_PAYLOAD, "description": "too short"}
-    response = client.post("/api/v1/estimate", json=payload)
+    response = client.post("/api/v1/estimate", json=payload, headers=AUTH)
     assert response.status_code == 422
+
+
+def test_missing_token_returns_401(client: TestClient, fake_service) -> None:
+    """The acceptance criterion of Session 15: no token, no estimate."""
+    response = client.post("/api/v1/estimate", json=VALID_PAYLOAD)
+    assert response.status_code == 401
+    assert fake_service.calls == []
+
+
+def test_wrong_token_returns_401(client: TestClient, fake_service) -> None:
+    response = client.post(
+        "/api/v1/estimate", json=VALID_PAYLOAD, headers={"X-API-Key": "nope"}
+    )
+    assert response.status_code == 401
+    assert fake_service.calls == []

@@ -35,23 +35,24 @@ export class EstimatorError extends Error {
     this.requestId = options.requestId ?? null;
   }
 
-  /** What to show a person, phrased as something they can act on. */
+  /** What to show a person, phrased as something they can act on — and in the
+   *  language the rest of the interface speaks. */
   get userMessage(): string {
     switch (this.kind) {
       case "guardrail":
         return this.message;
       case "invalid_request":
-        return `The AI service rejected the request: ${this.message}`;
+        return `El servicio IA rechazó la petición: ${this.message}`;
       case "unauthorized":
-        return "The service token was rejected. Check AI_SERVICE_TOKEN on both sides.";
+        return "El servicio IA rechazó el token. Revisa AI_SERVICE_TOKEN en ambos lados.";
       case "not_found":
-        return "That estimation no longer exists in the AI service.";
+        return "Esa estimación ya no existe en el servicio IA.";
       case "rate_limited":
-        return "Too many requests to the AI service. Wait a moment and try again.";
+        return "Demasiadas peticiones al servicio IA. Espera un momento y reinténtalo.";
       case "unavailable":
-        return "The AI service is unavailable. The estimate could not be produced.";
+        return "El servicio IA no está disponible. No se ha podido producir la estimación.";
       case "server_error":
-        return "The AI service failed while producing the estimate.";
+        return "El servicio IA falló al producir la estimación.";
     }
   }
 }

@@ -82,7 +82,9 @@ estimación. El recorrido es: navegador → backend de negocio → servicio IA (
 el token) → Postgres/pgvector → respuesta. Si la confianza es baja, la ejecución
 se detiene y aparece en la bandeja de revisión.
 
-Comprobación de que el token se exige de verdad —sin cabecera, 401:
+Las dos rutas de estimación exigen el token de servicio: `/api/v1/estimate`, que
+sirve a la pantalla «Estimación», y `/v1/estimate/graph`, que sirve a la del
+supervisor. Sin cabecera, 401:
 
 ```bash
 docker compose exec business-backend node -e "fetch('http://ai-service:8000/v1/estimate/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:'{\"transcript\":\"x\"}'}).then(r=>console.log(r.status))"

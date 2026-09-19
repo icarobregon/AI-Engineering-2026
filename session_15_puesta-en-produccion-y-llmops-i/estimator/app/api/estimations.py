@@ -1,5 +1,10 @@
 """POST /api/v1/estimate — typed input, validated structured output.
 
+Desde la Sesión 15 exige el token de servicio, como el resto de rutas de
+estimación. Antes era la única que estimaba de forma anónima, y es la que sirve a
+la pantalla pública: dejarla abierta permitía pedir estimaciones —y por tanto
+gastar tokens del proveedor— sin pasar por la capa que decide quién puede hacerlo.
+
 Error handling mapping:
 
 - ``InputGuardrailViolation`` → HTTP 400 with ``{reason, message}`` so the cliente
@@ -15,6 +20,7 @@ from __future__ import annotations
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.security import require_estimate_key
 from app.dependencies import get_estimation_service
 from app.foundation.guardrails.input import InputGuardrailViolation
 from app.domain.schemas.estimation import EstimationRequest, EstimationResponse
@@ -25,7 +31,11 @@ log = structlog.get_logger()
 router = APIRouter(prefix="/api/v1", tags=["estimations"])
 
 
-@router.post("/estimate", response_model=EstimationResponse)
+@router.post(
+    "/estimate",
+    response_model=EstimationResponse,
+    dependencies=[Depends(require_estimate_key)],
+)
 def create_estimation(
     request: EstimationRequest,
     service: EstimationService = Depends(get_estimation_service),

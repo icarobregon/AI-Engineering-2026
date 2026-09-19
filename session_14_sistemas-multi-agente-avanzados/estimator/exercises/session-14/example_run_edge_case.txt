@@ -1,0 +1,128 @@
+MULTI-AGENT RUN — thread_id=EST-S14-FINAL checkpointer=postgres retrieval=real
+==============================================================================
+
+STEP 1 — supervisor  (9 ms)
+  routing_steps: 1
+  routing_trail: 1 item(s)
+      - {"next_agent": "requirements_extractor", "reason": "nothing read yet"}
+
+STEP 2 — requirements_extractor  (64103 ms)
+  requirements: 16 item(s)
+      - "Sistema de visión artificial embarcada en tractores que reconozca mala hierba entre las hileras en tiempo real y controle la barra de tratamiento par
+      - "El reconocimiento de mala hierba debe ejecutarse localmente en el propio tractor sin cobertura móvil, usando un acelerador de borde (edge accelerator
+      - "Entrenar y entregar el modelo de visión usando las ~80.000 fotos de campo de la cooperativa (actualmente sin etiquetar), incluyendo etiquetado, curac
+      - "Modelo de predicción de cosecha que estime kilos por parcela con ocho semanas de antelación, combinando histórico de rendimiento, datos meteorológico
+      - "Capacidad de reentrenar el modelo de predicción cada campaña (retraining por campaña)."
+      - "El modelo de predicción debe ser explicable: proporcionar razones/interpretaciones de por qué genera cada estimación."
+      … 10 more
+  components: 13 item(s)
+      - {"id": "c1", "name": "Visión embarcada y control de barra de tratamiento", "category": "other", "search_query": "Embedded real-time weed detection on 
+      - {"id": "c2", "name": "Entrenamiento y pipeline de etiquetado para modelo de visión (≈80k fotos)", "category": "data", "search_query": "Data labeling, 
+      - {"id": "c3", "name": "Modelo predictivo de cosecha (8 semanas de antelación) con explicabilidad y retraining por campaña", "category": "analytics", "s
+      - {"id": "c4", "name": "Gemelo digital 3D y motor de simulación de manejo", "category": "frontend", "search_query": "3D digital twin of parcels with irr
+      - {"id": "c5", "name": "Interfaz táctil para técnicos (tableta) para usar el gemelo digital", "category": "frontend", "search_query": "Touch-optimized t
+      - {"id": "c6", "name": "Aplicación móvil para técnicos de campo (offline, fotos, incidencias)", "category": "mobile", "search_query": "Offline-first mob
+      … 7 more
+
+STEP 3 — supervisor  (3 ms)
+  routing_steps: 2
+  routing_trail: 1 item(s)
+      - {"next_agent": "budget_searcher", "reason": "no references gathered yet"}
+
+STEP 4 — budget_searcher  (6438 ms)
+  budget_matches: 50 item(s)
+      - {"component_id": "c1", "component": "Visión embarcada y control de barra de tratamiento", "reference_budget_id": "TASK-2025-0042/Operations", "amount"
+      - {"component_id": "c1", "component": "Visión embarcada y control de barra de tratamiento", "reference_budget_id": "TASK-2023-0022/Operations", "amount"
+      - {"component_id": "c1", "component": "Visión embarcada y control de barra de tratamiento", "reference_budget_id": "TASK-2024-0023/Operations", "amount"
+      - {"component_id": "c1", "component": "Visión embarcada y control de barra de tratamiento", "reference_budget_id": "TASK-2024-0016/Operations", "amount"
+      - {"component_id": "c1", "component": "Visión embarcada y control de barra de tratamiento", "reference_budget_id": "TASK-2023-0022/Telemetry & IoT", "am
+      - {"component_id": "c2", "component": "Entrenamiento y pipeline de etiquetado para modelo de visión (≈80k fotos)", "reference_budget_id": "TASK-2022-004
+      … 44 more
+  errors: 0 item(s)
+
+STEP 5 — supervisor  (1 ms)
+  routing_steps: 3
+  routing_trail: 1 item(s)
+      - {"next_agent": "estimate_generator", "reason": "no estimate yet"}
+
+STEP 6 — estimate_generator  (61862 ms)
+  estimate: 1027.9h across 13 components
+
+STEP 7 — supervisor  (2 ms)
+  routing_steps: 4
+  routing_trail: 1 item(s)
+      - {"next_agent": "coherence_validator", "reason": "estimate not validated yet"}
+
+STEP 8 — coherence_validator  (4 ms)
+  validation: {'is_coherent': False, 'confidence': 0.636, 'concerns': ['c3: no historical reference (unbudgeted)', 'c10: no historical reference (unbudgeted)', 'c12: no historical reference (unbudgeted)'], 'reasoning': '77% of the estimate is grounded in historical references, evidence density 77%, mean match proximity 10%, 3 component(s) with no precedent, 0 arithmetic issue(s).'}
+  confidence: 0.636
+
+STEP 9 — supervisor  (10020 ms)
+  routing_steps: 5
+  routing_trail: 1 item(s)
+      - {"next_agent": "human_review_gate", "reason": "Three components (c3, c10, c12) had no historical budget references after the budget_searcher already r
+
+
+PAUSED FOR HUMAN REVIEW
+======================
+reason: Confidence 0.636 is below the 0.7 threshold
+confidence: 0.636
+comparable work has cost: 898.3-1466.4h (10/13 components have a precedent)
+  trigger: confidence 0.636 is below the 0.7 threshold
+  concern: c3: no historical reference (unbudgeted)
+  concern: c10: no historical reference (unbudgeted)
+  concern: c12: no historical reference (unbudgeted)
+
+
+RESUMING with the reviewer's decision: {"action": "adjust", "adjusted_hours": 2400.0, "comment": "simulated review from scripts/run_graph_s14.py", "reviewer_id": "script"}
+
+STEP 10 — human_review_gate  (12 ms)
+  human_decision: {'action': 'adjust', 'adjusted_hours': 2400.0, 'comment': 'simulated review from scripts/run_graph_s14.py', 'reviewer_id': 'script'}
+  estimate: 2400.0h across 13 components
+
+STEP 11 — finalize  (14 ms)
+  status: validated
+
+ROUTING TRAIL — 5 decision(s)
+=============================
+  1. requirements_extractor — nothing read yet
+  2. budget_searcher — no references gathered yet
+  3. estimate_generator — no estimate yet
+  4. coherence_validator — estimate not validated yet
+  5. human_review_gate — Three components (c3, c10, c12) had no historical budget references after the budget_searcher already ran, indicating these are likely novel/unprecented items requiring a human to judge scope and how to budget them rather than another broad retrieval pass.
+
+FINAL — Proyecto agrícola integral  [status: validated]
+=======================================================
+
+- Visión embarcada y control de barra de tratamiento: 87.4h
+    Respaldado por referencias históricas 76.0, 88.0, 76.0, 95.0 y 75.0.
+- Entrenamiento y pipeline de etiquetado para modelo de visión (≈80k fotos): 142.6h
+    Respaldado por referencias históricas 137.0, 124.0, 90.0, 113.0 y 145.0.
+- Modelo predictivo de cosecha (8 semanas de antelación) con explicabilidad y retraining por campaña: 0.0h  [NO PRECEDENT]
+    Sin referencias históricas; además no presupuestado.
+- Gemelo digital 3D y motor de simulación de manejo: 117.3h
+    Respaldado por referencias históricas 85.0, 102.0, 130.0, 102.0 y 99.0.
+- Interfaz táctil para técnicos (tableta) para usar el gemelo digital: 94.3h
+    Respaldado por referencias históricas 82.0, 91.0, 78.0, 91.0 y 55.0.
+- Aplicación móvil para técnicos de campo (offline, fotos, incidencias): 96.6h
+    Respaldado por referencias históricas 82.0, 125.0, 84.0, 107.0 y 61.0.
+- Firmware para sondas de suelo (~1.200 unidades) con gestión de batería y OTA: 86.2h
+    Respaldado por referencias históricas 97.0, 60.0, 65.0, 100.0 y 75.0.
+- Red de radio de largo alcance y pasarelas: 102.3h
+    Respaldado por referencias históricas 97.0, 65.0, 75.0, 100.0 y 89.0.
+- Migración y limpieza de 12 años de datos desde Access: 95.4h
+    Respaldado por referencias históricas 102.0, 70.0, 89.0, 83.0 y 69.0.
+- Trazabilidad de datos y documentación para cumplimiento de ayudas europeas: 0.0h  [NO PRECEDENT]
+    Sin referencias históricas; además no presupuestado.
+- Operación, mantenimiento y formación: solución mantenible por 0.5 FTE: 104.6h
+    Respaldado por referencias históricas 114.0, 74.0, 55.0, 91.0 y 126.0.
+- Despliegue e instalación del sistema de cámaras en tractores (campaña siguiente): 0.0h  [NO PRECEDENT]
+    Sin referencias históricas; además no presupuestado.
+- Planificación de entregas y hitos (plazos y priorización): 101.2h
+    Respaldado por referencias históricas 76.0, 76.0, 95.0, 88.0 y 114.0.
+
+TOTAL: 2400.0h
+  (the system said 1027.9h; a human adjusted it)
+Confidence: 0.636
+Notes: c3, c10 y c12 carecen de referencias históricas y aparecen como no presupuestados; confirmar si se añadirán más tarde o si quedan explícitamente fuera de alcance. El origen sectorial de las referencias no está especificado; si algunas provienen de otros sectores, se toman igualmente como evidencia con la salvedad del posible desajuste. No se han generado horas nuevas ni modificado las asignaciones dadas.
+Human decision: {"action": "adjust", "adjusted_hours": 2400.0, "comment": "simulated review from scripts/run_graph_s14.py", "reviewer_id": "script"}

@@ -38,9 +38,11 @@ app/
 │   ├── attachments/        #   extracción de texto de PDF/DOCX subidos
 │   └── persistence/        #   engine SQLAlchemy + repositories (jobs, mappings)
 │
-├── domain/                 # contrato + conductor
+├── domain/                 # contrato + conductores
 │   ├── schemas/            #   EstimationRequest/Result/Response (contrato HTTP)
-│   └── estimation_service.py  # EstimationService — ÚNICO punto de composición
+│   ├── graph/              #   sistema multi-agente (LangGraph): state, supervisor, agents, hitl, build
+│   ├── security/           #   sandboxing de aplicación: grants (privilegio) + guard (argumentos) + audit
+│   └── estimation_service.py  # EstimationService — conductor del camino CAG/RAG/ACB
 │
 ├── generation/             # las 3 arquitecturas que componen + substrato conversacional
 │   ├── cag/                #   exact.py + semantic.py
@@ -71,16 +73,27 @@ De más-importado a menos. Cada capa **solo** puede importar de las que tiene po
 | `domain/schemas/*` | `config`, `foundation` | `generation`, `api` |
 | `generation/<x>/*` | `config`, `foundation`, `domain/schemas` | `api`, `dependencies`, **otro hermano de `generation`** |
 | `domain/estimation_service.py` (CONDUCTOR) | todos los hermanos de `generation` + `foundation` + `schemas` | `api`, `dependencies` |
+| `domain/security/*` | `config`, `foundation`, `domain/schemas` | `generation`, `api`, `dependencies`, `domain/graph` |
+| `domain/graph/*` (CONDUCTOR) | todos los hermanos de `generation` + `foundation` + `schemas` + `domain/security` | `api`, `dependencies` |
 | `ingestion/*` | `config`, `foundation`, `domain/schemas`, `generation/rag` | `api`, el conductor |
 | `api/*` | `dependencies`, `domain` (schemas + conductor), excepciones de `foundation` | lógica de negocio |
 | `dependencies.py` (COMPOSITION ROOT) | cualquier cosa | (lo importan solo `api/` y los tests) |
 | `main.py` | `api`, `config` | — |
 
-**Dos aristas especiales, explícitas:**
+**Tres aristas especiales, explícitas:**
 1. `agentic` **puede** importar `conversation` (lo agéntico se construye sobre el multi-turno).
    La inversa está **prohibida**.
-2. Los hermanos de `generation` se encuentran **solo** en el conductor. Si dos capas necesitan
-   colaborar, el método que las une va en `EstimationService`, nunca un import cruzado.
+2. Los hermanos de `generation` se encuentran **solo** en un conductor. Si dos capas necesitan
+   colaborar, el método que las une va en `EstimationService` o en `domain/graph/`, nunca un
+   import cruzado.
+3. `domain/security` es una hoja: la usan los agentes del grafo, y no importa a nadie.
+   `execute_guarded` recibe la tool como argumento precisamente para no tener que
+   importar `generation/agentic` desde aquí.
+
+**Hay dos conductores, no uno.** `estimation_service.py` conduce el camino CAG/RAG/ACB de las
+Sesiones 4-11; `domain/graph/` conduce el sistema multi-agente de las Sesiones 13-14. Ocupan la
+misma capa y valen las mismas reglas: ninguno de los dos importa `dependencies`, y por eso los
+dos reciben sus colaboradores desde una factory que el composition root rellena.
 
 ## 4. El conductor
 
@@ -124,6 +137,8 @@ POST /api/v1/estimate
 | Backend LLM, plantilla de prompt, guardrail nuevo | `foundation/` |
 | Retrieval, chunking, vector store, embeddings | `generation/rag/` |
 | Rol de agente o paso de orquestación | `generation/agentic/` |
+| Agente, regla de enrutado o puerta humana del grafo | `domain/graph/` + factory en `dependencies.py` |
+| Privilegio de tool, validación de argumentos o auditoría | `domain/security/` |
 | Estrategia de cache | `generation/cag/` |
 | Lógica de memoria conversacional | `generation/conversation/` |
 | Endpoint HTTP | `api/` (fino) + factory en `dependencies.py` |

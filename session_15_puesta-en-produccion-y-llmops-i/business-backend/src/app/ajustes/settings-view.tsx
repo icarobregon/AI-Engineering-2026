@@ -7,10 +7,13 @@ import { Alert, Button, Card, Flex, Select, Space, Table, Tag, Typography } from
 import { modelKnobs, type ModelKnob, type ModelsConfig } from "@/lib/estimator/contracts";
 import { saveModels, type FormState } from "./actions";
 
-/** Hardcoded here, as in the reference app: the AI service ships keys, not prose. */
+/** Precios de 0,05 a 600: dos decimales como techo, sin ceros de relleno. */
+const usd = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
+
 /** "OpenAI y Anthropic", no "OpenAI, Anthropic". */
 const listFormatter = new Intl.ListFormat("es-ES", { style: "long", type: "conjunction" });
 
+/** Hardcoded here, as in the reference app: the AI service ships keys, not prose. */
 const knobLabels: Record<ModelKnob, { label: string; description: string }> = {
   PRIMARY_MODEL: { label: "Modelo principal", description: "El que atiende las estimaciones." },
   FALLBACK_MODEL: {
@@ -44,24 +47,44 @@ function KnobSelect({
   knob,
   state,
   options,
+  prices,
 }: {
   knob: ModelKnob;
   state: { effective: string; default: string; overridden: boolean };
   options: string[];
+  prices: ModelsConfig["model_prices"];
 }) {
   // "" means "no override". The reference app preselects it whenever the knob is
   // not overridden, so what you see selected is the decision, not the outcome.
   const [value, setValue] = useState(state.overridden ? state.effective : "");
+
+  // The catalogue spans three orders of magnitude and several of these knobs
+  // run on every turn, so the price travels with the name — otherwise picking
+  // the 150 $/M model for the summariser looks exactly like picking any other.
+  const option = (optionValue: string, text: string, model: string) => ({
+    value: optionValue,
+    label: (
+      <Flex justify="space-between" align="center" gap={12}>
+        <span>{text}</span>
+        {prices[model] && (
+          <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+            {usd.format(prices[model].input)} / {usd.format(prices[model].output)}
+          </Typography.Text>
+        )}
+      </Flex>
+    ),
+  });
+
   return (
     <>
       <input type="hidden" name={knob} value={value} />
       <Select
         value={value}
         onChange={setValue}
-        style={{ width: 260 }}
+        style={{ width: 320 }}
         options={[
-          { value: "", label: `Por defecto (${state.default})` },
-          ...options.map((m) => ({ value: m, label: m })),
+          option("", `Por defecto (${state.default})`, state.default),
+          ...options.map((m) => option(m, m, m)),
         ]}
       />
     </>
@@ -131,7 +154,7 @@ export function SettingsView({ config }: { config: ModelsConfig }) {
                 {
                   title: "Modelo",
                   key: "model",
-                  width: 290,
+                  width: 350,
                   render: (_, row) => (
                     <KnobSelect
                       // Keyed by what the server says: React keeps component
@@ -142,6 +165,7 @@ export function SettingsView({ config }: { config: ModelsConfig }) {
                       knob={row.knob}
                       state={row.state}
                       options={config.available_models}
+                      prices={config.model_prices}
                     />
                   ),
                 },
@@ -190,7 +214,8 @@ export function SettingsView({ config }: { config: ModelsConfig }) {
           <Space align="center" size="middle">
             <SubmitButton />
             <Typography.Text type="secondary">
-              El catálogo sólo ofrece modelos cuyo proveedor tiene clave configurada.
+              El catálogo sólo ofrece modelos cuyo proveedor tiene clave configurada. Junto a cada
+              uno, su precio en dólares por millón de tokens: entrada / salida.
             </Typography.Text>
           </Space>
 

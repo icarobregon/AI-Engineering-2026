@@ -106,7 +106,12 @@ pregunta. Un run que no distingue quién decidió qué no se puede auditar.
 caliente, cada uno con qué hace y qué se rompe si se toca, más su estado (por
 defecto u override) y el valor activo. El de embeddings aparece en sólo lectura y
 con el porqué: cambiarlo invalidaría todos los vectores ya almacenados. El
-catálogo sólo ofrece modelos cuyo proveedor tiene clave configurada.
+catálogo sólo ofrece modelos cuyo proveedor tiene clave configurada, y cada uno
+lleva al lado su precio en dólares por millón de tokens, entrada y salida: el
+catálogo va de 0,05 a 150 $/M y varios de estos ajustes corren en cada turno, así
+que un desplegable ciego al precio invita a poner el modelo de 150 en el
+resumidor. Al pie, la pantalla dice cuándo se generó el catálogo y a partir de
+qué proveedores, porque se cura a mano y nada lo mantiene fresco solo.
 
 ## Decisiones de diseño
 

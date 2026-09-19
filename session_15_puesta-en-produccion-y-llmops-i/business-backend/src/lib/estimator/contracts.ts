@@ -398,5 +398,10 @@ export const modelsConfigSchema = z.object({
   /** El catálogo se cura a mano: viaja con su fecha y sus fuentes. */
   catalog_generated_at: z.string(),
   catalog_sources: z.array(z.string()),
+  /** USD por millón de tokens, por modelo del catálogo. */
+  model_prices: z.record(
+    z.string(),
+    z.object({ input: z.number(), output: z.number() }),
+  ),
 });
 export type ModelsConfig = z.infer<typeof modelsConfigSchema>;

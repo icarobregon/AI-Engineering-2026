@@ -23,7 +23,7 @@ from app.foundation.llm.runtime_config import (
     RuntimeModelConfig,
     RuntimeRetrievalConfig,
 )
-from app.foundation.llm.wrapper import _provider_from_model
+from app.foundation.llm.wrapper import MODEL_COSTS, _provider_from_model
 
 log = structlog.get_logger()
 
@@ -72,6 +72,15 @@ def _config_payload(runtime_config: RuntimeModelConfig, settings: Settings) -> d
         # the only defence against that is saying the date out loud.
         "catalog_generated_at": settings.MODEL_CATALOG_GENERATED_AT,
         "catalog_sources": settings.MODEL_CATALOG_SOURCES,
+        # USD per million tokens, so the picker can show what a knob costs. The
+        # catalogue spans three orders of magnitude and several knobs run on
+        # every turn: a price-blind dropdown invites picking the 150 USD model
+        # for the summariser.
+        "model_prices": {
+            model: MODEL_COSTS[model]
+            for model in _available_models(settings)
+            if model in MODEL_COSTS
+        },
     }
 
 

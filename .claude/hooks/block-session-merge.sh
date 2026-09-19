@@ -16,7 +16,12 @@ block=0
 reason=""
 
 # 1) `git merge` referenciando una rama session_NN_* en cualquier argumento
-if printf '%s' "$cmd" | grep -qE '\bgit[[:space:]]+merge\b.*\bsession_[0-9]+'; then
+#    Exige un ESPACIO tras `merge`, no un borde de palabra: `\b` casa también
+#    entre `merge` y un guion, de modo que la versión anterior bloqueaba
+#    `merge-base`, `merge-file`, `merge-index` y `merge-tree` — plumbing de
+#    solo lectura que no fusiona nada. Un hook que bloquea consultas inocentes
+#    se acaba desactivando, y entonces ya no protege de nada.
+if printf '%s' "$cmd" | grep -qE '\bgit[[:space:]]+merge[[:space:]].*\bsession_[0-9]+'; then
     block=1
     reason="git merge contra una rama session_NN_*"
 fi

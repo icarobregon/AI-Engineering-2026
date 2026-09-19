@@ -1,0 +1,13 @@
+# Root Compose for the session. Pulls in each subproject's compose via the
+# `include:` directive (Compose v2.20+). Today only the `estimator` FastAPI
+# service lives in this repo; our own frontend/client will be added here when we
+# build it. Running `docker compose up` from this directory launches the
+# estimator stack (estimator + redis + estimator-postgres) on a shared network.
+#
+# IMPORTANT: launching from this directory vs from `estimator/` creates SEPARATE
+# Compose projects (and therefore separate named volumes), so the database from
+# one mode is not visible from the other. Pick one mode per workflow and stick
+# with it.
+
+include:
+  - estimator/docker-compose.yml

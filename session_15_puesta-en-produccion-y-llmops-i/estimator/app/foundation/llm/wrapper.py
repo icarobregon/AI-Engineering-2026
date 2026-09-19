@@ -35,6 +35,31 @@ from app.generation.cag.exact import EstimationCache
 
 log = structlog.get_logger()
 
+_MAX_LOGGED_ERROR_CHARS = 500
+
+
+def _failure_fields(exc: Exception) -> dict[str, Any]:
+    """Bounded, structured description of a failed call.
+
+    ``InstructorRetryException.__str__`` is not a message: it renders EVERY
+    failed attempt with its full completion, so a six-round failure pushed tens
+    of KB into a single log line — including the entire contents of the
+    estimations that failed. Truncating alone would lose the part that actually
+    helps, so the numbers that matter are lifted into their own fields: how many
+    attempts were spent and what they cost.
+    """
+    fields: dict[str, Any] = {
+        "error_type": type(exc).__name__,
+        "error": str(exc)[:_MAX_LOGGED_ERROR_CHARS],
+    }
+    if (attempts := getattr(exc, "n_attempts", None)) is not None:
+        fields["attempts"] = attempts
+    if (usage := getattr(exc, "total_usage", None)) is not None:
+        fields["wasted_tokens_in"] = getattr(usage, "prompt_tokens", None)
+        fields["wasted_tokens_out"] = getattr(usage, "completion_tokens", None)
+    return fields
+
+
 
 # Cost per 1M tokens (USD). Update as pricing changes.
 MODEL_COSTS: dict[str, dict[str, float]] = {
@@ -134,7 +159,12 @@ class LLMWrapper:
                     },
                 },
                 {
-                    "model_name": "estimator",
+                    # Its own alias, and that is the whole point: with both
+                    # deployments named "estimator" the fallback below pointed
+                    # the alias at ITSELF, so a provider outage just retried the
+                    # same dead provider. The configuration promised resilience
+                    # and delivered none.
+                    "model_name": "estimator-fallback",
                     "litellm_params": {
                         "model": fallback_model,
                         "api_key": anthropic_api_key,
@@ -142,7 +172,7 @@ class LLMWrapper:
                     },
                 },
             ],
-            fallbacks=[{"estimator": ["estimator"]}],
+            fallbacks=[{"estimator": ["estimator-fallback"]}],
             num_retries=num_retries,
         )
 
@@ -217,9 +247,8 @@ class LLMWrapper:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             log.error(
                 "llm_call_failed",
-                error_type=type(exc).__name__,
-                error=str(exc),
                 latency_ms=latency_ms,
+                **_failure_fields(exc),
             )
             raise
 
@@ -292,9 +321,8 @@ class LLMWrapper:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             log.error(
                 "llm_structured_chat_failed",
-                error_type=type(exc).__name__,
-                error=str(exc),
                 latency_ms=latency_ms,
+                **_failure_fields(exc),
             )
             raise
 
@@ -369,9 +397,8 @@ class LLMWrapper:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             log.error(
                 "llm_structured_call_failed",
-                error_type=type(exc).__name__,
-                error=str(exc),
                 latency_ms=latency_ms,
+                **_failure_fields(exc),
             )
             raise
 

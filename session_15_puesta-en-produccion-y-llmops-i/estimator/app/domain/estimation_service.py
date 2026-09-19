@@ -55,6 +55,14 @@ from app.generation.conversation.tier_resolver import Tier, resolve_tier
 
 log = structlog.get_logger()
 
+# Instructor re-prompts on validator failure and appends the failed completion
+# each time, so the prompt grows on every round: the run that motivated this
+# went 2.056 -> 5.342 -> 10.581 -> 18.497 -> 29.813 -> 45.251 tokens, ~111.540 in
+# total, to end in an error. Attempts five and six alone were 67% of that. Two is
+# enough for the one validator that can still re-prompt — a format rule — and
+# caps the waste of a hopeless run at ~7.400 tokens.
+_ESTIMATION_MAX_RETRIES = 2
+
 
 def _exact_cache_key(request: EstimationRequest, prompt_version: str, model: str) -> str:
     """Deterministic SHA-256 key over the typed request + prompt_version + model."""
@@ -161,6 +169,7 @@ class EstimationService:
             system_prompt=system_prompt,
             user_message=user_message,
             response_model=EstimationResult,
+            max_retries=_ESTIMATION_MAX_RETRIES,
         )
         log.info(
             "estimation_generated",
@@ -257,6 +266,7 @@ class EstimationService:
         result, meta = self.llm_wrapper.complete_structured_chat(
             messages=messages,
             response_model=EstimationResult,
+            max_retries=_ESTIMATION_MAX_RETRIES,
         )
         log.info(
             "estimation_conversational_generated",
@@ -385,6 +395,7 @@ class EstimationService:
             draft, meta = self.llm_wrapper.complete_structured_chat(
                 messages=messages,
                 response_model=EstimationResult,
+                max_retries=_ESTIMATION_MAX_RETRIES,
             )
             log.info(
                 "acb_actor_draft",

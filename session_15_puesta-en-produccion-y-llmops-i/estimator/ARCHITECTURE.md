@@ -151,10 +151,12 @@ POST /api/v1/estimate
   `/search`, `/api/v1/config/models`.
   Cualquier cliente del servicio depende de ellas y de la forma JSON de
   `EstimationResponse` / `ACBResponse`.
-- **`EstimationResult`** (`domain/schemas/estimation.py`): el orden de campos importa para
-  Instructor (`phases` antes que `total_cost_eur`/`total_duration_weeks`) y los dos
-  `model_validator` (`phases_sum_matches_total`, `low_confidence_requires_out_of_scope_prefix`)
-  son las reglas de negocio que disparan el re-prompt.
+- **`EstimationResult`** (`domain/schemas/estimation.py`): `total_cost_eur` es un
+  `computed_field` — se deriva de las fases, no se le pide al modelo, así que el presupuesto
+  cuadra por construcción y no por reintento. El único `model_validator` que dispara re-prompt
+  es `low_confidence_requires_out_of_scope_prefix`, que es una regla de FORMATO y por tanto de
+  las que un re-prompt sí arregla. El orden de campos sigue importando para Instructor
+  (`phases` antes que `total_duration_weeks`).
 
 ## 9. Roadmap (slots reservados)
 

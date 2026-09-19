@@ -4,9 +4,12 @@ Session 4 contract: typed form-style request maps to a typed, validated
 ``EstimationResult`` (structured output via Instructor + Pydantic). Two model
 validators enforce business rules that the LLM cannot break:
 
-1. The cost of all phases must sum to ``total_cost_eur``.
-2. Low-confidence answers (< 30%) must declare it explicitly by starting the
+1. Low-confidence answers (< 30%) must declare it explicitly by starting the
    summary with ``"Out of scope:"``.
+
+The other rule this file used to enforce — that the phases add up to the total —
+is no longer a validator: the total is derived from the phases, so it cannot be
+broken. See ``EstimationResult``.
 
 When the LLM violates a validator, Instructor re-prompts the model with the
 ``ValueError`` message until it agrees (up to ``max_retries`` attempts).
@@ -15,7 +18,7 @@ When the LLM violates a validator, Instructor re-prompts the model with the
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, computed_field, model_validator
 
 
 class ProjectType(str, Enum):
@@ -67,33 +70,47 @@ class Phase(BaseModel):
 
 
 class EstimationResult(BaseModel):
-    """Structured estimation. The two validators below are the business rules
-    that the LLM cannot break — Instructor will re-prompt the model when one
-    of them raises.
+    """Structured estimation.
 
-    Field order is deliberate: ``phases`` comes BEFORE the totals so the LLM
-    commits to the per-phase numbers first (autoregressive generation) and
-    then only needs to sum them when filling the totals. Putting totals first
-    leads the model to pick a round number and then back-fit phases to it,
-    which it does very badly arithmetically — particularly with smaller
-    models like ``gpt-4o-mini``.
+    ``total_cost_eur`` used to be a field, with a validator checking that the
+    phases added up to it and Instructor re-prompting the model when they did
+    not. That turned an arithmetic identity into a negotiation, and a measured
+    run with ``gpt-4o-mini`` lost it six times in a row (53500≠58500,
+    63000≠60000, 65000≠60000, 66000≠60000, 63000≠60000, 64000≠60000): six
+    calls, ~111.000 prompt tokens and 22 seconds to produce an HTTP 502.
+
+    It is now DERIVED. The invariant the validator defended — the budget adds
+    up — holds by construction instead of by retry, which is the same move the
+    project already makes two sessions later: ``calculate_estimate`` prices the
+    components in Python, and ``ValidationResult.confidence`` is computed and
+    never asked for.
+
+    ``low_confidence_requires_out_of_scope_prefix`` stays, and it is the better
+    example of the rule anyway: it is a FORMAT instruction, the kind a re-prompt
+    can actually fix, not a sum the model was never going to get right.
+
+    Field order is still deliberate: ``phases`` comes before the totals so the
+    LLM commits to the per-phase numbers first (autoregressive generation)
+    rather than picking a round total and back-fitting phases to it.
     """
 
     summary: str = Field(min_length=10, max_length=1200)
     confidence_pct: int = Field(ge=0, le=100)
     phases: list[Phase] = Field(min_length=1, max_length=8)
     total_duration_weeks: int = Field(ge=1, le=104)
-    total_cost_eur: int = Field(ge=0, le=2_000_000)
 
-    @model_validator(mode="after")
-    def phases_sum_matches_total(self) -> "EstimationResult":
-        phase_sum = sum(p.cost_eur for p in self.phases)
-        if phase_sum != self.total_cost_eur:
-            raise ValueError(
-                f"phases sum ({phase_sum} EUR) does not match total_cost_eur "
-                f"({self.total_cost_eur} EUR); adjust either the phases or the total"
-            )
-        return self
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def total_cost_eur(self) -> int:
+        """The budget total, DERIVED rather than asked for.
+
+        Instructor runs in ``Mode.TOOLS``, and a computed field is absent from
+        the tool schema the model sees: it cannot get this number wrong because
+        nobody asks it for one. It is still present in the JSON response and in
+        the OpenAPI document, so the contract the business backend consumes is
+        unchanged.
+        """
+        return sum(p.cost_eur for p in self.phases)
 
     @model_validator(mode="after")
     def low_confidence_requires_out_of_scope_prefix(self) -> "EstimationResult":

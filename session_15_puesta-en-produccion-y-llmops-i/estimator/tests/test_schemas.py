@@ -88,12 +88,29 @@ def _valid_result(**overrides: object) -> dict[str, object]:
     return base
 
 
-def test_phases_sum_must_equal_total_cost() -> None:
-    bad = _valid_result(total_cost_eur=31_000)  # phases still sum to 30_000
-    with pytest.raises(ValidationError) as exc_info:
-        EstimationResult(**bad)
-    msg = str(exc_info.value)
-    assert "phases sum" in msg and "total_cost_eur" in msg
+def test_total_cost_is_derived_from_phases() -> None:
+    """The total is computed, so the budget adds up by construction.
+
+    It used to be a field with a validator, and a re-prompt loop behind it. The
+    identity is the same; what changed is that the model is no longer asked to
+    perform it, so it can no longer get it wrong.
+    """
+    result = EstimationResult(**_valid_result())
+    assert result.total_cost_eur == sum(p["cost_eur"] for p in _valid_result()["phases"])
+    assert result.total_cost_eur == 30_000
+
+
+def test_a_supplied_total_is_ignored() -> None:
+    """Nothing upstream can inject a total that contradicts the phases."""
+    result = EstimationResult(**_valid_result(total_cost_eur=31_000))
+    assert result.total_cost_eur == 30_000
+
+
+def test_total_cost_travels_in_the_response() -> None:
+    """Derived, but still part of the contract the business backend consumes."""
+    result = EstimationResult(**_valid_result())
+    assert result.model_dump()["total_cost_eur"] == 30_000
+    assert "total_cost_eur" not in EstimationResult.model_json_schema(mode="validation")["properties"]
 
 
 def test_low_confidence_requires_out_of_scope_prefix() -> None:

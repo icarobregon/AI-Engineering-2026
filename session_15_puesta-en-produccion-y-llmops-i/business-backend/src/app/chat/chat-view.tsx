@@ -32,6 +32,7 @@ import {
   type SessionInfo,
 } from "@/lib/estimator/contracts";
 import { AcbTrace } from "./acb-trace";
+import { AttachmentsField } from "./attachments-field";
 import { resetSession, sendTurn, type TurnState } from "./actions";
 
 const projectTypeLabels = {
@@ -207,14 +208,7 @@ export function ChatView({ info }: { info: SessionInfo | null }) {
                     />
                   </Form.Item>
 
-                  <Form.Item
-                    label="Adjuntos"
-                    layout="vertical"
-                    extra="PDF y DOCX. Su texto se añade al turno antes de estimar."
-                    style={{ marginBottom: 0 }}
-                  >
-                    <input type="file" name="attachments" multiple accept=".pdf,.docx" />
-                  </Form.Item>
+                  <AttachmentsField clearOn={state.result} />
 
                   <Space size="large" wrap>
                     <SelectField

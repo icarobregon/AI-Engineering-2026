@@ -27,6 +27,13 @@ const DEFAULT_TIMEOUT_MS = 180_000;
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT";
   body?: unknown;
+  /**
+   * Sent as multipart instead of JSON. The conversational turn endpoint declares
+   * its scalars as `Form(...)` and its files as `File(...)`, so JSON gets a 422.
+   * The Content-Type header is deliberately NOT set: the runtime has to write it
+   * with the boundary.
+   */
+  formData?: FormData;
   /** Which key the route expects: the estimate one or the retrieval one. */
   token?: "estimate" | "retrieval" | "none";
   timeoutMs?: number;
@@ -86,7 +93,13 @@ function failureFor(status: number, payload: unknown, requestId: string | null):
 }
 
 export async function callEstimator<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, token = "estimate", timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+  const {
+    method = "GET",
+    body,
+    formData,
+    token = "estimate",
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  } = options;
 
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -98,7 +111,7 @@ export async function callEstimator<T>(path: string, options: RequestOptions = {
     response = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: formData ?? (body === undefined ? undefined : JSON.stringify(body)),
       signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store",
     });

@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/db";
+import { getSupervisedRunState } from "@/lib/estimator/graph";
+import type { GraphState } from "@/lib/estimator/contracts";
 import { RunView } from "./run-view";
 
 export const dynamic = "force-dynamic";
@@ -22,5 +24,14 @@ export default async function SupervisorRunPage({ params }: { params: Promise<{ 
   });
   if (!run) notFound();
 
-  return <RunView run={run} />;
+  // Diagnostic, not load-bearing: if the AI service cannot answer, the page
+  // still renders the estimate and the decision — it just loses the trail.
+  let state: GraphState | null = null;
+  try {
+    state = await getSupervisedRunState(run.estimationId);
+  } catch {
+    state = null;
+  }
+
+  return <RunView run={run} state={state} />;
 }

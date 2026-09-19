@@ -16,7 +16,10 @@ import esES from "antd/locale/es_ES";
 
 const items = [
   { key: "/estimations", label: <Link href="/estimations">Estimación</Link> },
+  { key: "/chat", label: <Link href="/chat">Conversación</Link> },
   { key: "/supervisor", label: <Link href="/supervisor">Supervisor</Link> },
+  { key: "/lab/chunking", label: <Link href="/lab/chunking">Laboratorio</Link> },
+  { key: "/ajustes", label: <Link href="/ajustes">Ajustes</Link> },
 ];
 
 export function AppShell({

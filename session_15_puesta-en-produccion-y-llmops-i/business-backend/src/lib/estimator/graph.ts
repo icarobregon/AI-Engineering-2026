@@ -11,7 +11,9 @@ import "server-only";
 import { callEstimator } from "./client";
 import {
   graphEstimateResponseSchema,
+  graphStateSchema,
   type GraphEstimateResponse,
+  type GraphState,
   type HumanDecision,
 } from "./contracts";
 
@@ -35,4 +37,17 @@ export async function resumeSupervisedEstimation(
     { method: "POST", body: decision },
   );
   return graphEstimateResponseSchema.parse(payload);
+}
+
+/**
+ * Where a run stands, including the routing trail — which the start/resume
+ * responses do not carry. Separate call on purpose: the trail is diagnostic,
+ * so the inbox does not pay for it on every row.
+ */
+export async function getSupervisedRunState(estimationId: string): Promise<GraphState> {
+  const payload = await callEstimator<unknown>(
+    `/v1/estimate/graph/${encodeURIComponent(estimationId)}/state`,
+    { timeoutMs: 15_000 },
+  );
+  return graphStateSchema.parse(payload);
 }

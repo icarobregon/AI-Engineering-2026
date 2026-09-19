@@ -122,6 +122,77 @@ export const graphEstimateResponseSchema = z.object({
 });
 export type GraphEstimateResponse = z.infer<typeof graphEstimateResponseSchema>;
 
+/**
+ * `GET /v1/estimate/graph/{id}/state` declares no response_model, so what comes
+ * back is the LangGraph checkpoint serialised as-is. Everything is optional:
+ * outside the four accumulators, a key does not exist in the state until some
+ * node writes it.
+ */
+export const routingHopSchema = z.object({
+  next_agent: z.string(),
+  reason: z.string(),
+});
+export type RoutingHop = z.infer<typeof routingHopSchema>;
+
+export const graphStateSchema = z.object({
+  estimation_id: z.string(),
+  next: z.array(z.string()).default([]),
+  values: z
+    .object({
+      routing_trail: z.array(routingHopSchema).default([]),
+      routing_steps: z.number().nullish(),
+      requirements: z.array(z.string()).nullish(),
+      components: z.array(z.object({ id: z.string(), name: z.string(), category: z.string() }).loose()).nullish(),
+      budget_matches: z.array(budgetMatchSchema).nullish(),
+      validation: z
+        .object({
+          is_coherent: z.boolean(),
+          confidence: z.number(),
+          concerns: z.array(z.string()).default([]),
+          reasoning: z.string(),
+        })
+        .nullish(),
+      confidence: z.number().nullish(),
+      errors: z.array(z.string()).default([]),
+    })
+    .loose(),
+});
+export type GraphState = z.infer<typeof graphStateSchema>;
+
+/**
+ * Who decided a hop. The AI service does not label them, but the reasons the
+ * rules write are literal constants in `supervisor.py`, so the three cases are
+ * told apart reliably instead of guessed:
+ *
+ *   regla   — a precondition. You cannot search budgets before knowing the
+ *             components; paying a model to rediscover that buys nothing.
+ *   modelo  — the one question this domain genuinely has an opinion about.
+ *   limite  — the routing budget ran out. The emergency brake, not a decision.
+ *
+ * It is the hybrid supervisor of Session 14, made visible.
+ */
+const RULE_REASONS = new Set([
+  "nothing read yet",
+  "no references gathered yet",
+  "no estimate yet",
+  "estimate not validated yet",
+  "validation clean",
+  "evidence gaps persist after re-searching",
+]);
+
+export type HopSource = "regla" | "modelo" | "limite";
+
+export function hopSource(reason: string): HopSource {
+  if (reason.startsWith("routing budget exhausted at")) return "limite";
+  if (RULE_REASONS.has(reason) || reason.startsWith("unknown route ")) return "regla";
+  return "modelo";
+}
+
+/** A denial the guard recorded. The only audit residue that travels over HTTP. */
+export function deniedActions(errors: string[]): string[] {
+  return errors.filter((e) => e.includes("denied —"));
+}
+
 export const humanActions = ["approve", "adjust", "reject"] as const;
 export type HumanAction = (typeof humanActions)[number];
 
@@ -138,8 +209,191 @@ export const humanDecisionSchema = z.object({
 });
 export type HumanDecision = z.infer<typeof humanDecisionSchema>;
 
+// --- Session 5: conversational sessions --------------------------------------
+
+export const tiers = ["executive", "pm", "developer", "default"] as const;
+export type Tier = (typeof tiers)[number];
+
+export const projectMetadataSchema = z.object({
+  project_name: z.string().nullish(),
+  assumed_team_size: z.number().nullish(),
+  /** Never null: accumulated case-insensitively across turns. */
+  mentioned_technologies: z.array(z.string()).default([]),
+  agreed_scope: z.string().nullish(),
+});
+
+export const sessionInfoSchema = z.object({
+  session_id: z.string(),
+  /**
+   * Messages in the sliding window, not turns. Compression trims it to
+   * max_turns*2, so from turn seven on it sits at 12 forever — dividing by two
+   * does NOT give you a turn count.
+   */
+  message_count: z.number(),
+  max_turns: z.number(),
+  metadata: projectMetadataSchema,
+  /** Commitments promoted out of the window: NDA, frozen scope, compliance. */
+  anchors_count: z.number().default(0),
+  summary_chars: z.number().default(0),
+  last_resolved_tier: z.string().nullish(),
+  last_tier_rule: z.string().nullish(),
+});
+export type SessionInfo = z.infer<typeof sessionInfoSchema>;
+
+export const turnObservationSchema = z
+  .object({
+    enriched_transcript_chars: z.number(),
+    attachments_total_chars: z.number(),
+    messages_in_window: z.number(),
+    anchors_count: z.number(),
+    summary_chars: z.number(),
+    tokens_in: z.number(),
+    tokens_out: z.number(),
+    cost_usd: z.number(),
+    latency_ms: z.number(),
+    last_resolved_tier: z.string().nullish(),
+  })
+  .loose();
+
+export const sessionEstimationSchema = estimationResponseSchema.extend({
+  /** Populated by the conversational route; always null on the ACB one. */
+  observation: turnObservationSchema.nullish(),
+});
+
+// --- Session 5: the Actor-Critic-Boss trace ----------------------------------
+
+export const acbIterationSchema = z.object({
+  /** Zero-indexed, as the service emits it. */
+  iteration: z.number(),
+  decision_after: z.string(),
+  /** Typed as a plain string on the server, so no strict enum here. */
+  critic_verdict: z.string(),
+  /** The critic's confidence IN ITS OWN REVIEW, 0..100. */
+  critic_confidence: z.number(),
+  /** Pre-rendered "[severity] category @ field_path", capped at five. */
+  issue_summary: z.array(z.string()).default([]),
+});
+
+export const bossTraceSchema = z
+  .object({
+    iterations: z.array(acbIterationSchema).default([]),
+    /** In practice only "accept" or "synthesize": the budget branch is dead code. */
+    final_decision: z.string(),
+    iterations_run: z.number(),
+  })
+  .loose();
+export type BossTrace = z.infer<typeof bossTraceSchema>;
+
+export const acbResponseSchema = sessionEstimationSchema.extend({ acb: bossTraceSchema });
+export type AcbResponse = z.infer<typeof acbResponseSchema>;
+
+/**
+ * The server rewrites the summary when it synthesises, prefixing the open
+ * caveats and truncating to 1200 chars — so the model's own text can be gone
+ * entirely. This prefix is the reliable way to tell that apart.
+ */
+export const SYNTHESIS_PREFIX = "⚠ Open caveats from independent review";
+
+// --- Session 7: chunking strategy comparison ---------------------------------
+
+/**
+ * The eight strategies, in the order the AI service declares them. Three of them
+ * call an external API per component, so they cost real money and take minutes;
+ * the request must ALWAYS carry an explicit list, because an empty one means
+ * "all eight" on the server side and that default spends money.
+ */
+export const chunkingStrategies = [
+  { name: "structural", label: "Estructural", paid: false, provider: null },
+  { name: "fixed_size", label: "Tamaño fijo", paid: false, provider: null },
+  { name: "recursive", label: "Recursiva", paid: false, provider: null },
+  { name: "sentence_window", label: "Ventana de frases", paid: false, provider: null },
+  { name: "hierarchical", label: "Jerárquica", paid: false, provider: null },
+  { name: "semantic", label: "Semántica", paid: true, provider: "OpenAI" },
+  { name: "propositional", label: "Proposicional", paid: true, provider: "OpenAI" },
+  { name: "contextual_retrieval", label: "Contextual", paid: true, provider: "Anthropic" },
+] as const;
+
+export type StrategyName = (typeof chunkingStrategies)[number]["name"];
+
+/** What the reference app premarks: the cheap ones that run in seconds. */
+export const defaultStrategies: StrategyName[] = ["structural", "fixed_size", "recursive"];
+
+export const tokenDistributionSchema = z.object({
+  // min/max are integers and p50/p95 interpolated floats. Not the same type.
+  min: z.number(),
+  p50: z.number(),
+  p95: z.number(),
+  max: z.number(),
+});
+
+export const chunkingStatsSchema = z.object({
+  strategy: z.string(),
+  n_chunks: z.number(),
+  token_distribution: tokenDistributionSchema,
+  /** Fewer than 20 tokens: too small to carry meaning on its own. */
+  n_orphan_chunks: z.number(),
+  /** More than 800 tokens: too big to retrieve precisely. */
+  n_obese_chunks: z.number(),
+  ingestion_cost_usd: z.number(),
+  ingestion_seconds: z.number(),
+});
+export type ChunkingStats = z.infer<typeof chunkingStatsSchema>;
+
+export const topChunkSchema = z.object({
+  chunk_id: z.string(),
+  /** Cosine similarity: it can be negative, so do not clamp it at zero. */
+  cosine: z.number(),
+  text_preview: z.string(),
+});
+
+export const queryResultSchema = z.object({
+  strategy: z.string(),
+  query: z.string(),
+  top_k: z.array(topChunkSchema).default([]),
+});
+export type QueryResult = z.infer<typeof queryResultSchema>;
+
+export const compareResponseSchema = z.object({
+  // Dynamic keys: the strategy name. A z.object() would break the moment
+  // somebody ticks a different box.
+  stats_per_strategy: z.record(z.string(), chunkingStatsSchema),
+  /** Arrives as {} — not as empty arrays per strategy — when no queries are sent. */
+  queries_per_strategy: z.record(z.string(), z.array(queryResultSchema)).default({}),
+});
+export type CompareResponse = z.infer<typeof compareResponseSchema>;
+
 // --- Runtime model configuration --------------------------------------------
 
-export const modelsConfigSchema = z.object({
-  models: z.record(z.string(), z.object({ effective: z.string().nullish() }).loose()).default({}),
+/**
+ * The seven knobs the AI service exposes, in the order its own tuple declares
+ * them. Fixed on purpose: the endpoint rejects any key outside this set with a
+ * 422, so a typo here becomes a runtime error rather than a silent no-op.
+ */
+export const modelKnobs = [
+  "PRIMARY_MODEL",
+  "FALLBACK_MODEL",
+  "CRITIC_MODEL",
+  "METADATA_EXTRACTOR_MODEL",
+  "COMPRESSION_MODEL",
+  "PROPOSITIONAL_CHUNKER_MODEL",
+  "CONTEXTUAL_CHUNKER_MODEL",
+] as const;
+export type ModelKnob = (typeof modelKnobs)[number];
+
+export const knobStateSchema = z.object({
+  /** What the next LLM call will use: the override if there is one, else the default. */
+  effective: z.string(),
+  /** What `.env` says. Restoring a knob means going back to this. */
+  default: z.string(),
+  overridden: z.boolean(),
 });
+export type KnobState = z.infer<typeof knobStateSchema>;
+
+export const modelsConfigSchema = z.object({
+  models: z.record(z.string(), knobStateSchema),
+  available_models: z.array(z.string()),
+  /** Outside the knobs on purpose: changing it would invalidate every stored vector. */
+  embedding_model: z.string(),
+  embedding_model_note: z.string(),
+});
+export type ModelsConfig = z.infer<typeof modelsConfigSchema>;

@@ -24,7 +24,9 @@ import {
 } from "@/lib/estimator/contracts";
 import { AWAITING_REVIEW, statusLabel } from "@/lib/supervisor";
 import { hours, percent } from "@/lib/format";
+import type { GraphState } from "@/lib/estimator/contracts";
 import { ReviewForm } from "./review-form";
+import { RoutingTrace } from "./routing-trace";
 
 
 function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
@@ -92,7 +94,7 @@ export type RunDetail = {
   errors: unknown;
 };
 
-export function RunView({ run }: { run: RunDetail }) {
+export function RunView({ run, state }: { run: RunDetail; state: GraphState | null }) {
   const review = reviewPayloadSchema.safeParse(run.reviewPayload);
   const estimate = draftEstimateSchema.safeParse(run.estimate);
   const decision = humanDecisionSchema.safeParse(run.humanDecision);
@@ -250,6 +252,8 @@ export function RunView({ run }: { run: RunDetail }) {
           )}
         </>
       )}
+
+      {state && <RoutingTrace state={state} />}
     </Flex>
   );
 }

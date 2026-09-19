@@ -26,7 +26,10 @@ src/
 ├── app/                      # rutas (App Router)
 │   ├── page.tsx              # panel
 │   ├── estimations/          # S04 — estimación transaccional
-│   ├── supervisor/           # S14 — supervisor y bandeja de revisión humana
+│   ├── chat/                 # S05 — conversación con memoria, y modo Actor-Critic-Boss
+│   ├── lab/chunking/         # S07 — comparador de estrategias de troceado
+│   ├── supervisor/           # S14 — supervisor, traza de enrutado y bandeja de revisión
+│   ├── ajustes/              # modelos en caliente (PUT /api/v1/config/models)
 │   └── api/health/           # liveness del propio contenedor
 ├── lib/
 │   ├── estimator/            # FOUNDATION — lo único que habla HTTP con el servicio IA
@@ -34,8 +37,11 @@ src/
 │   │   ├── contracts.ts      #   espejo en zod de los schemas Pydantic
 │   │   ├── errors.ts         #   EstimatorError y sus seis clases
 │   │   ├── estimations.ts    #   POST /api/v1/estimate
+│   │   ├── sessions.ts       #   POST /sessions (+ /estimate, /estimate/acb)
+│   │   ├── chunking.ts       #   POST /chunking/compare (+ /search)
 │   │   ├── graph.ts          #   POST /v1/estimate/graph (+ resume)
-│   │   └── config.ts         #   GET /api/v1/config/models
+│   │   └── config.ts         #   GET/PUT /api/v1/config/models
+│   ├── data/                 # presupuestos de muestra que alimentan el laboratorio
 │   ├── db.ts                 # cliente Prisma
 │   └── supervisor.ts         # mapeo respuesta → fila, compartido por start y resume
 └── components/
@@ -81,11 +87,10 @@ posibilidad de colisión de tablas.
 - **La cabecera es `X-API-Key`, no `X-Service-Token`.** Mismo mecanismo, otro
   nombre; renombrarla obliga a tocar el servicio IA, sus tests y su documentación.
 - **Sin tests.** El BFF no tiene batería propia todavía.
-- **Pantallas no portadas:** chat conversacional (S05), laboratorio de chunking
-  (S07), asistente RAG de cinco pasos (S09–S12) y ajustes del modelo. Las tres
-  que además exigirían endpoints nuevos en el servicio IA son corpus/índice
-  (S11), consola de agentes (S12) y el asistente de grafo con feed en vivo y PDF
-  (S13).
+- **Pantallas no portadas:** asistente RAG de cinco pasos (S09–S12), corpus e
+  índice (S11), consola de agentes (S12) y el asistente de grafo con feed en
+  vivo y PDF (S13). Las tres últimas exigirían además endpoints nuevos en el
+  servicio IA.
 - **Desarrollo fuera de Docker.** Con la frontera cerrada, `localhost:8000` y
   `localhost:5433` ya no existen; iterar sin contenedores exige publicarlos
   temporalmente.

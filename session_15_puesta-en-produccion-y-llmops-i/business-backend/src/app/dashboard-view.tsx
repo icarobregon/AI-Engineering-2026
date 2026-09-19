@@ -79,6 +79,54 @@ export function DashboardView({
           </Card>
         </Col>
       </Row>
+
+      <Row gutter={16}>
+        <Col span={8}>
+          <Card
+            title="Conversación"
+            extra={<Typography.Text type="secondary">Sesión 05</Typography.Text>}
+          >
+            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                Estimación a varios turnos, con memoria, adjuntos y el modo
+                Actor-Critic-Boss.
+              </Typography.Paragraph>
+              <Link href="/chat">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card
+            title="Laboratorio de chunking"
+            extra={<Typography.Text type="secondary">Sesión 07</Typography.Text>}
+          >
+            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                Trocea el mismo corpus con ocho estrategias y compara coste, tamaño y qué
+                recupera cada una.
+              </Typography.Paragraph>
+              <Link href="/lab/chunking">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card title="Ajustes" extra={<Typography.Text type="secondary">Transversal</Typography.Text>}>
+            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                Cambia en caliente el modelo de cada pieza del sistema, sin recrear
+                contenedores.
+              </Typography.Paragraph>
+              <Link href="/ajustes">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
     </Flex>
   );
 }

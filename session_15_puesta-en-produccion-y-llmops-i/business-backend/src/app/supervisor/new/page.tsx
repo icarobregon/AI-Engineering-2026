@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowLeftOutlined } from "@ant-design/icons";
 import { Button, Flex, Typography } from "antd";
 
 import { TranscriptForm } from "./transcript-form";
@@ -13,7 +14,9 @@ export default function NewSupervisorRunPage() {
           Nueva estimación supervisada
         </Typography.Title>
         <Link href="/supervisor">
-          <Button variant="outlined">Bandeja</Button>
+          <Button variant="outlined" icon={<ArrowLeftOutlined />}>
+            Bandeja
+          </Button>
         </Link>
       </Flex>
       <TranscriptForm />

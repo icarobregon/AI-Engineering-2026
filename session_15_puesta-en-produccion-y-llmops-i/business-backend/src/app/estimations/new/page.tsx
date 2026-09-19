@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowLeftOutlined } from "@ant-design/icons";
 import { Button, Flex, Typography } from "antd";
 
 import { EstimationForm } from "./estimation-form";
@@ -13,7 +14,9 @@ export default function NewEstimationPage() {
           Nueva estimación
         </Typography.Title>
         <Link href="/estimations">
-          <Button variant="outlined">Histórico</Button>
+          <Button variant="outlined" icon={<ArrowLeftOutlined />}>
+            Histórico
+          </Button>
         </Link>
       </Flex>
       <EstimationForm />

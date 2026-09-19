@@ -28,11 +28,11 @@ vuelva a degenerar en una sucesión de carpetas acopladas.
 ```
 app/
 ├── main.py                 # factory FastAPI + lifespan
-├── config.py               # settings singleton (get_settings, @lru_cache)
+├── config.py               # settings singleton (get_settings, @lru_cache) + AVAILABLE_MODELS
 ├── dependencies.py         # composition root: wiring de singletons
 │
 ├── foundation/             # plomería sin opinión de arquitectura AI
-│   ├── llm/                #   LLMWrapper (LiteLLM + Instructor) + runtime_config.py (overrides de modelo en Redis)
+│   ├── llm/                #   LLMWrapper (LiteLLM + Instructor) + runtime_config.py (overrides de modelo en Redis) + MODEL_COSTS
 │   ├── prompts/            #   loader Jinja2 + plantillas versionadas (estimation/v1..v3, …)
 │   ├── guardrails/         #   input (moderación+injection+PII) / output (filter de scope)
 │   ├── attachments/        #   extracción de texto de PDF/DOCX subidos
@@ -80,7 +80,7 @@ De más-importado a menos. Cada capa **solo** puede importar de las que tiene po
 | `dependencies.py` (COMPOSITION ROOT) | cualquier cosa | (lo importan solo `api/` y los tests) |
 | `main.py` | `api`, `config` | — |
 
-**Tres aristas especiales, explícitas:**
+**Cuatro aristas especiales, explícitas:**
 1. `agentic` **puede** importar `conversation` (lo agéntico se construye sobre el multi-turno).
    La inversa está **prohibida**.
 2. Los hermanos de `generation` se encuentran **solo** en un conductor. Si dos capas necesitan
@@ -89,6 +89,21 @@ De más-importado a menos. Cada capa **solo** puede importar de las que tiene po
 3. `domain/security` es una hoja: la usan los agentes del grafo, y no importa a nadie.
    `execute_guarded` recibe la tool como argumento precisamente para no tener que
    importar `generation/agentic` desde aquí.
+4. `api/config.py` **puede** leer del catálogo de modelos en `foundation/llm/wrapper`
+   (`MODEL_COSTS`, `_provider_from_model`). Es la excepción más incómoda de las cuatro
+   y conviene mirarla de frente: ese catálogo **es** el cuerpo de la respuesta de
+   `GET /api/v1/config/models`, no una decisión que el endpoint tome con él. Hacerlo
+   pasar por el conductor sería ceremonia: `EstimationService` no gana nada
+   reenviando una tabla de precios. La regla que sigue en pie es la de siempre —
+   `api/` lee DATO de `foundation`, nunca conducta: en cuanto haya que decidir algo
+   con ese catálogo, la decisión baja a `domain/`.
+
+   **El catálogo vive partido en dos capas y van en lockstep**: `AVAILABLE_MODELS`
+   (`config.py`, lo seleccionable) y `MODEL_COSTS` (`foundation/llm/wrapper.py`, lo
+   que cuesta). Un modelo añadido sólo al primero es seleccionable y se factura a
+   cero en silencio, porque `_estimate_cost` cae a `{"input": 0.0, "output": 0.0}`
+   por defecto. Tocar uno sin el otro es el error que esta separación invita a
+   cometer.
 
 **Hay dos conductores, no uno.** `estimation_service.py` conduce el camino CAG/RAG/ACB de las
 Sesiones 4-11; `domain/graph/` conduce el sistema multi-agente de las Sesiones 13-14. Ocupan la
@@ -141,6 +156,7 @@ POST /api/v1/estimate
 | Privilegio de tool, validación de argumentos o auditoría | `domain/security/` |
 | Estrategia de cache | `generation/cag/` |
 | Lógica de memoria conversacional | `generation/conversation/` |
+| Modelo nuevo seleccionable | `AVAILABLE_MODELS` (`config.py`) **y** `MODEL_COSTS` (`foundation/llm/wrapper.py`), en el mismo commit |
 | Endpoint HTTP | `api/` (fino) + factory en `dependencies.py` |
 | Composición entre capas | método en `EstimationService` (`domain/`), **nunca** import cruzado |
 | Fuente de datos / parser / limpieza offline | `ingestion/` |

@@ -35,13 +35,14 @@ src/
 │   ├── estimator/            # FOUNDATION — lo único que habla HTTP con el servicio IA
 │   │   ├── client.ts         #   fetch + timeouts + taxonomía de errores
 │   │   ├── contracts.ts      #   espejo en zod de los schemas Pydantic
-│   │   ├── errors.ts         #   EstimatorError y sus seis clases
+│   │   ├── errors.ts         #   EstimatorError y sus siete casos
 │   │   ├── estimations.ts    #   POST /api/v1/estimate
-│   │   ├── sessions.ts       #   POST /sessions (+ /estimate, /estimate/acb)
-│   │   ├── chunking.ts       #   POST /chunking/compare (+ /search)
+│   │   ├── sessions.ts       #   POST /sessions (+ /{id}/estimate, /{id}/estimate-acb)
+│   │   ├── chunking.ts       #   POST /embeddings/compare (consultas y top_k en el mismo cuerpo)
 │   │   ├── graph.ts          #   POST /v1/estimate/graph (+ resume)
 │   │   └── config.ts         #   GET/PUT /api/v1/config/models
 │   ├── data/                 # presupuestos de muestra que alimentan el laboratorio
+│   ├── format.ts             # euros, horas, porcentajes y dólares, en un solo sitio
 │   ├── db.ts                 # cliente Prisma
 │   └── supervisor.ts         # mapeo respuesta → fila, compartido por start y resume
 └── components/
@@ -86,8 +87,9 @@ original del modelo puede haber desaparecido.
 de muestra con varias estrategias a la vez y compara número de chunks,
 percentiles de tokens, huérfanos, obesos, coste y tiempo. Con consultas, además
 corre el playground de recuperación y enseña los vecinos de cada una con su
-coseno. Por defecto sólo vienen marcadas las estrategias gratuitas; las cuatro que
-llaman al modelo van señaladas con `$` y, si se seleccionan, el botón cambia a
+coseno. Por defecto sólo vienen marcadas las estrategias gratuitas; las tres que
+llaman al modelo —semántica, proposicional y contextual— van señaladas con `$` y,
+si se seleccionan, el botón cambia a
 «Comparar (gasta dinero)». El aviso de coste no es adorno, y tiene una letra
 pequeña que la pantalla declara: lo que se mide es la llamada extra del troceador,
 no los embeddings del playground, así que infravalora el gasto real.
@@ -108,7 +110,8 @@ defecto u override) y el valor activo. El de embeddings aparece en sólo lectura
 con el porqué: cambiarlo invalidaría todos los vectores ya almacenados. El
 catálogo sólo ofrece modelos cuyo proveedor tiene clave configurada, y cada uno
 lleva al lado lo que cuesta un millón de tokens, entrada / salida: el catálogo va
-de 0,05 a 150 US$ y varios de estos ajustes corren en cada turno, así que un
+de 0,05 a 600 US$ por millón —`o1-pro`, 150 de entrada y 600 de salida— y varios
+de estos ajustes corren en cada turno, así que un
 desplegable ciego al precio invita a poner el modelo de 150 en el resumidor. La
 divisa se escribe siempre, y no es un detalle: la aplicación habla de dinero en
 dos monedas —los presupuestos en euros, lo que cuesta pedirlos en dólares— y en
@@ -127,7 +130,7 @@ un `dict` sin tipar. Validarlo con zod al leerlo convierte un cambio silencioso
 de contrato en un mensaje claro en pantalla, en vez de una página en blanco tres
 componentes más abajo.
 
-**Errores como taxonomía, no como códigos.** `EstimatorError` distingue seis
+**Errores como taxonomía, no como códigos.** `EstimatorError` distingue siete
 casos (guardrail, petición inválida, no autorizado, no encontrado, rate limit, no
 disponible, error del servidor) porque cada uno pide una reacción distinta de la
 interfaz. Un 400 de guardrail se le enseña al usuario tal cual; un 503 no.
@@ -164,7 +167,7 @@ encima no se envía. El puente es un input oculto que React mantiene sincronizad
 (`components/select-field.tsx`). Con `Upload` el mismo problema es una vuelta más
 difícil, porque un oculto de texto no puede llevar un `File`: el oculto es un
 `<input type="file">` cuyo `files` se reconstruye desde la lista con un
-`DataTransfer` —la única forma de escribir un `FileList` a mano—, y la acción
+`DataTransfer` (`app/chat/attachments-field.tsx`) —la única forma de escribir un `FileList` a mano—, y la acción
 sigue leyendo `formData.getAll("attachments")` sin enterarse de nada. Además todo
 `Select` con estado del servidor necesita una `key` que incluya el valor efectivo,
 o el componente se queda con el que tenía antes de guardar.

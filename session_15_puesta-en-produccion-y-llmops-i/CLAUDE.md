@@ -10,9 +10,9 @@ The AI service for the Master en AI Engineering programme:
 
 The business frontend/client lives in `business-backend/` as of Session 15: a Next.js app that is both the UI and the BFF, and the only public entry point of the system. The live sessions invoke the AI service directly via httpie/curl (stack-agnostic), from inside the Compose network.
 
-There is ONE `docker-compose.yml`, at the root of the session folder, and it defines every service: `business-backend` (the only one publishing a port, `3000:3000`), `ai-service`, `estimator-postgres` and `redis`. Run it from that directory, always — Compose derives the project name, and therefore the volume names, from where it is launched, so starting from a subdirectory would create a second, empty corpus.
+There is ONE `docker-compose.yml`, at the root of the session folder, and it defines every service: `business-backend` (the only one publishing a port, `3000:3000`), `business-migrate`, `ai-service`, `estimator-postgres` and `redis`. `business-migrate` is a one-shot off the `builder` stage that applies the Prisma schema and exits 0; `business-backend` waits on it with `condition: service_completed_successfully`, which is why the Prisma CLI does not ship in the runtime image. Run it from that directory, always — Compose derives the project name, and therefore the volume names, from where it is launched, so starting from a subdirectory would create a second, empty corpus.
 
-**The frontier is not negotiable**: only `business-backend` publishes a port. The AI service custodies the LLM key and sits below the business rules, so it is reachable only from inside the network, by service name (`http://ai-service:8000`) and with the `X-API-Key` shared secret. The datastores are private for the same reason — which is why `estimator-postgres` no longer publishes 5433 and `redis` no longer publishes 6379.
+**The frontier is not negotiable**: only `business-backend` publishes a port. The AI service custodies the LLM key and sits below the business rules, so it is reachable only from inside the network, by service name (`http://ai-service:8000`). **The network is the only universal barrier**: the `X-API-Key` shared secret guards the estimation routes (`/api/v1/estimate` and the three graph routes) and the retrieval ones, but `/sessions/*` (the conversation, which spends tokens), `/embeddings/*` (the chunking lab) and `/api/v1/config/*` (the settings screen) answer without a header. Known debt, not an oversight — closing them is the same work already done for `/api/v1/estimate`. The datastores are private for the same reason — which is why `estimator-postgres` no longer publishes 5433 and `redis` no longer publishes 6379.
 
 Session guides for the instructor live in `guides/` (git-ignored). `guides/session-4-live-guide.md` is the most recent.
 
@@ -28,14 +28,16 @@ uv run uvicorn app.main:app --reload
 
 # Tests
 uv run pytest -v
-uv run pytest tests/test_schemas.py::test_phases_sum_must_equal_total_cost -v
+uv run pytest tests/test_schemas.py::test_total_cost_is_derived_from_phases -v
 
 # Lint
 uv run ruff check .
 uv run ruff format .
 
-# Docker (recommended dev path — bind-mounts app/ and tests/ for live reload)
-docker compose up --build
+# Docker: from the SESSION FOLDER root, not from here — there is no
+# estimator/docker-compose.yml any more, and the image carries the code COPIED
+# in, with no bind-mount and no --reload. Touching app/ means rebuilding.
+cd .. && docker compose up --build
 ```
 
 Service listens on `http://localhost:8000`; `/docs` (Swagger) and `/redoc` are enabled. Health probe at `GET /health`. Main API endpoints: `POST /api/v1/estimate` (S04 CAG estimate) and, from S09, `POST /v1/retrieval/search` + `POST /v1/estimate/from-transcript` (RAG retrieval + grounded estimate; see the Session 9 design point below).
@@ -89,10 +91,10 @@ POST /api/v1/estimate
 
 Key design points future changes should respect:
 
-- **The router has no business logic.** It only catches three exceptions and turns them into HTTP statuses: `InputGuardrailViolation` → 400, anything else from the pipeline (including `instructor.exceptions.InstructorRetryException`) → 502, plus Pydantic 422 from `EstimationRequest` validation. Add new policies inside `EstimationService.estimate()`, not in the router.
-- **Schema is the contract.** `EstimationResult` (in `app/domain/schemas/estimation.py`) is what Instructor enforces against the LLM. The two `model_validator`s (`phases_sum_matches_total`, `low_confidence_requires_out_of_scope_prefix`) are the business rules — when they raise, Instructor re-prompts the LLM up to `max_retries=6` times.
-- **Field order matters with Instructor.** `phases` is declared BEFORE `total_cost_eur` / `total_duration_weeks` on purpose: the LLM emits phases first (autoregressive) and then only needs to sum, instead of picking a round total and back-fitting phases. With smaller models like `gpt-4o-mini` this is the difference between consistent success and arithmetic failures.
-- **Two caches in series.** Both live in the CAG layer (`app/generation/cag/`). The exact-match cache (`app/generation/cag/exact.py`) keys on SHA-256 of the typed request + prompt_version + model. The semantic cache (`app/generation/cag/semantic.py`) layers on top: same bucket (`prompt_version:project_type:detail_level:output_format`) + cosine similarity ≥ `SEMANTIC_CACHE_THRESHOLD` (default 0.85). The semantic cache requires Redis Stack (`redis/redis-stack:7.4.0-v0`), not vanilla Redis — RediSearch is mandatory for vector queries.
+- **The router has no business logic.** It only catches three exceptions and turns them into HTTP statuses: `InputGuardrailViolation` → 400, anything else from the pipeline (including `instructor.exceptions.InstructorRetryException`) → 502, plus Pydantic 422 from `EstimationRequest` validation. Since Session 15 it also carries `dependencies=[Depends(require_estimate_key)]`, so 401 joins the list — still not business logic: the dependency is declarative and `/health` stays open. Add new policies inside `EstimationService.estimate()`, not in the router.
+- **Schema is the contract.** `EstimationResult` (in `app/domain/schemas/estimation.py`) is what Instructor enforces against the LLM. One `model_validator` is left, `low_confidence_requires_out_of_scope_prefix` — when it raises, Instructor re-prompts the LLM. `phases_sum_matches_total` is GONE, and with it the whole failure mode: `total_cost_eur` is now a `@computed_field` over `phases`, so the identity holds by construction. Instructor's `Mode.TOOLS` does not put computed fields in the tool schema, so the model never sees the total, cannot get it wrong, and cannot be re-prompted about it; it still travels in the JSON the API serialises.
+- **Field order matters with Instructor.** `phases` is declared BEFORE `total_duration_weeks` on purpose: the LLM emits phases first (autoregressive) and then only needs to sum, instead of picking a round total and back-fitting phases. It no longer applies to `total_cost_eur`, which is not asked for at all — field order used to be the defence against `gpt-4o-mini`'s arithmetic, and deriving the total replaced it with something the model cannot break.
+- **Two caches in series.** Both live in the CAG layer (`app/generation/cag/`). The exact-match cache (`app/generation/cag/exact.py`) keys on SHA-256 of the typed request + prompt_version + model. The semantic cache (`app/generation/cag/semantic.py`) layers on top: same bucket (`prompt_version:project_type:detail_level:output_format`) + cosine similarity ≥ `SEMANTIC_CACHE_THRESHOLD` (default 0.85). The semantic cache requires Redis Stack (`redis/redis-stack-server:7.4.0-v0`), not vanilla Redis — RediSearch is mandatory for vector queries.
 - **Guardrails are policies, not features.** `check_input` uses `exception` policy (raise on violation). `enforce_scope_response` uses `filter` (rewrite the summary). The schema validators use `re-prompt` (Instructor handles it). The split is documented in the live-session guide.
 - **The model catalogue is hand-curated, and says so.** `AVAILABLE_MODELS`
   (`app/config.py`) is a hand-written list kept in lockstep with `MODEL_COSTS`
@@ -106,7 +108,25 @@ Key design points future changes should respect:
   human-initiated task: query each provider's `GET /v1/models` with the real keys,
   price every entry against the provider's published pricing page (standard tier —
   fast-mode figures are roughly double and circulate widely), and update both lists
-  plus the timestamp together.
+  plus the timestamp together. `GET /api/v1/config/models` also serves
+  `model_prices` (USD per million tokens, input/output) so the Settings picker can
+  show what a knob costs; the catalogue spans 0.05 to 600, and several knobs run on
+  every turn.
+  **The silent trap is the provider inference.** `_provider_from_model` reads the
+  name: `gpt…` and `claude…` by prefix, the o-series by shape (`^o\d`). Anything
+  else returns "unknown", "unknown" has no entry in `PROVIDER_KEY_FIELDS`, and
+  `_available_models` therefore drops the model from the catalogue with no error
+  anywhere. `o4-mini` was doing exactly that until Session 15. A Gemini model added
+  to the list would vanish the same way.
+- **Cost that reads as zero is a bug, twice over.** The price table is one half;
+  the other is the usage reading. `complete_structured_chat` shipped without the
+  `**_usage_from(...)` its single-shot sibling has, and `estimation_service` read
+  flat `tokens_in`/`tokens_out` keys off `meta` when `_usage_from` nests them under
+  `usage`. Either one alone was enough to make `TurnObservation` report 0 tokens
+  and $0 for every conversational turn — with the defensive `or 0` turning a
+  missing key into a number. Both fixed in Session 15; the lesson is the one in
+  `_usage_from`'s own comment: a cost of zero is worse than no cost at all,
+  because a dashboard will believe it.
 - **Settings are a cached singleton** via `app/config.py::get_settings` (`@lru_cache`). Any change to `.env` requires recreating the container (`docker compose up -d --force-recreate`); a `--reload` is not enough. **Exception: the LLM model knobs** (`PRIMARY_MODEL`, `FALLBACK_MODEL`, `CRITIC_MODEL`, metadata/compression/chunker models) can be overridden at runtime via `PUT /api/v1/config/models` (Redis-backed `app/foundation/llm/runtime_config.py`) — overrides survive `--reload` and restarts, and both caches partition by model.
 - **Logging** is `structlog`. JSON in `production`, console in dev. Use `structlog.get_logger()` rather than stdlib `logging`.
 - **The LLM wrapper bypasses the Router for streaming and for structured calls** (see `_dispatch`). LiteLLM's Router does round-robin between deployments, which would non-deterministically route to a fallback that may be unreachable. For deterministic behaviour `complete_structured` always uses the primary model directly.
@@ -137,12 +157,19 @@ Key design points future changes should respect:
 
 ## Configuration
 
-`.env` (copied from `.env.example`) drives everything via `pydantic-settings`.
+There are TWO `.env` files and they are not the same kind of thing.
+`estimator/.env` (copied from `estimator/.env.example`) drives the AI service via
+`pydantic-settings`, and everything below documents it. The one at the ROOT of the
+session folder is read by Compose itself, by interpolation, and holds what the
+services need to find each other: `AI_SERVICE_TOKEN`,
+`AI_SERVICE_RETRIEVAL_TOKEN`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`.
+Several are declared `${VAR:?...}`, so `docker compose up` aborts loudly rather
+than starting with an empty secret.
 
 Session 2/3 vars:
 - `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` — at least one required.
 - `PRIMARY_MODEL` / `FALLBACK_MODEL` — LiteLLM Router config.
-- `LLM_TIMEOUT` / `LLM_RETRIES` — per LLM call.
+- `LLM_TIMEOUT` / `LLM_RETRIES` — `LLM_RETRIES` is per call; `LLM_TIMEOUT` is NOT. Instructor turns it into `stop_after_delay(timeout)` over the WHOLE retry chain, so it is a deadline for all attempts together. It has to stay below the client's own timeout (180 s in `business-backend`) or the caller walks away while the service keeps spending. Mind the two defaults: the field in `config.py` says 30, the shipped `.env.example` says 120, and the effective value is whatever `.env` has (120 today). Only a run with no `.env` at all gets the shorter deadline.
 - `REDIS_URL` — points to the Redis Stack container in compose.
 
 Session 4 vars:
@@ -152,7 +179,7 @@ Session 4 vars:
 - `SEMANTIC_CACHE_LOG_ONLY` — when `true`, the cache logs would-be hits but never serves them. Use it to calibrate the threshold against real traffic before flipping on.
 
 Session 9 vars (RAG estimation):
-- `RETRIEVAL_API_KEY` / `ESTIMATE_API_KEY` — independent keys for the two routers (header `X-API-Key`). Blank disables the router (401 on every request).
+- `RETRIEVAL_API_KEY` / `ESTIMATE_API_KEY` — independent keys (header `X-API-Key`). Blank disables the routes it guards (401 on every request). `RETRIEVAL_API_KEY` covers `/v1/retrieval/search` and `/v1/retrieval/advanced-search`. `ESTIMATE_API_KEY` is the token for EVERY estimation route, including the Session 4 `POST /api/v1/estimate` since Session 15, and the graph's start/resume/state. Under Compose both are fed from the root `.env` (`AI_SERVICE_TOKEN` / `AI_SERVICE_RETRIEVAL_TOKEN`).
 - `REFORMULATION_MODEL` / `GENERATION_MODEL` / `GENERATION_REASONING_EFFORT` — default `gpt-5-mini` / `gpt-5` / `medium`. In `AVAILABLE_MODELS`, so switchable at runtime via `PUT /api/v1/config/models`.
 - `RETRIEVAL_TOP_K` / `RETRIEVAL_DISTANCE_THRESHOLD` — locked defaults `10` / `0.6` (cosine distance).
 - `MAX_CONTEXT_TOKENS` — token budget for the assembled `<source>` block (tiktoken `cl100k_base`; default 16384).
@@ -183,7 +210,7 @@ Session 14 vars (multi-agent supervisor + human-in-the-loop):
 
 ## Docker
 
-Multi-stage Dockerfile: `builder` installs prod-only deps with `uv sync --no-install-project --no-dev`, `runtime` is a clean `python:3.11-slim` that only carries `/app/.venv` and `app/`, runs as non-root `appuser`. There is a Docker-native HEALTHCHECK against `/health`. `docker-compose.yml` bind-mounts `./app` and `./tests` for development; `--reload` is on. Redis service uses `redis/redis-stack:7.4.0-v0` for RediSearch.
+Multi-stage Dockerfile: `builder` installs prod-only deps with `uv sync --no-install-project --no-dev`, `runtime` is a clean `python:3.11-slim` carrying `/app/.venv`, `app/`, `alembic/` + `alembic.ini`, `data/` and `scripts/`, and runs as non-root `appuser`. The last three are there so the container can migrate itself and seed the corpus with nothing mounted. There is a Docker-native HEALTHCHECK against `/health`. **No bind-mount and no `--reload`**: the session's `docker-compose.yml` gives `ai-service` no `volumes:` at all, so the code that runs is the code COPIED into the image and a change under `app/` needs `docker compose up --build`. Redis uses `redis/redis-stack-server:7.4.0-v0` for RediSearch.
 
 For running tests inside the container the prod image lacks pytest. Two options:
 ```bash

@@ -4,7 +4,7 @@ Servicio IA en FastAPI que estima proyectos de software a partir de un formulari
 
 A partir de la **Sesión 04** el contrato es deliberadamente estrecho:
 - entrada tipada (`description` + tres enums),
-- salida en texto libre,
+- salida estructurada y validada (`EstimationResult` vía Instructor + Pydantic),
 - prompt fuera del código en templates Jinja2 versionados (`app/foundation/prompts/<use_case>/<version>/`).
 
 La inteligencia adicional (output estructurado, guardrails, cache semántico) se construye encima de esta base en directo.
@@ -39,6 +39,7 @@ uv run uvicorn app.main:app --reload
 ```bash
 curl -X POST http://localhost:8000/api/v1/estimate \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: $ESTIMATE_API_KEY" \
   -d '{
     "description": "A small B2B SaaS to manage employee equipment loans across teams. Role-based access, audit trail, weekly digest.",
     "project_type": "web_saas",
@@ -47,18 +48,34 @@ curl -X POST http://localhost:8000/api/v1/estimate \
   }'
 ```
 
+Desde la **Sesión 15** el endpoint exige el token de servicio (`require_estimate_key`).
+Sin la cabecera responde 401, y con `ESTIMATE_API_KEY` en blanco responde 401 a todo.
+
 Respuesta:
 
 ```json
 {
-  "text": "| phase | duration_weeks | cost_eur | confidence_pct | …",
-  "prompt_version": "v1"
+  "result": {
+    "summary": "…",
+    "confidence_pct": 75,
+    "phases": [
+      { "name": "Discovery", "duration_weeks": 2, "cost_eur": 5000, "summary": "…" }
+    ],
+    "total_duration_weeks": 13,
+    "total_cost_eur": 35250
+  },
+  "prompt_version": "v1",
+  "cached": false
 }
 ```
 
+`total_cost_eur` es un `@computed_field`: se deriva de las fases y no se le pide al
+modelo, así que no puede descuadrar. Instructor no lo incluye en el tool schema, de
+modo que el modelo ni lo ve.
+
 ### Cliente Streamlit
 
-El cliente Streamlit es un formulario que construye el JSON y muestra el `text` recibido. Corre fuera de Docker y consume la API por HTTP:
+El cliente Streamlit es un formulario que construye el JSON y muestra el resultado recibido. Corre fuera de Docker y consume la API por HTTP:
 
 ```bash
 cd estimator
@@ -66,7 +83,9 @@ uv run streamlit run streamlit_app.py
 # Abrir http://localhost:8501
 ```
 
-La URL del servicio se lee de `ESTIMATOR_API_BASE_URL` (default `http://localhost:8000`).
+La URL del servicio se lee de `ESTIMATOR_API_BASE_URL` (default `http://localhost:8000`),
+y desde la Sesión 15 necesita además `ESTIMATE_API_KEY`, que envía como cabecera
+`X-API-Key`. Sin ella el formulario recibe 401.
 
 ## Cómo testar
 
@@ -88,32 +107,44 @@ La batería corre en milisegundos sin tocar APIs externas. Cubre cuatro categor�
 estimator/
 ├── app/
 │   ├── main.py                        # FastAPI app, CORS, lifespan, /health
-│   ├── config.py                      # Settings (Pydantic Settings, .env)
-│   ├── dependencies.py                # Singletons cacheados: cache + LLMWrapper
-│   ├── routers/
-│   │   └── estimations.py             # POST /api/v1/estimate
-│   ├── schemas/
-│   │   └── estimation.py              # EstimationRequest, EstimationResponse, enums
-│   ├── prompts/
-│   │   ├── loader.py                  # Environment Jinja2 + render_estimation_prompt
-│   │   └── estimation/
-│   │       └── v1/
-│   │           ├── system.j2          # rol + reglas + bloques condicionales + include
-│   │           ├── user.j2            # bloque <project_description>
-│   │           └── examples.j2        # few-shot examples
-│   └── services/
-│       ├── llm_wrapper.py             # LiteLLM Router con fallback y cost tracking
-│       └── cache.py                   # Redis exact-match cache
-├── tests/
-│   ├── test_schemas.py
-│   ├── test_prompts.py
-│   ├── test_estimate_endpoint.py
-│   ├── test_llm_wrapper.py
-│   └── test_cache.py
+│   ├── config.py                      # Settings (Pydantic Settings, .env) + AVAILABLE_MODELS
+│   ├── dependencies.py                # composition root: wiring de todos los singletons
+│   ├── api/                           # TRANSPORTE — routers finos
+│   │   ├── estimations.py             #   POST /api/v1/estimate (exige X-API-Key)
+│   │   ├── sessions.py                #   S05 — conversación con memoria y ACB
+│   │   ├── embeddings.py              #   S07/S08 — troceado, ingest y búsqueda
+│   │   ├── config.py                  #   GET/PUT /api/v1/config/models
+│   │   ├── security.py                #   require_estimate_key / require_retrieval_key
+│   │   └── routers/                   #   S09-S14 — estimate, stages, tasks, retrieval, graph
+│   ├── domain/                        # EL CONTRATO Y LOS CONDUCTORES
+│   │   ├── schemas/estimation.py      #   EstimationRequest/Result/Response, TurnObservation
+│   │   ├── estimation_service.py      #   conductor CAG/RAG/ACB (S04-S11)
+│   │   ├── graph/                     #   conductor multi-agente (S13-S14)
+│   │   └── security/                  #   privilegios de tool, guard y auditoría
+│   ├── foundation/                    # PLOMERÍA, sin opinión de arquitectura AI
+│   │   ├── llm/wrapper.py             #   LiteLLM + Instructor + MODEL_COSTS
+│   │   ├── llm/runtime_config.py      #   overrides de modelo en Redis
+│   │   ├── prompts/                   #   loader Jinja2 + plantillas versionadas
+│   │   ├── guardrails/                #   input (moderación+injection+PII) / output
+│   │   ├── attachments/               #   extracción de texto de PDF/DOCX
+│   │   └── persistence/               #   engine SQLAlchemy + repositories
+│   ├── generation/                    # LAS TRES ARQUITECTURAS
+│   │   ├── cag/                       #   cache exacta + semántica
+│   │   ├── rag/                       #   chunking, retrieval, generación citada
+│   │   ├── agentic/                   #   Actor-Critic-Boss y el agente a mano (S12)
+│   │   └── conversation/              #   ventana, anclas, resumen, metadata
+│   └── ingestion/                     # pipeline offline que alimenta RAG
+├── tests/                             # batería sin red ni clave
+├── alembic/                           # migraciones del esquema del servicio IA
+├── data/                              # corpus de muestra
+├── scripts/                           # siembra del corpus y runners de sesión
 ├── streamlit_app.py                   # Formulario que consume /api/v1/estimate
 ├── Dockerfile                         # Multi-stage con uv
 └── pyproject.toml
 ```
+
+El contrato completo de capas —quién puede importar a quién— vive en
+[`ARCHITECTURE.md`](ARCHITECTURE.md), que es normativo.
 
 ### Versionado de prompts
 
@@ -132,6 +163,8 @@ Lo que vive **fuera** del template (en código): el contrato (`EstimationRequest
 | `REDIS_URL` | `redis://localhost:6379` | Cache exact-match |
 | `CACHE_TTL` | `86400` | Segundos |
 | `APP_ENV` | `development` | Controla el renderer de structlog |
+| `ESTIMATE_API_KEY` | — | **Obligatoria desde la S15.** Token (`X-API-Key`) de TODAS las rutas de estimación, incluida `POST /api/v1/estimate`. En blanco ⇒ 401 en todas. Bajo Compose la inyecta `AI_SERVICE_TOKEN` del `.env` de la raíz de la sesión |
+| `RETRIEVAL_API_KEY` | — | Token de `/v1/retrieval/search` y `/v1/retrieval/advanced-search` |
 | `ESTIMATOR_API_BASE_URL` | `http://localhost:8000` | Lo lee el cliente Streamlit |
 
 `get_settings()` es un singleton cacheado con `lru_cache`: cualquier cambio en `.env` requiere reiniciar uvicorn (no basta con `--reload`). **Excepción: los modelos LLM** — ver la sección siguiente.
@@ -143,7 +176,11 @@ Los knobs de modelo (`PRIMARY_MODEL`, `FALLBACK_MODEL`, `CRITIC_MODEL`, `METADAT
 ```
 GET /api/v1/config/models
   → {"models": {KEY: {"effective", "default", "overridden"}},
-     "available_models": [...], "embedding_model": "..."}
+     "available_models": [...],
+     "embedding_model": "...", "embedding_model_note": "...",
+     "catalog_generated_at": "2026-09-20T01:14:55+02:00",
+     "catalog_sources": ["OpenAI", "Anthropic"],
+     "model_prices": {MODEL: {"input": 0.15, "output": 0.60}}}   # US$ por millón de tokens
 
 PUT /api/v1/config/models
   Body: {"models": {"PRIMARY_MODEL": "gpt-4o", "CRITIC_MODEL": null}}   # null = reset
@@ -158,6 +195,29 @@ Cómo funciona (`app/foundation/llm/runtime_config.py`):
 - Con un override de primario activo no hay fallback automático de provider (misma semántica que `model_override`: llamada directa, sin Router).
 - Las caches se particionan por modelo (la exacta ya lo hacía; la semántica incluye el modelo en su bucket desde este cambio), así que cambiar de modelo nunca sirve respuestas generadas por otro.
 - `EMBEDDING_MODEL` queda fuera a propósito: cambiarlo invalidaría todos los vectores almacenados.
+
+**El catálogo se cura a mano, y por eso dice cuándo se hizo.** `AVAILABLE_MODELS`
+(`app/config.py`, 38 entradas) va en lockstep con `MODEL_COSTS`
+(`app/foundation/llm/wrapper.py`, 40 filas — las dos de más son alias fechados, que
+necesitan fila propia porque el precio se busca por el nombre que se pide). Un
+modelo añadido sólo al primero es seleccionable y **se factura a cero en silencio**:
+`_estimate_cost` cae a `{"input": 0.0, "output": 0.0}` por defecto. No es «todo lo
+que la clave alcanza» —las claves alcanzan bastante más—, y el filtro del endpoint
+sólo comprueba que la variable del proveedor no esté vacía, nunca que esa clave
+pueda servir ese modelo.
+
+Por eso viaja con su procedencia: `MODEL_CATALOG_GENERATED_AT` y
+`MODEL_CATALOG_SOURCES`, que la pantalla de Ajustes pinta tal cual. Regenerarlo es
+una tarea explícita: consultar `GET /v1/models` de cada proveedor con las claves
+reales, poner precio a cada entrada contra la página oficial (tier estándar — las
+cifras de *fast mode* son casi el doble y circulan mucho) y actualizar las dos
+listas y la fecha en el mismo commit.
+
+**La trampa silenciosa es la inferencia de proveedor.** `_provider_from_model` lee
+el nombre: `gpt…` y `claude…` por prefijo, la serie o por forma (`^o\d`). Cualquier
+otra cosa devuelve «unknown», «unknown» no tiene entrada en `PROVIDER_KEY_FIELDS`, y
+`_available_models` descarta el modelo sin error en ninguna parte. `o4-mini` hacía
+exactamente eso hasta la S15.
 
 ```bash
 http PUT :8000/api/v1/config/models models:='{"PRIMARY_MODEL": "gpt-4o"}'
@@ -212,9 +272,21 @@ La respuesta del segundo turno integra Nimbus + React + Postgres + facturación 
 
 3. **Memoria en proceso, no Redis ni Postgres.** El `SessionStore` es un `dict` en memoria del worker FastAPI. La volatilidad (estado perdido al reiniciar el contenedor) es **intencional** para esta fase y está documentada en el docstring del store. La persistencia entre reinicios entra en el directo cuando hablemos de compresión de memoria con anclas.
 
-4. **Cachés desactivadas en el path conversacional.** Cada turno depende del historial + metadata + adjuntos: dos transcripciones idénticas en sesiones distintas **no** son la misma llamada. El método nuevo `EstimationService.estimate_conversational` por tanto no consulta ni el cache exact-match ni el semántico, y `EstimationResponse.cached` siempre es `false` en este path. El endpoint transaccional original `POST /api/v1/estimate` sigue usando las dos cachés sin cambios.
+4. **Cada turno viaja con su telemetría.** `EstimationResponse.observation` es un
+   `TurnObservation`: `tokens_in` / `tokens_out` / `cost_usd` / `latency_ms`, más el
+   estado de la memoria (mensajes en ventana, anclas, caracteres de resumen) y el
+   tier resuelto. Un solo evento estructurado por turno, `turn_observed`, para que
+   el runner de estrés lea `response.observation` y no tenga que reconciliar
+   timestamps. **Hasta la S15 los tres primeros campos eran siempre cero**, por dos
+   fallos encadenados: `complete_structured_chat` no leía el uso —le faltaba el
+   `**_usage_from(...)` que sí tiene su hermana de un disparo— y el conductor leía
+   claves planas `tokens_in`/`tokens_out` que `_usage_from` anida bajo `usage`. El
+   `or 0` defensivo convertía la clave ausente en un número, que es la peor forma de
+   fallar: un panel se lo cree. El modo ACB no trae observación, sólo su traza.
 
-5. **Ventana deslizante con `MAX_CONVERSATION_TURNS=6` por defecto.** El system prompt se regenera fresco cada turno desde el `ProjectMetadata` actual, así que no consume slot. Lo que llega al LLM en el turno N es: `[system_v2] + últimos N pares (user, assistant) + nuevo user`. Cuando el historial supera el tope, los pares más antiguos se descartan en bloque para preservar la alternancia de roles. El siguiente paso (resumen acumulativo + anclas) lo construimos en el directo.
+5. **Cachés desactivadas en el path conversacional.** Cada turno depende del historial + metadata + adjuntos: dos transcripciones idénticas en sesiones distintas **no** son la misma llamada. El método nuevo `EstimationService.estimate_conversational` por tanto no consulta ni el cache exact-match ni el semántico, y `EstimationResponse.cached` siempre es `false` en este path. El endpoint transaccional original `POST /api/v1/estimate` sigue usando las dos cachés sin cambios.
+
+6. **Ventana deslizante con `MAX_CONVERSATION_TURNS=6` por defecto.** El system prompt se regenera fresco cada turno desde el `ProjectMetadata` actual, así que no consume slot. Lo que llega al LLM en el turno N es: `[system_v2] + últimos N pares (user, assistant) + nuevo user`. Cuando el historial supera el tope, los pares más antiguos se descartan en bloque para preservar la alternancia de roles. El siguiente paso (resumen acumulativo + anclas) lo construimos en el directo.
 
 ### Variables de entorno nuevas
 

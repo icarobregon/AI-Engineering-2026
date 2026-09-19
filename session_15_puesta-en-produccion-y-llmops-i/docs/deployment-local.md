@@ -26,7 +26,11 @@ blanco— pero conviene saberlo antes de toparse con él.
 | `AI_SERVICE_TOKEN` | El secreto compartido entre el backend de negocio y el servicio IA. Un valor por entorno. |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Credenciales del datastore. Se interpolan en las cadenas de conexión de ambos servicios, así que no hay ninguna contraseña escrita en `docker-compose.yml`. |
 
-Y en `estimator/.env`, al menos `OPENAI_API_KEY` o `ANTHROPIC_API_KEY`.
+Y en `estimator/.env`, al menos `OPENAI_API_KEY` o `ANTHROPIC_API_KEY`. Con una
+sola se arranca, pero el catálogo de modelos de la pantalla «Ajustes» se queda con
+la mitad: son 27 modelos de OpenAI y 11 de Anthropic, y el endpoint sólo ofrece
+los del proveedor cuya clave esté puesta. Y si falta la de Anthropic, el modelo de
+respaldo por defecto —`claude-haiku-4-5-20251001`— no es alcanzable.
 
 ```bash
 docker compose build
@@ -56,7 +60,16 @@ esquema de Prisma y termina antes de que arranque la aplicación.
 curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:3000
 ```
 
-Debe responder `200`. En el navegador, http://localhost:3000 muestra el panel.
+Debe responder `200`. En el navegador, http://localhost:3000 muestra el panel, y
+desde ahí se llega a las cinco pantallas: Estimación (`/estimations`),
+Conversación (`/chat`), Supervisor (`/supervisor`), Laboratorio (`/lab/chunking`)
+y Ajustes (`/ajustes`). Las cinco deben devolver `200`:
+
+```bash
+for r in / /estimations /chat /supervisor /lab/chunking /ajustes; do
+  printf '%-16s %s\n' "$r" "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000$r)"
+done
+```
 
 ### 3. El servicio IA NO es alcanzable desde el host
 
@@ -82,13 +95,25 @@ estimación. El recorrido es: navegador → backend de negocio → servicio IA (
 el token) → Postgres/pgvector → respuesta. Si la confianza es baja, la ejecución
 se detiene y aparece en la bandeja de revisión.
 
-Las dos rutas de estimación exigen el token de servicio: `/api/v1/estimate`, que
-sirve a la pantalla «Estimación», y `/v1/estimate/graph`, que sirve a la del
-supervisor. Sin cabecera, 401:
+Las rutas que **estiman** exigen el token de servicio: `/api/v1/estimate` (pantalla
+«Estimación») y las tres del grafo —`/v1/estimate/graph`, su `resume` y su
+`state`— que sirven a la del supervisor. Sin cabecera, 401 en ambos caminos:
 
 ```bash
-docker compose exec business-backend node -e "fetch('http://ai-service:8000/v1/estimate/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:'{\"transcript\":\"x\"}'}).then(r=>console.log(r.status))"
+docker compose exec business-backend node -e "
+const body = JSON.stringify({transcript:'x'});
+for (const url of ['http://ai-service:8000/api/v1/estimate','http://ai-service:8000/v1/estimate/graph']) {
+  fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body}).then(r=>console.log(url, r.status));
+}"
 ```
+
+**No todas las rutas del servicio IA piden token, y conviene decirlo.** Las de
+sesiones (`/sessions/*`, que sirven a «Conversación»), las de troceado
+(`/embeddings/*`, el laboratorio) y las de configuración (`/api/v1/config/*`,
+«Ajustes») contestan sin cabecera. La frontera sigue intacta —el servicio IA no
+publica puerto y sólo se alcanza desde dentro de la red de Compose—, pero dentro
+de esa red esas tres son anónimas. Es deuda conocida, no un descuido: cerrarlas
+pide el mismo trabajo que se hizo con `/api/v1/estimate`.
 
 ### 5. Los datos sobreviven a un ciclo completo
 
@@ -98,6 +123,11 @@ docker compose down && docker compose up -d
 
 El corpus y el histórico siguen ahí: ambos viven en volúmenes con nombre
 (`postgres_data`, `redis_data`). Ojo: `docker compose down -v` sí los borra.
+
+Lo mismo vale para los cambios de modelo hechos en «Ajustes»: viven en el hash de
+Redis `estimator:runtime_config`, no en `.env`, así que sobreviven al ciclo. Es la
+comprobación que distingue un override de un reinicio: si tras `down && up` la
+pantalla sigue marcando «override», la persistencia funciona.
 
 ## Sembrar el corpus
 

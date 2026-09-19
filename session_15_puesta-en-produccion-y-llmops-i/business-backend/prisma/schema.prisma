@@ -1,0 +1,73 @@
+// The business backend's own state.
+//
+// It lives in a separate Postgres SCHEMA on the same database as the AI service
+// (the `?schema=business` on DATABASE_URL), so there is one datastore to operate
+// and no chance of a table name colliding with the estimator's.
+//
+// Five of the AI service's own tables already hold the authoritative state of a
+// run — the checkpointer keyed by estimation_id owns it. What is persisted here
+// is what the AI service cannot answer: the history of what WE asked for, and
+// enough of each answer to render a list without replaying every run.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Session 4 — one transactional estimate, request and answer.
+model Estimation {
+  id          String   @id @default(uuid())
+  description String
+  projectType String   @map("project_type")
+  detailLevel String   @map("detail_level")
+  outputFormat String  @map("output_format")
+
+  /// The validated EstimationResponse, stored whole: the AI service owns this
+  /// shape, and re-deriving columns from it would just be a second source of
+  /// truth that drifts.
+  responsePayload Json   @map("response_payload")
+  promptVersion   String @map("prompt_version")
+  cached          Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("estimations")
+}
+
+/// Sessions 13-14 — one supervised run and, when it stopped, its review.
+model SupervisorRun {
+  id String @id @default(uuid())
+
+  /// The AI service's thread_id. Unique because sending it again is a retry of
+  /// the same estimation, not a new one.
+  estimationId String @unique @map("estimation_id")
+
+  transcript String
+
+  /// Where WE think the run is: running | paused | completed.
+  /// The authoritative state is the checkpointer's; this is what lets the inbox
+  /// render without calling the AI service once per row.
+  runState String @default("running") @map("run_state")
+
+  /// The AI service's own status: validated | needs_review |
+  /// awaiting_human_review | routing_budget_exhausted.
+  status String?
+
+  estimate      Json?   @db.JsonB
+  reviewPayload Json?   @map("review_payload") @db.JsonB
+  humanDecision Json?   @map("human_decision") @db.JsonB
+  errors        Json    @default("[]") @db.JsonB
+  confidence    Float?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@index([runState, status])
+  @@map("supervisor_runs")
+}

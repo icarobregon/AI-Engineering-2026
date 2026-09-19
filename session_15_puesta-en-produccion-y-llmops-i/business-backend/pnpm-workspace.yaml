@@ -1,0 +1,9 @@
+packages:
+  - "."
+
+# Prisma's postinstall fetches its engines. pnpm 11 blocks lifecycle scripts by
+# default, so it is allowed here explicitly — and declaratively, which is what
+# makes the Docker build work too (an interactive `pnpm approve-builds` would not).
+allowBuilds:
+  "@prisma/engines": true
+  prisma: true

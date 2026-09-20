@@ -43,6 +43,10 @@ desde una subcarpeta crearía un segundo corpus vacío sin avisar.
 
 ## Las cinco comprobaciones
 
+Una ejecución real de las cinco, con su salida, está capturada en
+[`evidencia-cinco-comprobaciones.txt`](evidencia-cinco-comprobaciones.txt). Lo que
+sigue es cómo reproducirla.
+
 ### 1. Los cuatro servicios arriba y sanos
 
 ```bash

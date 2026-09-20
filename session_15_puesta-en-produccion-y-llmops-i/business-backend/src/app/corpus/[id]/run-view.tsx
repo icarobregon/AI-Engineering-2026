@@ -96,8 +96,7 @@ export function RunView({
 
   // Delta explícito contra null: un delta de 0 es un resultado, no un "no hay
   // resultado", y `{delta && …}` lo escondería además de pintar un 0 suelto.
-  const delta =
-    after && before ? after.total_chunks - before.total_chunks : null;
+  const delta = after && before ? after.total_chunks - before.total_chunks : null;
 
   return (
     <Flex vertical gap={24}>
@@ -157,22 +156,13 @@ export function RunView({
       <Card>
         <Space direction="vertical" size="large" style={{ width: "100%" }}>
           <Space size="large" wrap>
-            <Statistic
-              title="Documentos"
-              value={`${vivo.processed} / ${run.submittedCount}`}
-            />
+            <Statistic title="Documentos" value={`${vivo.processed} / ${run.submittedCount}`} />
             <Statistic title="Saltados" value={vivo.skipped} />
             <Statistic title="Chunks nuevos" value={vivo.chunksCreated} />
           </Space>
           <Progress
             percent={porcentaje}
-            status={
-              vivo.status === "failed"
-                ? "exception"
-                : terminado
-                  ? "success"
-                  : "active"
-            }
+            status={vivo.status === "failed" ? "exception" : terminado ? "success" : "active"}
           />
           {!terminado && !vivo.stalled && (
             <Typography.Text type="secondary">

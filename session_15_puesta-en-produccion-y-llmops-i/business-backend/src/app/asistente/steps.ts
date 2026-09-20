@@ -12,10 +12,4 @@ export const stepLabels: Record<string, string> = {
   verification: "Verificación",
 };
 
-export const stepOrder = [
-  "reformulation",
-  "structure",
-  "review",
-  "hours",
-  "verification",
-] as const;
+export const stepOrder = ["reformulation", "structure", "review", "hours", "verification"] as const;

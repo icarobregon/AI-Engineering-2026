@@ -8,11 +8,7 @@ import { ProfileForm } from "../profile-form";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Editar perfil de agente" };
 
-export default async function EditarPerfilPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function EditarPerfilPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const profile = await prisma.agentProfile.findUnique({ where: { id } });
   if (!profile) notFound();

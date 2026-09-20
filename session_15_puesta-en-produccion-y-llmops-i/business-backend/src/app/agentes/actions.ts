@@ -63,10 +63,7 @@ function leerPerfil(formData: FormData) {
   };
 }
 
-export async function saveProfile(
-  _previous: FormState,
-  formData: FormData,
-): Promise<FormState> {
+export async function saveProfile(_previous: FormState, formData: FormData): Promise<FormState> {
   const id = String(formData.get("id") ?? "");
   const datos = leerPerfil(formData);
 
@@ -106,11 +103,15 @@ export async function deleteProfile(formData: FormData): Promise<void> {
  * proceso a mitad deja la fila en `running` sin nadie que la mueva, y por eso el
  * detalle detecta un run sin señales en vez de fingir que sigue vivo.
  */
-async function ejecutar(runId: string, transcript: string, ajustes: {
-  model: string | null;
-  reasoningEffort: string | null;
-  maxIterations: number | null;
-}) {
+async function ejecutar(
+  runId: string,
+  transcript: string,
+  ajustes: {
+    model: string | null;
+    reasoningEffort: string | null;
+    maxIterations: number | null;
+  },
+) {
   await prisma.agentRun.update({
     where: { id: runId },
     data: { status: "running", startedAt: new Date() },
@@ -144,10 +145,7 @@ async function ejecutar(runId: string, transcript: string, ajustes: {
   }
 }
 
-export async function startAgentRun(
-  _previous: FormState,
-  formData: FormData,
-): Promise<FormState> {
+export async function startAgentRun(_previous: FormState, formData: FormData): Promise<FormState> {
   const transcript = String(formData.get("transcript") ?? "").trim();
   if (transcript.length < MIN_TRANSCRIPT) {
     return {

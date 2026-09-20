@@ -38,7 +38,10 @@ export function parseSimpleMarkdown(markdown: string): Block[] {
   const bloques: Block[] = [];
 
   for (const trozo of (markdown ?? "").split(/\n{2,}/)) {
-    const lineas = trozo.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim().length > 0);
+    const lineas = trozo
+      .split("\n")
+      .map((l) => l.trimEnd())
+      .filter((l) => l.trim().length > 0);
     if (lineas.length === 0) continue;
 
     // Una lista puede venir pegada a su párrafo introductorio, así que los items
@@ -53,7 +56,9 @@ export function parseSimpleMarkdown(markdown: string): Block[] {
       // rango de apartados y fingir una jerarquía que el prompt no pide sólo
       // produciría tamaños de letra arbitrarios.
       const titulo = /^#{1,6}\s+(.*)$/.exec(texto);
-      bloques.push(titulo ? { kind: "heading", text: titulo[1].trim() } : { kind: "paragraph", text: texto });
+      bloques.push(
+        titulo ? { kind: "heading", text: titulo[1].trim() } : { kind: "paragraph", text: texto },
+      );
       sueltas = [];
     };
     const cerrarLista = () => {

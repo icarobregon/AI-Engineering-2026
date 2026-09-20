@@ -72,7 +72,10 @@ export function responseFromState(state: GraphState, progress: RunProgress): Gra
     estimate: state.values.estimate ?? null,
     // El sondeo manda sobre el checkpoint en la pausa: `status` sólo lo escribe
     // `finalize`, así que un run parado ante una persona no lo tiene todavía.
-    status: progress.status === AWAITING_REVIEW ? AWAITING_REVIEW : (state.values.status ?? "needs_review"),
+    status:
+      progress.status === AWAITING_REVIEW
+        ? AWAITING_REVIEW
+        : (state.values.status ?? "needs_review"),
     estimation_id: state.estimation_id,
     errors: progress.errors,
     review_payload: progress.review_payload ?? null,

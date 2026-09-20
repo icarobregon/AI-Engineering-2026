@@ -71,8 +71,8 @@ export function ReviewForm({ runId, modules }: { runId: string; modules: WorkMod
           {state.notice && <Alert type="success" showIcon message={state.notice} />}
 
           <Typography.Text type="secondary">
-            Lo que dejes aquí es lo que se manda a buscar horas. Una fila sin nombre se descarta,
-            y se te dice cuántas.
+            Lo que dejes aquí es lo que se manda a buscar horas. Una fila sin nombre se descarta, y
+            se te dice cuántas.
           </Typography.Text>
 
           {arbol.length === 0 ? (
@@ -100,9 +100,7 @@ export function ReviewForm({ runId, modules }: { runId: string; modules: WorkMod
                     size="small"
                     danger
                     icon={<DeleteOutlined />}
-                    onClick={() =>
-                      setArbol((prev) => prev.filter((m) => m.key !== modulo.key))
-                    }
+                    onClick={() => setArbol((prev) => prev.filter((m) => m.key !== modulo.key))}
                   >
                     Quitar
                   </Button>
@@ -158,7 +156,10 @@ export function ReviewForm({ runId, modules }: { runId: string; modules: WorkMod
                           m.key === modulo.key
                             ? {
                                 ...m,
-                                tasks: [...m.tasks, { key: nuevaClave(), name: "", description: "" }],
+                                tasks: [
+                                  ...m.tasks,
+                                  { key: nuevaClave(), name: "", description: "" },
+                                ],
                               }
                             : m,
                         ),

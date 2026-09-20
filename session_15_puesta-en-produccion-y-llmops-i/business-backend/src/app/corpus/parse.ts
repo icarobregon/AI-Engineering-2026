@@ -26,9 +26,7 @@ export function parseDocuments(raw: string): unknown[] {
   if (lista.length === 0) {
     throw new Error("Pega al menos un documento (un objeto JSON o un array de objetos).");
   }
-  const noSonObjetos = lista.filter(
-    (d) => d === null || typeof d !== "object" || Array.isArray(d),
-  );
+  const noSonObjetos = lista.filter((d) => d === null || typeof d !== "object" || Array.isArray(d));
   if (noSonObjetos.length > 0) {
     throw new Error(
       `Cada documento tiene que ser un objeto JSON. ${noSonObjetos.length} de ${lista.length} no lo son.`,
@@ -54,4 +52,3 @@ export function sourcePathDe(documento: unknown, indice: number): string {
     ? `corpus-ui::${id.trim()}`
     : `corpus-ui::sin-id#${indice}`;
 }
-

@@ -2,7 +2,18 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Alert, Button, Card, Empty, InputNumber, Space, Statistic, Table, Tag, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Empty,
+  InputNumber,
+  Space,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 
 import { eur, hours as horasFmt } from "@/lib/format";
 import {
@@ -101,9 +112,7 @@ export function VerificationForm({
   const sinHoras = lineas.filter((l) => !l.horas).length;
 
   const editar = (clave: string, campo: "horas" | "tarifa", valor: number | null) =>
-    setLineas((prev) =>
-      prev.map((l) => (l.clave === clave ? { ...l, [campo]: valor ?? 0 } : l)),
-    );
+    setLineas((prev) => prev.map((l) => (l.clave === clave ? { ...l, [campo]: valor ?? 0 } : l)));
 
   if (lineas.length === 0) {
     return (

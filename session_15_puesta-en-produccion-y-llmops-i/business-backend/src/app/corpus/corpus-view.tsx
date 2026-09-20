@@ -33,8 +33,8 @@ export function CorpusView({
             Corpus e índice
           </Typography.Title>
           <Typography.Text type="secondary">
-            Amplía la base vectorial con información nueva. Cada documento se trocea, se embebe y
-            se indexa. Re-embeber lo que ya existe queda fuera.
+            Amplía la base vectorial con información nueva. Cada documento se trocea, se embebe y se
+            indexa. Re-embeber lo que ya existe queda fuera.
           </Typography.Text>
         </Space>
         <Link href="/corpus/nueva">

@@ -79,7 +79,12 @@ export function EstimationsView({ rows }: { rows: EstimationRow[] }) {
                 width: 70,
                 render: (_, row) => (
                   <Link href={`/estimations/${row.id}`}>
-                    <Button variant="outlined" size="small" icon={<ArrowRightOutlined />} iconPosition="end">
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      icon={<ArrowRightOutlined />}
+                      iconPosition="end"
+                    >
                       Ver
                     </Button>
                   </Link>

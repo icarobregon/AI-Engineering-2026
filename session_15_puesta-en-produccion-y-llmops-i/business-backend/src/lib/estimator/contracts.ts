@@ -170,7 +170,9 @@ export const graphStateSchema = z.object({
       routing_trail: z.array(routingHopSchema).default([]),
       routing_steps: z.number().nullish(),
       requirements: z.array(z.string()).nullish(),
-      components: z.array(z.object({ id: z.string(), name: z.string(), category: z.string() }).loose()).nullish(),
+      components: z
+        .array(z.object({ id: z.string(), name: z.string(), category: z.string() }).loose())
+        .nullish(),
       budget_matches: z.array(budgetMatchSchema).nullish(),
       validation: z
         .object({
@@ -458,10 +460,7 @@ export const modelsConfigSchema = z.object({
   catalog_generated_at: z.string(),
   catalog_sources: z.array(z.string()),
   /** USD por millón de tokens, por modelo del catálogo. */
-  model_prices: z.record(
-    z.string(),
-    z.object({ input: z.number(), output: z.number() }),
-  ),
+  model_prices: z.record(z.string(), z.object({ input: z.number(), output: z.number() })),
 });
 export type ModelsConfig = z.infer<typeof modelsConfigSchema>;
 

@@ -15,10 +15,7 @@ export default async function GrafoPage() {
   } catch (e) {
     // El grafo se compila en el arranque del servicio IA; si su checkpointer no
     // abrió, esta pantalla no tiene nada que enseñar y lo dice.
-    error =
-      e instanceof EstimatorError
-        ? e.userMessage
-        : "No se pudo leer la topología del grafo.";
+    error = e instanceof EstimatorError ? e.userMessage : "No se pudo leer la topología del grafo.";
   }
 
   return <GraphView diagram={diagram} error={error} />;

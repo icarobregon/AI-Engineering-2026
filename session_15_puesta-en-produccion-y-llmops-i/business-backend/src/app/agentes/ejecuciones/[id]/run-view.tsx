@@ -99,9 +99,7 @@ export function AgentRunView({
 
   const duracion =
     run.startedAt && run.finishedAt
-      ? Math.round(
-          (new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()) / 1000,
-        )
+      ? Math.round((new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()) / 1000)
       : null;
 
   return (
@@ -161,10 +159,9 @@ export function AgentRunView({
             {
               key: "perfil",
               label: "Perfil",
-              children:
-                run.profileName ?? (
-                  <Typography.Text type="secondary">sin perfil</Typography.Text>
-                ),
+              children: run.profileName ?? (
+                <Typography.Text type="secondary">sin perfil</Typography.Text>
+              ),
             },
             {
               key: "modelo",

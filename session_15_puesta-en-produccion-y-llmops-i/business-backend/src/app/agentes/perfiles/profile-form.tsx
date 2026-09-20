@@ -33,11 +33,7 @@ type Profile = {
 };
 
 /** Una opción del desplegable de modelos, con su precio a la derecha. */
-function opcionModelo(
-  value: string,
-  texto: string,
-  precios: ModelsConfig["model_prices"],
-) {
+function opcionModelo(value: string, texto: string, precios: ModelsConfig["model_prices"]) {
   const precio = precios[value];
   return {
     value,
@@ -138,8 +134,8 @@ export function ProfileForm({
 
             <Typography.Text type="secondary">
               Los tres ajustes son opcionales. Lo que dejes en blanco lo resuelve el{" "}
-              <Typography.Text code>.env</Typography.Text> del servicio en cada ejecución, que no
-              es lo mismo que copiar aquí su valor de hoy: copiarlo lo congelaría.
+              <Typography.Text code>.env</Typography.Text> del servicio en cada ejecución, que no es
+              lo mismo que copiar aquí su valor de hoy: copiarlo lo congelaría.
             </Typography.Text>
 
             <Space size="large" wrap align="start">

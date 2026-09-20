@@ -12,10 +12,7 @@ export type FormState = { error: string | null; result: CompareResponse | null }
 
 const known = new Set<string>(chunkingStrategies.map((s) => s.name));
 
-export async function runComparison(
-  _previous: FormState,
-  formData: FormData,
-): Promise<FormState> {
+export async function runComparison(_previous: FormState, formData: FormData): Promise<FormState> {
   // Deduplicated and validated here: a duplicate runs twice on the server and
   // collapses into one key of the result, and an unknown name comes back as a
   // 400 rather than a validation error.

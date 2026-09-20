@@ -108,7 +108,9 @@ export function ChunkingLab({ corpusSize }: { corpusSize: number }) {
                 message={`${paid.length} estrategia(s) de pago seleccionada(s)`}
                 description={`${paid
                   .map((s) => `${s.label} (${s.provider})`)
-                  .join(", ")} llaman al proveedor una vez por componente: el run puede tardar minutos y gasta dinero real.`}
+                  .join(
+                    ", ",
+                  )} llaman al proveedor una vez por componente: el run puede tardar minutos y gasta dinero real.`}
               />
             ) : (
               <Typography.Text type="secondary">
@@ -127,7 +129,9 @@ export function ChunkingLab({ corpusSize }: { corpusSize: number }) {
                   name="queries"
                   rows={4}
                   style={{ width: 440 }}
-                  placeholder={"OAuth authentication for fintech mobile app\nreal-time inventory synchronization"}
+                  placeholder={
+                    "OAuth authentication for fintech mobile app\nreal-time inventory synchronization"
+                  }
                 />
               </Form.Item>
               <Form.Item label="top_k" layout="vertical" style={{ marginBottom: 0 }}>

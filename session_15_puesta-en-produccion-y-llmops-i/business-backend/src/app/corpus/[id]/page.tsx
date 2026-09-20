@@ -12,11 +12,7 @@ function parseStats(value: unknown): CorpusStats | null {
   return resultado.success ? resultado.data : null;
 }
 
-export default async function AmpliacionPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function AmpliacionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const run = await prisma.indexRun.findUnique({ where: { id } });
   if (!run) notFound();

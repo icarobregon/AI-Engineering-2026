@@ -12,7 +12,12 @@ import { generateProposal, type FormState } from "../actions";
 function BotonRedactar({ rehacer }: { rehacer: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type={rehacer ? "default" : "primary"} htmlType="submit" loading={pending} icon={<FileTextOutlined />}>
+    <Button
+      type={rehacer ? "default" : "primary"}
+      htmlType="submit"
+      loading={pending}
+      icon={<FileTextOutlined />}
+    >
       {pending ? "Redactando…" : rehacer ? "Volver a redactar" : "Redactar propuesta"}
     </Button>
   );

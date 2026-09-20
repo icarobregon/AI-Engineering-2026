@@ -258,7 +258,12 @@ export function RunWizard({
             <Card size="small" title="Transcripción original">
               <Typography.Paragraph
                 type="secondary"
-                style={{ marginBottom: 0, whiteSpace: "pre-wrap", maxHeight: 240, overflow: "auto" }}
+                style={{
+                  marginBottom: 0,
+                  whiteSpace: "pre-wrap",
+                  maxHeight: 240,
+                  overflow: "auto",
+                }}
               >
                 {run.transcript}
               </Typography.Paragraph>
@@ -306,9 +311,7 @@ export function RunWizard({
         </Card>
       )}
 
-      {paso === 2 && (
-        <ReviewForm runId={run.id} modules={reviewed ?? proposed ?? []} />
-      )}
+      {paso === 2 && <ReviewForm runId={run.id} modules={reviewed ?? proposed ?? []} />}
 
       {paso === 3 && (
         <Card title="Paso 4 · Horas por tarea, desde el corpus histórico">
@@ -417,13 +420,15 @@ function HoursTable({ result }: { result: TaskHoursResult }) {
             align: "right",
             width: 120,
             render: (n: { estimated_hours: number }[]) =>
-              n.length === 0 ? "—" : `${n.length} · ${n.map((x) => x.estimated_hours).join(", ")} h`,
+              n.length === 0
+                ? "—"
+                : `${n.length} · ${n.map((x) => x.estimated_hours).join(", ")} h`,
           },
         ]}
       />
       <Typography.Text type="secondary">
-        Las horas salen del consenso ponderado de las tareas históricas más parecidas. Una tarea
-        sin analogía no recibe número: lo pones tú en el paso siguiente.
+        Las horas salen del consenso ponderado de las tareas históricas más parecidas. Una tarea sin
+        analogía no recibe número: lo pones tú en el paso siguiente.
       </Typography.Text>
     </Space>
   );

@@ -2,7 +2,19 @@
 
 import Link from "next/link";
 import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Col, Flex, Row, Space, Statistic, Table, Tag, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Flex,
+  Row,
+  Space,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 
 import { estimationResponseSchema, isOutOfScope } from "@/lib/estimator/contracts";
 import { eur } from "@/lib/format";
@@ -58,7 +70,9 @@ export function EstimationView({
       ) : (
         <>
           <Card>
-            <Typography.Paragraph style={{ marginBottom: 0 }}>{result.summary}</Typography.Paragraph>
+            <Typography.Paragraph style={{ marginBottom: 0 }}>
+              {result.summary}
+            </Typography.Paragraph>
           </Card>
 
           <Row gutter={16}>

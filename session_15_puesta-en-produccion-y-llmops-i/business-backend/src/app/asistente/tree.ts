@@ -85,4 +85,3 @@ export function leerArbolGuardado(value: unknown): ModuloEditable[] {
     tasks: m.tasks.map((t) => ({ name: t.name, description: t.description })),
   }));
 }
-

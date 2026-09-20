@@ -13,7 +13,13 @@ import type { EstimatedComponent } from "@/lib/estimator/contracts";
 
 const COMPONENTES = [
   { component_id: "c1", name: "Backend", estimated_hours: 120, grounded: true, rationale: "" },
-  { component_id: "c2", name: "Visión artificial", estimated_hours: 0, grounded: false, rationale: "" },
+  {
+    component_id: "c2",
+    name: "Visión artificial",
+    estimated_hours: 0,
+    grounded: false,
+    rationale: "",
+  },
   { component_id: "c3", name: "Avisos", estimated_hours: 80, grounded: true, rationale: "" },
 ] as EstimatedComponent[];
 

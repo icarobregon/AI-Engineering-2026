@@ -124,7 +124,11 @@ function desglose(doc: PDFKit.PDFDocument, estimate: DraftEstimate): void {
   fila("Total", hours(estimate.total_hours), true);
 }
 
-export async function buildProposalPdf({ proposal, estimate, estimationId }: Entrada): Promise<Buffer> {
+export async function buildProposalPdf({
+  proposal,
+  estimate,
+  estimationId,
+}: Entrada): Promise<Buffer> {
   const doc = new PDFDocument({ size: "A4", margin: MARGEN, info: { Title: proposal.title } });
   const trozos: Buffer[] = [];
   doc.on("data", (trozo: Buffer) => trozos.push(trozo));

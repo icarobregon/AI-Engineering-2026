@@ -16,9 +16,13 @@ const knobLabels: Record<ModelKnob, { label: string; description: string }> = {
   PRIMARY_MODEL: { label: "Modelo principal", description: "El que atiende las estimaciones." },
   FALLBACK_MODEL: {
     label: "Modelo de respaldo",
-    description: "Entra cuando el proveedor principal falla, sólo en las llamadas no estructuradas.",
+    description:
+      "Entra cuando el proveedor principal falla, sólo en las llamadas no estructuradas.",
   },
-  CRITIC_MODEL: { label: "Crítico", description: "Revisa el borrador en el modo Actor-Critic-Boss." },
+  CRITIC_MODEL: {
+    label: "Crítico",
+    description: "Revisa el borrador en el modo Actor-Critic-Boss.",
+  },
   METADATA_EXTRACTOR_MODEL: {
     label: "Extractor de metadata",
     description: "Saca nombre de proyecto, equipo y tecnologías de la conversación.",
@@ -29,7 +33,8 @@ const knobLabels: Record<ModelKnob, { label: string; description: string }> = {
   },
   PROPOSITIONAL_CHUNKER_MODEL: {
     label: "Chunker proposicional",
-    description: "Trocea por proposiciones en el laboratorio de chunking. Llama al modelo por componente.",
+    description:
+      "Trocea por proposiciones en el laboratorio de chunking. Llama al modelo por componente.",
   },
   CONTEXTUAL_CHUNKER_MODEL: {
     label: "Chunker contextual",
@@ -190,8 +195,8 @@ export function SettingsView({ config }: { config: ModelsConfig }) {
                     <Space direction="vertical" size={0}>
                       <Typography.Text strong>Modelo de embeddings</Typography.Text>
                       <Typography.Text type="secondary">
-                        Fuera de los ajustes a propósito: cambiarlo invalidaría todos
-                        los vectores ya almacenados.
+                        Fuera de los ajustes a propósito: cambiarlo invalidaría todos los vectores
+                        ya almacenados.
                       </Typography.Text>
                       <Typography.Text type="secondary" code style={{ fontSize: 11 }}>
                         EMBEDDING_MODEL

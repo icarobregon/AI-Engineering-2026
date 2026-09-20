@@ -43,9 +43,7 @@ function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
               {hours(estimate.original_total_hours)}
             </Typography.Text>
           )}
-          <Typography.Text strong>
-            {hours(estimate.total_hours)}
-          </Typography.Text>
+          <Typography.Text strong>{hours(estimate.total_hours)}</Typography.Text>
         </Space>
       }
       styles={{ body: { padding: 0 } }}
@@ -61,9 +59,7 @@ function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
             render: (value: string, row) => (
               <Space direction="vertical" size={0}>
                 <Typography.Text strong>{value}</Typography.Text>
-                <Typography.Text type="secondary">
-                  {row.rationale}
-                </Typography.Text>
+                <Typography.Text type="secondary">{row.rationale}</Typography.Text>
               </Space>
             ),
           },
@@ -141,28 +137,21 @@ function Senales({
       <Card style={{ flex: "1 1 220px" }}>
         <Statistic
           title="Banda histórica"
-          value={
-            band
-              ? `${hours(band.low).replace(" h", "")}–${hours(band.high)}`
-              : "sin datos"
-          }
+          value={band ? `${hours(band.low).replace(" h", "")}–${hours(band.high)}` : "sin datos"}
         />
         {band && (
           // La banda está escalada por cobertura: sin este dato, un rango
           // construido sobre dos de ocho componentes se lee como si valiera
           // para el proyecto entero.
           <Typography.Text type="secondary">
-            {band.covered_components} de {band.total_components} componentes ·{" "}
-            {band.references} referencias
+            {band.covered_components} de {band.total_components} componentes · {band.references}{" "}
+            referencias
           </Typography.Text>
         )}
       </Card>
       {proposedHours != null && (
         <Card style={{ flex: "1 1 220px" }}>
-          <Statistic
-            title="Propuesta del sistema"
-            value={hours(proposedHours)}
-          />
+          <Statistic title="Propuesta del sistema" value={hours(proposedHours)} />
         </Card>
       )}
     </Flex>
@@ -182,13 +171,7 @@ export type RunDetail = {
   proposal: unknown;
 };
 
-export function RunView({
-  run,
-  state,
-}: {
-  run: RunDetail;
-  state: GraphState | null;
-}) {
+export function RunView({ run, state }: { run: RunDetail; state: GraphState | null }) {
   const review = reviewPayloadSchema.safeParse(run.reviewPayload);
   const estimate = draftEstimateSchema.safeParse(run.estimate);
   const decision = humanDecisionSchema.safeParse(run.humanDecision);
@@ -316,9 +299,7 @@ export function RunView({
               styles={{ body: { padding: 0 } }}
             >
               <Table
-                rowKey={(row) =>
-                  `${row.component_id}-${row.reference_budget_id}`
-                }
+                rowKey={(row) => `${row.component_id}-${row.reference_budget_id}`}
                 dataSource={review.data.budget_matches}
                 pagination={false}
                 columns={[
@@ -356,31 +337,26 @@ export function RunView({
 
       {!running && !awaiting && (
         <>
-          {run.errors != null &&
-            Array.isArray(run.errors) &&
-            run.errors.length > 0 && (
-              <Alert
-                type="warning"
-                showIcon
-                message="La ejecución degradó por el camino"
-                description={
-                  <List
-                    dataSource={run.errors as string[]}
-                    renderItem={(e) => <List.Item>{e}</List.Item>}
-                  />
-                }
-              />
-            )}
+          {run.errors != null && Array.isArray(run.errors) && run.errors.length > 0 && (
+            <Alert
+              type="warning"
+              showIcon
+              message="La ejecución degradó por el camino"
+              description={
+                <List
+                  dataSource={run.errors as string[]}
+                  renderItem={(e) => <List.Item>{e}</List.Item>}
+                />
+              }
+            />
+          )}
 
           {/*
             Las mismas señales que ve un revisor, para quien abre una ejecución
             ya cerrada. Salen del checkpoint, que las conserva, y no de la fila:
             la confianza de la fila puede venir de un payload antiguo.
           */}
-          <Senales
-            confidence={state?.values.confidence}
-            band={state?.historical_band}
-          />
+          <Senales confidence={state?.values.confidence} band={state?.historical_band} />
 
           {estimate.success ? (
             <EstimateTable estimate={estimate.data} />
@@ -405,10 +381,7 @@ export function RunView({
                   {
                     key: "action",
                     label: "Acción",
-                    children:
-                      decision.data.action === "reject"
-                        ? "Rechazada"
-                        : "Aprobada",
+                    children: decision.data.action === "reject" ? "Rechazada" : "Aprobada",
                   },
                   {
                     key: "hours",

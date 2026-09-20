@@ -55,7 +55,9 @@ export function AppShell({
     <ConfigProvider locale={esES} theme={{ token: { colorPrimary: "#5b21b6" } }}>
       <App>
         <Layout style={{ minHeight: "100vh" }}>
-          <Layout.Header style={{ display: "flex", alignItems: "center", gap: 24, paddingInline: 24 }}>
+          <Layout.Header
+            style={{ display: "flex", alignItems: "center", gap: 24, paddingInline: 24 }}
+          >
             <Link href="/" style={{ color: "#fff", fontWeight: 600, fontSize: 16 }}>
               Estimator
             </Link>

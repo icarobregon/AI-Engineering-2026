@@ -13,13 +13,7 @@ const MIN = 100;
 function SubmitButton({ suficiente }: { suficiente: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button
-      type="primary"
-      htmlType="submit"
-      size="large"
-      loading={pending}
-      disabled={!suficiente}
-    >
+    <Button type="primary" htmlType="submit" size="large" loading={pending} disabled={!suficiente}>
       {pending ? "Reformulando…" : "Empezar"}
     </Button>
   );

@@ -32,13 +32,7 @@ import { submitReview, type FormState } from "../actions";
  * que hace imposible que la cifra de abajo y el desglose se contradigan.
  */
 
-function Botones({
-  faltaFirma,
-  sinPrecio,
-}: {
-  faltaFirma: boolean;
-  sinPrecio: string[];
-}) {
+function Botones({ faltaFirma, sinPrecio }: { faltaFirma: boolean; sinPrecio: string[] }) {
   // Dentro del form para poder leer `pending`: fuera, useFormStatus no ve nada.
   const { pending } = useFormStatus();
 
@@ -84,17 +78,9 @@ function Botones({
   );
 }
 
-export function ReviewEstimateForm({
-  id,
-  estimate,
-}: {
-  id: string;
-  estimate: DraftEstimate;
-}) {
+export function ReviewEstimateForm({ id, estimate }: { id: string; estimate: DraftEstimate }) {
   const [horas, setHoras] = useState<Record<string, number | null>>(() =>
-    Object.fromEntries(
-      estimate.components.map((c) => [c.component_id, c.estimated_hours]),
-    ),
+    Object.fromEntries(estimate.components.map((c) => [c.component_id, c.estimated_hours])),
   );
   const [revisor, setRevisor] = useState("");
   const [motivo, setMotivo] = useState("");
@@ -104,9 +90,7 @@ export function ReviewEstimateForm({
     () => Object.values(horas).reduce<number>((suma, h) => suma + (h ?? 0), 0),
     [horas],
   );
-  const sinPrecio = estimate.components
-    .filter((c) => !horas[c.component_id])
-    .map((c) => c.name);
+  const sinPrecio = estimate.components.filter((c) => !horas[c.component_id]).map((c) => c.name);
   const faltaFirma = revisor.trim().length === 0 || motivo.trim().length === 0;
 
   async function enviar(formData: FormData) {
@@ -136,11 +120,7 @@ export function ReviewEstimateForm({
       <form action={enviar}>
         <input type="hidden" name="id" value={id} />
         {/* El puente que ya usa el resto de la app: AntD no escribe en el form. */}
-        <input
-          type="hidden"
-          name="component_hours"
-          value={JSON.stringify(horas)}
-        />
+        <input type="hidden" name="component_hours" value={JSON.stringify(horas)} />
 
         <Table
           rowKey="component_id"
@@ -153,9 +133,7 @@ export function ReviewEstimateForm({
               render: (value: string, row) => (
                 <Space direction="vertical" size={0}>
                   <Typography.Text strong>{value}</Typography.Text>
-                  <Typography.Text type="secondary">
-                    {row.rationale}
-                  </Typography.Text>
+                  <Typography.Text type="secondary">{row.rationale}</Typography.Text>
                 </Space>
               ),
             },

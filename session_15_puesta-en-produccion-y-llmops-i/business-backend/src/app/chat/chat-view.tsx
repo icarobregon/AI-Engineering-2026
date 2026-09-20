@@ -298,11 +298,7 @@ export function ChatView({ info }: { info: SessionInfo | null }) {
                           <Statistic title="Coste" value={eur(estimate.total_cost_eur)} />
                         </Col>
                         <Col span={8}>
-                          <Statistic
-                            title="Confianza"
-                            value={estimate.confidence_pct}
-                            suffix="%"
-                          />
+                          <Statistic title="Confianza" value={estimate.confidence_pct} suffix="%" />
                         </Col>
                       </Row>
                       <Table

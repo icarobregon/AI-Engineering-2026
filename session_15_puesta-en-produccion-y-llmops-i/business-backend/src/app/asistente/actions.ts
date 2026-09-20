@@ -122,10 +122,9 @@ export async function generateStructureFor(
   const run = await prisma.ragRun.findUnique({ where: { id: runId } });
   if (!run?.reformulation) return { error: "Primero hace falta la reformulación.", notice: null };
 
-  const query = estimationQuerySchema.safeParse(
-    (run.reformulation as { query?: unknown }).query,
-  );
-  if (!query.success) return { error: "El brief guardado no tiene la forma esperada.", notice: null };
+  const query = estimationQuerySchema.safeParse((run.reformulation as { query?: unknown }).query);
+  if (!query.success)
+    return { error: "El brief guardado no tiene la forma esperada.", notice: null };
 
   let estructura;
   try {

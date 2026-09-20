@@ -42,8 +42,8 @@ export function TranscriptForm() {
           <Space align="center" size="middle">
             <SubmitButton />
             <Typography.Text type="secondary">
-              Arranca y te lleva a la pantalla de la ejecución. Tarda minutos, pero puedes
-              cerrar la pestaña: el progreso se guarda en cada paso.
+              Arranca y te lleva a la pantalla de la ejecución. Tarda minutos, pero puedes cerrar la
+              pestaña: el progreso se guarda en cada paso.
             </Typography.Text>
           </Space>
         </Space>

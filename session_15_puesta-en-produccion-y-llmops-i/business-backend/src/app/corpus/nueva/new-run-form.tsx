@@ -4,17 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { ArrowLeftOutlined } from "@ant-design/icons";
-import {
-  Alert,
-  Button,
-  Card,
-  Flex,
-  Form,
-  Input,
-  Space,
-  theme,
-  Typography,
-} from "antd";
+import { Alert, Button, Card, Flex, Form, Input, Space, theme, Typography } from "antd";
 
 import { SelectField } from "@/components/select-field";
 import { startIndexRun, type FormState } from "../actions";
@@ -91,14 +81,12 @@ export function NewRunForm() {
       <form action={action}>
         <Card>
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
-            {state.error && (
-              <Alert type="error" showIcon message={state.error} />
-            )}
+            {state.error && <Alert type="error" showIcon message={state.error} />}
 
             <Typography.Text type="secondary">
-              Pega un presupuesto nuevo (un objeto JSON) o varios (un array de
-              objetos). Se indexan de uno en uno y verás el progreso. Un
-              documento que el servicio ya tenga se salta, no se duplica.
+              Pega un presupuesto nuevo (un objeto JSON) o varios (un array de objetos). Se indexan
+              de uno en uno y verás el progreso. Un documento que el servicio ya tenga se salta, no
+              se duplica.
             </Typography.Text>
 
             <SelectField

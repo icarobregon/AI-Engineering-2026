@@ -1,18 +1,6 @@
 "use client";
 
-import {
-  Alert,
-  Card,
-  Col,
-  Empty,
-  Flex,
-  Input,
-  Row,
-  Space,
-  Tag,
-  theme,
-  Typography,
-} from "antd";
+import { Alert, Card, Col, Empty, Flex, Input, Row, Space, Tag, theme, Typography } from "antd";
 
 import type { GraphDiagram } from "@/lib/estimator/contracts";
 import { graphNodes } from "@/lib/graph-nodes";
@@ -34,8 +22,8 @@ export function GraphView({
           Flujo multi-agente
         </Typography.Title>
         <Typography.Text type="secondary">
-          El grafo que orquesta la estimación supervisada, leído del grafo ya
-          compilado. Es de sólo lectura: esta pantalla no ejecuta nada.
+          El grafo que orquesta la estimación supervisada, leído del grafo ya compilado. Es de sólo
+          lectura: esta pantalla no ejecuta nada.
         </Typography.Text>
       </Space>
 
@@ -43,10 +31,7 @@ export function GraphView({
 
       {!diagram ? (
         <Card>
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="Sin topología que enseñar."
-          />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Sin topología que enseñar." />
         </Card>
       ) : (
         <>
@@ -56,15 +41,12 @@ export function GraphView({
             message="Este dibujo no puede desincronizarse del código"
             description={
               <>
-                Sale de{" "}
-                <Typography.Text code>graph.get_graph()</Typography.Text> sobre
-                el grafo compilado, no de una constante escrita a mano. Y desde
-                la Sesión 14 las aristas ya no se declaran: viven dentro de cada{" "}
-                <Typography.Text code>Command</Typography.Text>, y LangGraph las
-                reconstruye resolviendo la anotación de cada nodo. Si esa
-                anotación dejara de resolver, las aristas desaparecerían de aquí
-                — que es la señal más temprana de un fallo que por lo demás es
-                mudo.
+                Sale de <Typography.Text code>graph.get_graph()</Typography.Text> sobre el grafo
+                compilado, no de una constante escrita a mano. Y desde la Sesión 14 las aristas ya
+                no se declaran: viven dentro de cada <Typography.Text code>Command</Typography.Text>
+                , y LangGraph las reconstruye resolviendo la anotación de cada nodo. Si esa
+                anotación dejara de resolver, las aristas desaparecerían de aquí — que es la señal
+                más temprana de un fallo que por lo demás es mudo.
               </>
             }
           />
@@ -78,15 +60,11 @@ export function GraphView({
             }
           >
             <NodoDetalle nombre={diagram.entry_point} />
-            <Typography.Paragraph
-              type="secondary"
-              style={{ marginTop: 12, marginBottom: 0 }}
-            >
-              START apunta aquí, y todo lo demás vuelve aquí. No hay topología
-              lineal: el camino se elige en tiempo de ejecución y sólo existe
-              después, en <Typography.Text code>routing_trail</Typography.Text>{" "}
-              — que es lo que pinta la traza de cada ejecución en la pantalla
-              del supervisor.
+            <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
+              START apunta aquí, y todo lo demás vuelve aquí. No hay topología lineal: el camino se
+              elige en tiempo de ejecución y sólo existe después, en{" "}
+              <Typography.Text code>routing_trail</Typography.Text> — que es lo que pinta la traza
+              de cada ejecución en la pantalla del supervisor.
             </Typography.Paragraph>
           </Card>
 
@@ -105,9 +83,9 @@ export function GraphView({
           <CollapseCard title="Origen en Mermaid">
             <Space direction="vertical" size={8} style={{ width: "100%" }}>
               <Typography.Text type="secondary">
-                Pégalo en cualquier visor de Mermaid. Se sirve tal cual en vez
-                de dibujarlo aquí: la librería pesa 124 MB descomprimidos, que
-                es mucho contenedor por un diagrama de siete nodos.
+                Pégalo en cualquier visor de Mermaid. Se sirve tal cual en vez de dibujarlo aquí: la
+                librería pesa 124 MB descomprimidos, que es mucho contenedor por un diagrama de
+                siete nodos.
               </Typography.Text>
               <Input.TextArea
                 readOnly
@@ -138,9 +116,7 @@ function NodoDetalle({ nombre }: { nombre: string }) {
           {nombre}
         </Typography.Text>
         {rol?.herramientas && (
-          <Tag color={rol.herramientas === "ninguna" ? "default" : "blue"}>
-            {rol.herramientas}
-          </Tag>
+          <Tag color={rol.herramientas === "ninguna" ? "default" : "blue"}>{rol.herramientas}</Tag>
         )}
       </Space>
       {rol ? (

@@ -133,15 +133,16 @@ describe("responseFromState", () => {
     ...extra,
   });
 
-  const estado = (values: Record<string, unknown> = {}): GraphState => ({
-    estimation_id: "EST-1",
-    next: [],
-    values: {
-      routing_trail: [],
-      errors: [],
-      ...values,
-    },
-  }) as GraphState;
+  const estado = (values: Record<string, unknown> = {}): GraphState =>
+    ({
+      estimation_id: "EST-1",
+      next: [],
+      values: {
+        routing_trail: [],
+        errors: [],
+        ...values,
+      },
+    }) as GraphState;
 
   it("consolida la estimación y el estado final del checkpoint", () => {
     const respuesta = responseFromState(

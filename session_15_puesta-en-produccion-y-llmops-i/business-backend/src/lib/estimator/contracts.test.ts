@@ -21,9 +21,7 @@ import {
 describe("corpusStatsSchema", () => {
   it("acepta la foto del corpus tal y como la emite el servicio", () => {
     const real = {
-      collections: [
-        { collection: "budget", documents: 77, chunks: 1603, hnsw_indexed: false },
-      ],
+      collections: [{ collection: "budget", documents: 77, chunks: 1603, hnsw_indexed: false }],
       total_documents: 77,
       total_chunks: 1603,
     };

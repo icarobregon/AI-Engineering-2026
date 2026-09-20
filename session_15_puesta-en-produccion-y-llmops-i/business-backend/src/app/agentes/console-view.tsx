@@ -58,18 +58,14 @@ function opcionPerfil(
   nombre: string,
   perfil: Pick<Profile, "model" | "reasoningEffort" | "isDefault"> | null,
 ) {
-  const ajustes = perfil
-    ? [perfil.model, perfil.reasoningEffort].filter(Boolean).join(" · ")
-    : "";
+  const ajustes = perfil ? [perfil.model, perfil.reasoningEffort].filter(Boolean).join(" · ") : "";
   return {
     value,
     label: (
       <Flex justify="space-between" align="center" gap={12}>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
           {nombre}
-          {perfil?.isDefault && (
-            <Typography.Text type="secondary"> · por defecto</Typography.Text>
-          )}
+          {perfil?.isDefault && <Typography.Text type="secondary"> · por defecto</Typography.Text>}
         </span>
         <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
           {/* Un perfil sin ajustes y «sin perfil» acaban en el mismo sitio —todo
@@ -192,8 +188,8 @@ export function ConsoleView({
             <Space size="large">
               <LaunchButton suficiente={largo >= MIN} />
               <Typography.Text type="secondary">
-                El bucle encadena varias llamadas a un modelo de razonamiento: tarda minutos.
-                Corre en segundo plano y la página del detalle se actualiza sola.
+                El bucle encadena varias llamadas a un modelo de razonamiento: tarda minutos. Corre
+                en segundo plano y la página del detalle se actualiza sola.
               </Typography.Text>
             </Space>
           </Space>

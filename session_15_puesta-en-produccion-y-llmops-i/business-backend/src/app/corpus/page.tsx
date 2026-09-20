@@ -18,9 +18,7 @@ export default async function CorpusPage() {
     stats = await getCorpusStats();
   } catch (error) {
     statsError =
-      error instanceof EstimatorError
-        ? error.userMessage
-        : "No se pudo leer el estado del corpus.";
+      error instanceof EstimatorError ? error.userMessage : "No se pudo leer el estado del corpus.";
   }
 
   const runs = await prisma.indexRun.findMany({

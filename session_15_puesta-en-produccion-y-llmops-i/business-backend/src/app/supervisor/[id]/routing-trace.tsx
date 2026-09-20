@@ -44,18 +44,15 @@ export function RoutingTrace({ state }: { state: GraphState }) {
         title="Enrutado del supervisor"
         extra={
           state.values.routing_steps != null && (
-            <Typography.Text type="secondary">
-              {state.values.routing_steps} pasos
-            </Typography.Text>
+            <Typography.Text type="secondary">{state.values.routing_steps} pasos</Typography.Text>
           )
         }
         styles={{ body: { padding: 0 } }}
       >
         <div style={{ padding: "12px 16px 0" }}>
           <Typography.Text type="secondary">
-            Quién decidió cada salto: <Tag color="blue">regla</Tag> una
-            precondición, resuelta en código · <Tag color="purple">modelo</Tag>{" "}
-            la única pregunta que este dominio delega ·{" "}
+            Quién decidió cada salto: <Tag color="blue">regla</Tag> una precondición, resuelta en
+            código · <Tag color="purple">modelo</Tag> la única pregunta que este dominio delega ·{" "}
             <Tag color="red">límite</Tag> se agotó el presupuesto de pasos.
           </Typography.Text>
         </div>
@@ -76,9 +73,7 @@ export function RoutingTrace({ state }: { state: GraphState }) {
               title: "Agente",
               dataIndex: "next_agent",
               width: 220,
-              render: (value: string) => (
-                <Typography.Text code>{value}</Typography.Text>
-              ),
+              render: (value: string) => <Typography.Text code>{value}</Typography.Text>,
             },
             {
               title: "Origen",
@@ -87,10 +82,7 @@ export function RoutingTrace({ state }: { state: GraphState }) {
               render: (_, hop) => {
                 const source = hopSource(hop.reason);
                 return (
-                  <Tag
-                    color={sourceTag[source].color}
-                    title={sourceTag[source].title}
-                  >
+                  <Tag color={sourceTag[source].color} title={sourceTag[source].title}>
                     {source === "limite" ? "límite" : source}
                   </Tag>
                 );
@@ -114,9 +106,8 @@ export function RoutingTrace({ state }: { state: GraphState }) {
                 renderItem={(item) => <List.Item>{item}</List.Item>}
               />
               <Typography.Text type="secondary">
-                El servicio IA no expone una auditoría estructurada: registra
-                las acciones en sus logs y sólo el texto de la denegación llega
-                hasta aquí.
+                El servicio IA no expone una auditoría estructurada: registra las acciones en sus
+                logs y sólo el texto de la denegación llega hasta aquí.
               </Typography.Text>
             </>
           }

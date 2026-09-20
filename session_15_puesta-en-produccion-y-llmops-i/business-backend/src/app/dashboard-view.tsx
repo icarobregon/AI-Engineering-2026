@@ -80,7 +80,11 @@ export function DashboardView({
                 estimación no es fiable.
               </Typography.Paragraph>
               <Typography.Text>
-                <Typography.Text strong style={{ fontSize: 24 }} type={awaiting > 0 ? "warning" : undefined}>
+                <Typography.Text
+                  strong
+                  style={{ fontSize: 24 }}
+                  type={awaiting > 0 ? "warning" : undefined}
+                >
                   {awaiting}
                 </Typography.Text>{" "}
                 esperando revisión
@@ -120,8 +124,7 @@ export function DashboardView({
               style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
             >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                Estimación a varios turnos, con memoria, adjuntos y el modo
-                Actor-Critic-Boss.
+                Estimación a varios turnos, con memoria, adjuntos y el modo Actor-Critic-Boss.
               </Typography.Paragraph>
               <Link href="/chat">
                 <Button>Abrir</Button>
@@ -145,8 +148,8 @@ export function DashboardView({
               style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
             >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                Trocea el mismo corpus con ocho estrategias y compara coste, tamaño y qué
-                recupera cada una.
+                Trocea el mismo corpus con ocho estrategias y compara coste, tamaño y qué recupera
+                cada una.
               </Typography.Paragraph>
               <Link href="/lab/chunking">
                 <Button>Abrir</Button>
@@ -220,8 +223,8 @@ export function DashboardView({
               style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
             >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                De una transcripción a una estimación fundamentada, en cinco pasos y con una
-                persona revisando entre medias.
+                De una transcripción a una estimación fundamentada, en cinco pasos y con una persona
+                revisando entre medias.
               </Typography.Paragraph>
               <Link href="/asistente">
                 <Button>Abrir</Button>

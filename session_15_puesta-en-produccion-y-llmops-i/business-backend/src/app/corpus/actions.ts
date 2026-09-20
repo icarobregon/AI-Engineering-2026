@@ -79,10 +79,7 @@ async function procesarLote(runId: string, documentos: unknown[], chunkType: Chu
   });
 }
 
-export async function startIndexRun(
-  _previous: FormState,
-  formData: FormData,
-): Promise<FormState> {
+export async function startIndexRun(_previous: FormState, formData: FormData): Promise<FormState> {
   const raw = String(formData.get("documents") ?? "").trim();
   const rawChunkType = String(formData.get("chunk_type") ?? "");
   const chunkType = (chunkTypes as readonly string[]).includes(rawChunkType)
@@ -138,8 +135,7 @@ export async function pollIndexRun(runId: string) {
   const terminado = run.status === "completed" || run.status === "failed";
   // Un reinicio del contenedor a mitad de lote deja la fila en `running` sin
   // nadie que la mueva. Decirlo es mejor que sondear para siempre.
-  const colgado =
-    !terminado && Date.now() - run.updatedAt.getTime() > SIN_SEÑALES_MS;
+  const colgado = !terminado && Date.now() - run.updatedAt.getTime() > SIN_SEÑALES_MS;
 
   if (terminado) revalidatePath(`/corpus/${runId}`);
 

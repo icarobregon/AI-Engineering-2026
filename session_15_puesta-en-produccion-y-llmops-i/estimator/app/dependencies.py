@@ -148,6 +148,17 @@ def get_rag_ingest_service() -> RagIngestService | None:
 
 
 @lru_cache
+def get_corpus_session_factory():
+    """Fábrica de sesiones para las consultas de SÓLO LECTURA del corpus.
+
+    Cacheada como el resto de proveedores de este módulo, y por el mismo motivo:
+    ``get_async_session_factory()`` crea un engine nuevo en cada llamada, así que
+    usarla directamente como dependencia de FastAPI abriría un pool por petición.
+    """
+    return get_async_session_factory()
+
+
+@lru_cache
 def get_semantic_retriever() -> SemanticRetriever | None:
     """Query-side counterpart of the ingest service. Same ``None`` contract."""
     embedder = get_embedder()

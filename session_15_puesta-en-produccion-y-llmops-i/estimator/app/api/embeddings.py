@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from app.api.security import require_estimate_key
 from app.dependencies import (
     ALL_STRATEGIES,
+    get_corpus_session_factory,
     build_chunkers,
     get_embedder,
     get_rag_ingest_service,
@@ -24,7 +25,13 @@ from app.generation.rag.analysis.comparison import (
 )
 from app.generation.rag.embedding.embedder import OpenAIEmbedder
 from app.generation.rag.ingest_service import DuplicateDocumentError, RagIngestService
-from app.generation.rag.schemas import IngestRequest, IngestResponse
+from app.generation.rag.schemas import (
+    CollectionStatView,
+    CorpusStatsResponse,
+    IngestRequest,
+    IngestResponse,
+)
+from app.generation.rag.store import corpus_stats
 
 log = structlog.get_logger()
 
@@ -130,3 +137,42 @@ def compare(
         raise HTTPException(status_code=500, detail="Failed to run chunking comparison.") from exc
 
     return CompareResponse(stats_per_strategy=stats, queries_per_strategy=queries)
+
+
+@router.get("/index/stats", response_model=CorpusStatsResponse)
+async def index_stats(
+    session_factory=Depends(get_corpus_session_factory),
+) -> CorpusStatsResponse:
+    """Foto del corpus: documentos y chunks por colección, y si hay índice HNSW.
+
+    Es de sólo lectura y barata (cinco COUNT y una consulta a ``pg_indexes``), y
+    existe para que un cliente pueda enseñar el corpus antes y después de una
+    ampliación. Ninguna de las otras rutas sabe contar: la de ingesta responde
+    por documento y la de búsqueda responde por consulta.
+    """
+    try:
+        async with session_factory() as session:
+            stats = await corpus_stats.collect(session)
+    except Exception as exc:  # noqa: BLE001 — cualquier fallo de la BBDD es 503
+        # Sin esto, un Postgres caído sale como excepción cruda y el cliente ve un
+        # 500 sin forma. 503 es lo que el resto del servicio usa para «la
+        # dependencia no está», y lo que la taxonomía de errores del BFF traduce
+        # a un mensaje accionable.
+        log.warning("corpus_stats_unavailable", error=str(exc)[:200])
+        raise HTTPException(
+            status_code=503, detail="Corpus store unavailable"
+        ) from exc
+
+    return CorpusStatsResponse(
+        collections=[
+            CollectionStatView(
+                collection=c.collection,
+                documents=c.documents,
+                chunks=c.chunks,
+                hnsw_indexed=c.hnsw_indexed,
+            )
+            for c in stats.collections
+        ],
+        total_documents=stats.total_documents,
+        total_chunks=stats.total_chunks,
+    )

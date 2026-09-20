@@ -580,3 +580,23 @@ class TaskHoursResult(BaseModel):
     """Per-task hours estimates, in the order the tasks were submitted."""
 
     tasks: list[TaskHoursEstimate] = Field(default_factory=list)
+
+
+class CollectionStatView(BaseModel):
+    """Una colección del corpus: cuánto tiene y si su búsqueda es barata."""
+
+    collection: str
+    documents: int = Field(ge=0)
+    chunks: int = Field(ge=0)
+    hnsw_indexed: bool = Field(
+        description="Si la tabla tiene índice HNSW. Sin él, la búsqueda vectorial "
+        "es un sequential scan: funciona con mil chunks y no con cien mil."
+    )
+
+
+class CorpusStatsResponse(BaseModel):
+    """Respuesta de ``GET /embeddings/index/stats``: la foto del corpus."""
+
+    collections: list[CollectionStatView]
+    total_documents: int = Field(ge=0)
+    total_chunks: int = Field(ge=0)

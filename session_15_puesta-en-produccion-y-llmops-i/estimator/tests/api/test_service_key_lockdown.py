@@ -43,6 +43,7 @@ CERRADAS = [
     ("POST", "/sessions/cualquiera/estimate-acb"),
     ("POST", "/embeddings/ingest"),
     ("POST", "/embeddings/compare"),
+    ("GET", "/embeddings/index/stats"),
     ("GET", "/api/v1/config/models"),
     ("PUT", "/api/v1/config/models"),
     ("GET", "/api/v1/config/retrieval"),

@@ -1,0 +1,14 @@
+# node_modules, .next y src/generated no hacen falta aquí: Prettier 3 lee el
+# .gitignore de serie y allí ya están. Esto es sólo para lo que git sí versiona
+# y Prettier no debe tocar.
+
+# Lo escribe el gestor de paquetes.
+pnpm-lock.yaml
+
+# Prosa, no código. Reflujarla a 100 columnas convierte cualquier retoque de la
+# documentación en un diff ilegible.
+README.md
+
+# Corpus de ejemplo: es un dato de entrada, y su formato es el que traía.
+# Reformatearlo ensucia el diff sin cambiar lo que dice.
+src/lib/data/budgets-sample.json

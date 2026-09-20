@@ -44,7 +44,9 @@ desde una subcarpeta crearía un segundo corpus vacío sin avisar.
 ## Las cinco comprobaciones
 
 Una ejecución real de las cinco, con su salida, está capturada en
-[`evidencia-cinco-comprobaciones.txt`](evidencia-cinco-comprobaciones.txt). Lo que
+[`evidencia-cinco-comprobaciones.txt`](evidencia-cinco-comprobaciones.txt). Es una
+foto fechada —2026-09-20, commit `30790d2`— y no se reescribe: su comprobación 2
+recorre seis rutas porque ésas eran las que había entonces, no porque falten. Lo que
 sigue es cómo reproducirla.
 
 ### 1. Los cuatro servicios arriba y sanos
@@ -65,12 +67,17 @@ curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:3000
 ```
 
 Debe responder `200`. En el navegador, http://localhost:3000 muestra el panel, y
-desde ahí se llega a las cinco pantallas: Estimación (`/estimations`),
-Conversación (`/chat`), Supervisor (`/supervisor`), Laboratorio (`/lab/chunking`)
-y Ajustes (`/ajustes`). Las cinco deben devolver `200`:
+desde ahí se llega a las **nueve** pantallas: las ocho del menú —Estimación
+(`/estimations`), Supervisor (`/supervisor`), Conversación (`/chat`), Laboratorio
+(`/lab/chunking`), Corpus (`/corpus`), Agentes (`/agentes`), Asistente
+(`/asistente`) y Grafo (`/grafo`)— más Ajustes (`/ajustes`), que desde la S15 no
+es una entrada de menú sino la rueda dentada de la cabecera.
+
+El orden es el del menú y el de las tarjetas del panel, que son el mismo a
+propósito. Las diez rutas deben devolver `200`:
 
 ```bash
-for r in / /estimations /chat /supervisor /lab/chunking /ajustes; do
+for r in / /estimations /supervisor /chat /lab/chunking /corpus /agentes /asistente /grafo /ajustes; do
   printf '%-16s %s\n' "$r" "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000$r)"
 done
 ```

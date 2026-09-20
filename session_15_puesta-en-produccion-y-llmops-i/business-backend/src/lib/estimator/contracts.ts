@@ -154,6 +154,14 @@ export const graphStateSchema = z.object({
         .nullish(),
       confidence: z.number().nullish(),
       errors: z.array(z.string()).default([]),
+      /**
+       * Los dos que consolidan la fila cuando un run arrancado en segundo plano
+       * termina. No estaban declarados porque hasta la S15 el resultado llegaba
+       * en la respuesta del arranque; con el arranque no bloqueante ya no hay
+       * tal respuesta y este verbo es el que lo trae.
+       */
+      estimate: draftEstimateSchema.nullish(),
+      status: z.enum(graphStatuses).nullish(),
     })
     .loose(),
 });
@@ -609,3 +617,70 @@ export const agentRunResponseSchema = z.object({
   trace: agentTraceSchema,
 });
 export type AgentRunResponse = z.infer<typeof agentRunResponseSchema>;
+
+// --- Sesión 15: arranque no bloqueante, progreso y propuesta -------------------
+
+/**
+ * `POST /v1/estimate/graph/start` (202). No trae la estimación a propósito: su
+ * respuesta llega antes de que exista.
+ *
+ * `status` repite los cuatro de `graphStatuses` y añade `running`, así que el
+ * enum se construye desde aquellos en vez de reescribirlos: una lista copiada a
+ * mano es una lista que se queda atrás.
+ */
+export const graphStartResponseSchema = z.object({
+  estimation_id: z.string(),
+  status: z.enum([...graphStatuses, "running"]),
+  /** Falso cuando el hilo ya estaba terminado o pausado y no se relanzó nada. */
+  started: z.boolean(),
+});
+export type GraphStartResponse = z.infer<typeof graphStartResponseSchema>;
+
+/** Un superstep del checkpointer: qué nodo corrió y cuánto tardó. */
+export const runStepSchema = z.object({
+  node: z.string(),
+  started_at: z.string(),
+  finished_at: z.string().nullable(),
+  /** Nulo, nunca cero: un cero se lee como un nodo instantáneo. */
+  seconds: z.number().nullable(),
+});
+export type RunStep = z.infer<typeof runStepSchema>;
+
+export const runProgressSchema = z.object({
+  estimation_id: z.string(),
+  status: z.enum(["running", "awaiting_human_review", "failed", "finished"]),
+  /** El nodo en vuelo. Sólo lo hay mientras `status` es `running`. */
+  current: z.string().nullable(),
+  /** El motivo de un run muerto. `null` en todos los demás casos. */
+  failure: z.string().nullable(),
+  steps: z.array(runStepSchema).default([]),
+  counts: z.object({
+    requirements: z.number().int(),
+    components: z.number().int(),
+    budget_matches: z.number().int(),
+    routing_steps: z.number().int(),
+    has_estimate: z.boolean(),
+    confidence: z.number().nullable(),
+  }),
+  errors: z.array(z.string()).default([]),
+  routing_trail: z.array(routingHopSchema).default([]),
+  last_activity_at: z.string().nullable(),
+  review_payload: reviewPayloadSchema.nullish(),
+});
+export type RunProgress = z.infer<typeof runProgressSchema>;
+
+/**
+ * `POST /v1/estimate/graph/{id}/proposal`.
+ *
+ * Sin total propio, y es deliberado en las dos capas: las horas son de
+ * `calculate_estimate` y viajan en la estimación. Una segunda copia aquí es un
+ * número que puede acabar contradiciendo al que describe.
+ */
+export const commercialProposalSchema = z.object({
+  title: z.string(),
+  executive_summary: z.string(),
+  scope: z.array(z.string()).default([]),
+  assumptions: z.array(z.string()).default([]),
+  body_markdown: z.string(),
+});
+export type CommercialProposal = z.infer<typeof commercialProposalSchema>;

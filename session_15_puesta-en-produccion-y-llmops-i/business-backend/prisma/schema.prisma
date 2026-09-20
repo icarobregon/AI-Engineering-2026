@@ -64,6 +64,12 @@ model SupervisorRun {
   errors        Json   @default("[]") @db.JsonB
   confidence    Float?
 
+  /// The commercial proposal, as the AI service returned it. Nullable because
+  /// most runs never get one: it is drafted on request, after the estimate is
+  /// settled. Stored whole rather than split into columns — the AI service owns
+  /// its shape, and the one part this app adds (the PDF) reads all of it.
+  proposal Json? @db.JsonB
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

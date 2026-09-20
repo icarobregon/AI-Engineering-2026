@@ -198,6 +198,24 @@ salto —regla, modelo o límite—, porque el supervisor es híbrido: cuatro
 precondiciones son `if`s de Python y al modelo se le hace exactamente una
 pregunta. Un run que no distingue quién decidió qué no se puede auditar.
 
+Desde la S15 el arranque **no bloquea**: la acción llama a
+`POST /v1/estimate/graph/start`, que contesta 202, y lleva a la pantalla de la
+ejecución mientras el grafo corre por detrás. Antes la Server Action se quedaba
+esperando los minutos que durase el sistema multiagente, lo que convertía el
+timeout de este cliente en un techo para la estimación y no dejaba sitio para
+enseñar nada mientras tanto. Ahora la pantalla **sondea** y pinta una línea
+temporal por nodo, con duraciones reales: salen del *historial* del checkpointer,
+que sella cada superstep, porque el estado del grafo no lleva ni una fecha. Son
+**finalizaciones**, no despachos —`routing_trail` escribe su entrada antes de que
+el agente corra, así que un feed montado sobre ella enseña al agente como
+terminado todo el rato que está trabajando—.
+
+Y cuando la estimación está cerrada, la pantalla ofrece **redactar la propuesta
+comercial** (`POST /v1/estimate/graph/{id}/proposal`) y **descargarla en PDF**
+(`/supervisor/<id>/proposal.pdf`). Redactar no re-ejecuta el grafo: las horas son
+las que hay, así que volver a redactar cuesta una generación y no una estimación
+entera.
+
 **Ajustes** (`/ajustes`). Los siete modelos que el servicio IA deja cambiar en
 caliente, cada uno con qué hace y qué se rompe si se toca, más su estado (por
 defecto u override) y el valor activo. El de embeddings aparece en sólo lectura y
@@ -223,6 +241,23 @@ servicio no puede acabar en un bundle del navegador ni por descuido.
 `X-API-Key` salvo que la llamada pida `token: "none"`, y hoy la única que lo pide
 es `/health`. Es al revés de como estaba: olvidarse del token ahora es imposible
 por omisión, mientras que antes bastaba con no acordarse de ponerlo.
+
+**El sondeo es una Server Action, no un GET.** Escribe en la base de datos —
+consolida la fila cuando el run termina— y un GET que escribe es justo la forma
+que no convenía copiar de la aplicación de referencia, donde el endpoint de
+progreso persiste el estado como efecto colateral y cualquier prefetch muta una
+fila. Lo demás que ese poller no hace y éste sí: **espera creciente** (2 s → 10 s,
+el suyo va a 1,5 s fijos para siempre), **se rinde** tras cinco errores seguidos
+en lugar de machacar un servicio que ya contestó mal cinco veces, y **detecta el
+atasco** — si el checkpoint no se mueve en un cuarto de hora, el run no está
+lento, está muerto de una forma que nadie registró.
+
+**Un parser de markdown, dos pintores.** La propuesta se guarda en markdown y se
+lee en dos sitios: la pantalla y el PDF. La aplicación de referencia la enseña
+cruda en la web y la interpreta en el PDF con tres expresiones regulares escritas
+a mano; son dos lecturas del mismo texto y divergen en cuanto el modelo escribe
+algo que una no contempla. Aquí `lib/markdown.ts` produce los bloques una vez y
+cada pintor los recorre.
 
 **Contratos parseados, no casteados.** El servicio IA devuelve el estimate como
 un `dict` sin tipar. Validarlo con zod al leerlo convierte un cambio silencioso
@@ -277,6 +312,10 @@ una referencia de cliente, y el error que sale (`Element type is invalid… got:
 undefined`) no señala el sitio. Por eso cada ruta se parte en dos: un `page.tsx`
 de servidor que sólo consulta datos y un componente cliente que pinta.
 
+**El PDF se compone en el BFF, no en el servicio IA.** Aquí no se estima ni se
+redacta: se valida, se llama, se persiste y se pinta, y renderizar un documento es
+pintar. El texto llega ya escrito.
+
 ## Cómo se prueba
 
 ```bash
@@ -299,6 +338,25 @@ porque un módulo `"use server"` sólo puede exportar funciones async, así que 
 
 Las devDependencies no llegan a la imagen: el runtime se construye desde la salida
 `standalone` de Next.
+
+**pdfkit y las fuentes.** Las fuentes estándar de PDF codifican en WinAnsi
+(CP1252), que cubre entero el castellano y también la tipografía que escribe un
+modelo: comillas curvas, raya, semirraya, puntos suspensivos, viñeta y el euro.
+No hay que incrustar ninguna fuente. Lo que no cubre son flechas, símbolos
+matemáticos y emoji — y ahí está la trampa: **pdfkit no lanza ninguna excepción
+con ellos, escribe un glifo equivocado**, que es un fallo silencioso dentro de un
+documento que se manda a un cliente. Por eso `sanearParaPdf` traduce lo traducible
+y descarta el resto.
+
+Dos cosas más sobre pdfkit y el build `standalone`. Lee sus métricas
+(`js/data/*.afm`) del disco en tiempo de ejecución, así que va en
+`serverExternalPackages` —empaquetarlo reescribiría esas lecturas contra rutas que
+no existen— y además hay que nombrar los `.afm` en `outputFileTracingIncludes`,
+porque el trazador sigue los `import`, no los `readFileSync`. Comprobado listando
+el árbol de `.next/standalone` después de construir. Y `doc.text(texto, x, y)`
+**deja la X del cursor donde escribió**: tras pintar una columna de cifras a la
+derecha hay que devolverla al margen, o el resto del documento se dibuja en una
+franja estrecha contra el borde.
 
 ## Limitaciones conocidas
 

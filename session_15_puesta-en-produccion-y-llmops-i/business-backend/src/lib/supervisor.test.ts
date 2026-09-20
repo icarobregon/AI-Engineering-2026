@@ -10,8 +10,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { GraphEstimateResponse } from "./estimator/contracts";
-import { AWAITING_REVIEW, runUpdateFrom, statusLabel } from "./supervisor";
+import type { GraphEstimateResponse, GraphState, RunProgress } from "./estimator/contracts";
+import { AWAITING_REVIEW, responseFromState, runUpdateFrom, statusLabel } from "./supervisor";
 
 const INFORME = {
   confidence: 0.42,
@@ -83,5 +83,97 @@ describe("statusLabel", () => {
     // Inventarse una traducción escondería que el contrato se movió.
     expect(statusLabel("paused_for_aliens").text).toBe("paused_for_aliens");
     expect(statusLabel(null).text).toBe("En curso");
+  });
+});
+
+describe("responseFromState", () => {
+  const progreso = (extra: Partial<RunProgress> = {}): RunProgress => ({
+    estimation_id: "EST-1",
+    status: "finished",
+    current: null,
+    failure: null,
+    steps: [],
+    counts: {
+      requirements: 0,
+      components: 0,
+      budget_matches: 0,
+      routing_steps: 0,
+      has_estimate: true,
+      confidence: null,
+    },
+    errors: [],
+    routing_trail: [],
+    last_activity_at: "2026-09-20T10:00:00+00:00",
+    review_payload: null,
+    ...extra,
+  });
+
+  const estado = (values: Record<string, unknown> = {}): GraphState => ({
+    estimation_id: "EST-1",
+    next: [],
+    values: {
+      routing_trail: [],
+      errors: [],
+      ...values,
+    },
+  }) as GraphState;
+
+  it("consolida la estimación y el estado final del checkpoint", () => {
+    const respuesta = responseFromState(
+      estado({
+        status: "validated",
+        estimate: { project: "RUTA", components: [], total_hours: 160, notes: "" },
+      }),
+      progreso(),
+    );
+
+    expect(respuesta.status).toBe("validated");
+    expect(respuesta.estimate?.total_hours).toBe(160);
+    expect(respuesta.estimation_id).toBe("EST-1");
+  });
+
+  it("en la pausa manda el sondeo, no el checkpoint", () => {
+    // `status` lo escribe sólo `finalize`, así que un run parado ante una
+    // persona todavía no lo tiene: leerlo del checkpoint daría «needs_review»
+    // y la fila saldría de la bandeja sin que nadie decidiera nada.
+    const respuesta = responseFromState(
+      estado({ estimate: { project: "RUTA", components: [], total_hours: 160, notes: "" } }),
+      progreso({ status: "awaiting_human_review", review_payload: INFORME }),
+    );
+
+    expect(respuesta.status).toBe(AWAITING_REVIEW);
+    expect(respuesta.review_payload?.confidence).toBe(0.42);
+  });
+
+  it("un checkpoint sin status cae a needs_review, nunca a validated", () => {
+    // El sesgo correcto: un run del que no sabemos el desenlace es uno que
+    // alguien tiene que mirar.
+    expect(responseFromState(estado(), progreso()).status).toBe("needs_review");
+  });
+
+  it("los errores vienen del sondeo, que ya filtró el marcador interno", () => {
+    const respuesta = responseFromState(
+      estado({ errors: ["algo viejo"] }),
+      progreso({ errors: ["search_budgets(App móvil): RuntimeError"] }),
+    );
+
+    expect(respuesta.errors).toEqual(["search_budgets(App móvil): RuntimeError"]);
+  });
+
+  it("encaja con runUpdateFrom sin un segundo mapeo", () => {
+    // La razón de existir de esta función: que siga habiendo UNA sola
+    // correspondencia entre el contrato y la fila.
+    const fila = runUpdateFrom(
+      responseFromState(
+        estado({
+          status: "validated",
+          estimate: { project: "RUTA", components: [], total_hours: 160, notes: "" },
+        }),
+        progreso(),
+      ),
+    );
+
+    expect(fila.runState).toBe("completed");
+    expect(fila.status).toBe("validated");
   });
 });

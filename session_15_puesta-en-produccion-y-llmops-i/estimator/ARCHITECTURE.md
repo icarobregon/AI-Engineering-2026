@@ -42,7 +42,8 @@ app/
 │   ├── schemas/            #   EstimationRequest/Result/Response (contrato HTTP)
 │   ├── graph/              #   sistema multi-agente (LangGraph): state, supervisor, agents, hitl, build
 │   ├── security/           #   sandboxing de aplicación: grants (privilegio) + guard (argumentos) + audit
-│   └── estimation_service.py  # EstimationService — conductor del camino CAG/RAG/ACB
+│   ├── estimation_service.py  # EstimationService — conductor del camino CAG/RAG/ACB
+│   └── proposal.py            # write_proposal — conductor de la propuesta comercial (S15)
 │
 ├── generation/             # las 3 arquitecturas que componen + substrato conversacional
 │   ├── cag/                #   exact.py + semantic.py
@@ -73,6 +74,7 @@ De más-importado a menos. Cada capa **solo** puede importar de las que tiene po
 | `domain/schemas/*` | `config`, `foundation` | `generation`, `api` |
 | `generation/<x>/*` | `config`, `foundation`, `domain/schemas` | `api`, `dependencies`, **otro hermano de `generation`** |
 | `domain/estimation_service.py` (CONDUCTOR) | todos los hermanos de `generation` + `foundation` + `schemas` | `api`, `dependencies` |
+| `domain/proposal.py` (CONDUCTOR) | `foundation` + `schemas` + `domain/graph` | `api`, `dependencies`, `generation` |
 | `domain/security/*` | `config`, `foundation`, `domain/schemas` | `generation`, `api`, `dependencies`, `domain/graph` |
 | `domain/graph/*` (CONDUCTOR) | todos los hermanos de `generation` + `foundation` + `schemas` + `domain/security` | `api`, `dependencies` |
 | `ingestion/*` | `config`, `foundation`, `domain/schemas`, `generation/rag` | `api`, el conductor |
@@ -105,10 +107,17 @@ De más-importado a menos. Cada capa **solo** puede importar de las que tiene po
    por defecto. Tocar uno sin el otro es el error que esta separación invita a
    cometer.
 
-**Hay dos conductores, no uno.** `estimation_service.py` conduce el camino CAG/RAG/ACB de las
-Sesiones 4-11; `domain/graph/` conduce el sistema multi-agente de las Sesiones 13-14. Ocupan la
-misma capa y valen las mismas reglas: ninguno de los dos importa `dependencies`, y por eso los
-dos reciben sus colaboradores desde una factory que el composition root rellena.
+**Hay tres conductores, no uno.** `estimation_service.py` conduce el camino CAG/RAG/ACB de las
+Sesiones 4-11; `domain/graph/` conduce el sistema multi-agente de las Sesiones 13-14; `proposal.py`
+redacta la propuesta comercial a partir de un run ya terminado (S15). Ocupan la misma capa y valen
+las mismas reglas: ninguno importa `dependencies`, y por eso todos reciben sus colaboradores desde
+una factory que el composition root rellena.
+
+El tercero es deliberadamente un VERBO y no un nodo del grafo. El camino feliz ya gasta cinco de
+los ocho despachos de `GRAPH_MAX_ROUTING_STEPS`, así que un nodo competiría por ese presupuesto con
+el trabajo que produce la estimación, obligaría al supervisor a aprender un destino más y dejaría
+de haber un único terminal. Sobre el checkpoint terminado cuesta cero pasos de enrutado, no toca la
+topología y se puede volver a redactar sin volver a estimar.
 
 ## 4. El conductor
 

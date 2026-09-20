@@ -10,11 +10,17 @@ import "server-only";
 
 import { callEstimator } from "./client";
 import {
+  commercialProposalSchema,
   graphEstimateResponseSchema,
+  graphStartResponseSchema,
   graphStateSchema,
+  runProgressSchema,
+  type CommercialProposal,
   type GraphEstimateResponse,
+  type GraphStartResponse,
   type GraphState,
   type HumanDecision,
+  type RunProgress,
 } from "./contracts";
 
 export async function startSupervisedEstimation(
@@ -50,4 +56,49 @@ export async function getSupervisedRunState(estimationId: string): Promise<Graph
     { timeoutMs: 15_000 },
   );
   return graphStateSchema.parse(payload);
+}
+
+/**
+ * Sesión 15 — arrancar sin quedarse esperando.
+ *
+ * `startSupervisedEstimation` mantiene la petición abierta los minutos que dure
+ * el sistema multiagente. Ésta contesta 202 y deja el run corriendo por detrás,
+ * que es lo que permite sondear el avance y lo que evita que el timeout de
+ * lectura de este cliente sea un techo para la estimación.
+ */
+export async function launchSupervisedEstimation(
+  transcript: string,
+  estimationId: string,
+): Promise<GraphStartResponse> {
+  const payload = await callEstimator<unknown>("/v1/estimate/graph/start", {
+    method: "POST",
+    body: { transcript, estimation_id: estimationId },
+    // Corto a propósito: si el servicio no acepta el arranque en unos segundos,
+    // no lo va a aceptar. El trabajo largo ya no vive en esta llamada.
+    timeoutMs: 20_000,
+  });
+  return graphStartResponseSchema.parse(payload);
+}
+
+/** Qué ha pasado hasta ahora, nodo a nodo. Es el verbo que se llama en bucle. */
+export async function getSupervisedRunProgress(estimationId: string): Promise<RunProgress> {
+  const payload = await callEstimator<unknown>(
+    `/v1/estimate/graph/${encodeURIComponent(estimationId)}/progress`,
+    { timeoutMs: 15_000 },
+  );
+  return runProgressSchema.parse(payload);
+}
+
+/**
+ * Redacta (o vuelve a redactar) la propuesta comercial de un run terminado.
+ *
+ * No re-ejecuta el grafo, así que reintentarla cuesta una generación y no una
+ * estimación entera. El timeout es el largo: es una llamada a un modelo.
+ */
+export async function draftCommercialProposal(estimationId: string): Promise<CommercialProposal> {
+  const payload = await callEstimator<unknown>(
+    `/v1/estimate/graph/${encodeURIComponent(estimationId)}/proposal`,
+    { method: "POST", timeoutMs: 180_000 },
+  );
+  return commercialProposalSchema.parse(payload);
 }

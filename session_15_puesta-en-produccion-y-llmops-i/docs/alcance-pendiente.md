@@ -35,7 +35,7 @@ ajustes de modelo.
 | `rag/estimation_runs` | ✅ portada | ya existían |
 | `agents/graph_flow` | ✅ portada | hizo falta uno, trivial |
 | `agents/profiles` | ✅ portada | hizo falta exponer el agente |
-| `rag/graph_estimation_runs` | ❌ pendiente | falta trabajo en Python |
+| `rag/graph_estimation_runs` | ⚠️ parcial — sin las dos puertas | hizo falta trabajo en Python |
 
 La tabla está ordenada por coste creciente. La columna de endpoints dice lo que
 cuesta de verdad cada pieza, y conviene leerla con desconfianza: la de corpus

@@ -10,10 +10,12 @@
  * blindly would erase the reviewer's briefing the second time anyone reloaded
  * the page, and the run would sit in the inbox with nothing to decide on.
  */
-import type { GraphEstimateResponse } from "@/lib/estimator/contracts";
+import type { GraphEstimateResponse, GraphState, RunProgress } from "@/lib/estimator/contracts";
 import type { Prisma } from "@/generated/prisma/client";
 
 export const AWAITING_REVIEW = "awaiting_human_review";
+/** No es un estado del servicio IA: es el nuestro para un run que murió. */
+export const FAILED = "failed";
 
 type Current = {
   estimate?: Prisma.JsonValue | null;
@@ -40,6 +42,27 @@ export function runUpdateFrom(
   };
 }
 
+/**
+ * El resultado de un run arrancado en segundo plano, con la forma que ya sabe
+ * persistir `runUpdateFrom`.
+ *
+ * Existe para que siga habiendo UNA sola correspondencia entre el contrato y la
+ * fila. Desde la S15 el resultado puede llegar por dos caminos —la respuesta del
+ * arranque bloqueante, o el checkpoint leído después de sondear— y escribir un
+ * segundo mapeo es cómo la forma persistida empieza a divergir del contrato.
+ */
+export function responseFromState(state: GraphState, progress: RunProgress): GraphEstimateResponse {
+  return {
+    estimate: state.values.estimate ?? null,
+    // El sondeo manda sobre el checkpoint en la pausa: `status` sólo lo escribe
+    // `finalize`, así que un run parado ante una persona no lo tiene todavía.
+    status: progress.status === AWAITING_REVIEW ? AWAITING_REVIEW : (state.values.status ?? "needs_review"),
+    estimation_id: state.estimation_id,
+    errors: progress.errors,
+    review_payload: progress.review_payload ?? null,
+  };
+}
+
 /** How a run reads in the inbox. */
 export function statusLabel(status: string | null): { text: string; color: string } {
   switch (status) {
@@ -51,6 +74,8 @@ export function statusLabel(status: string | null): { text: string; color: strin
       return { text: "Necesita revisión", color: "orange" };
     case "routing_budget_exhausted":
       return { text: "Presupuesto de enrutado agotado", color: "red" };
+    case FAILED:
+      return { text: "Falló", color: "red" };
     default:
       return { text: status ?? "En curso", color: "default" };
   }

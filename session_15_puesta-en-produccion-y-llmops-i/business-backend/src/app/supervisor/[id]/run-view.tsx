@@ -17,16 +17,19 @@ import {
 } from "antd";
 
 import {
+  commercialProposalSchema,
   draftEstimateSchema,
   humanDecisionSchema,
   reviewPayloadSchema,
   type DraftEstimate,
 } from "@/lib/estimator/contracts";
-import { AWAITING_REVIEW, statusLabel } from "@/lib/supervisor";
+import { AWAITING_REVIEW, FAILED, statusLabel } from "@/lib/supervisor";
 import { hours, percent } from "@/lib/format";
 import type { GraphState } from "@/lib/estimator/contracts";
+import { ProposalCard } from "./proposal-card";
 import { ReviewForm } from "./review-form";
 import { RoutingTrace } from "./routing-trace";
+import { RunProgressPanel } from "./run-progress";
 
 
 function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
@@ -92,14 +95,21 @@ export type RunDetail = {
   reviewPayload: unknown;
   humanDecision: unknown;
   errors: unknown;
+  proposal: unknown;
 };
 
 export function RunView({ run, state }: { run: RunDetail; state: GraphState | null }) {
   const review = reviewPayloadSchema.safeParse(run.reviewPayload);
   const estimate = draftEstimateSchema.safeParse(run.estimate);
   const decision = humanDecisionSchema.safeParse(run.humanDecision);
+  const proposal = commercialProposalSchema.safeParse(run.proposal);
   const badge = statusLabel(run.status);
   const awaiting = run.status === AWAITING_REVIEW && run.runState === "paused";
+  // Mientras corre no hay nada que enseñar salvo el avance: el estado existe,
+  // pero a medias, y pintar media estimación como si fuera la final es peor que
+  // no pintarla.
+  const running = run.runState === "running";
+  const failed = run.runState === FAILED;
 
   return (
     <Flex vertical gap={24}>
@@ -122,7 +132,18 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
         </Space>
       </Flex>
 
-      {awaiting && review.success && (
+      {running && <RunProgressPanel id={run.id} />}
+
+      {failed && (
+        <Alert
+          type="error"
+          showIcon
+          message="La ejecución murió antes de terminar"
+          description="El estado quedó guardado en el punto en el que se paró. Arranca una estimación nueva con la misma transcripción: este identificador ya no puede reanudarse."
+        />
+      )}
+
+      {!running && awaiting && review.success && (
         <>
           <Alert
             type="warning"
@@ -206,7 +227,7 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
         </>
       )}
 
-      {!awaiting && (
+      {!running && !awaiting && (
         <>
           {run.errors != null && Array.isArray(run.errors) && run.errors.length > 0 && (
             <Alert
@@ -250,10 +271,16 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
               </Typography.Paragraph>
             </Card>
           )}
+
+          <ProposalCard
+            id={run.id}
+            proposal={proposal.success ? proposal.data : null}
+            canDraft={estimate.success && !failed}
+          />
         </>
       )}
 
-      {state && <RoutingTrace state={state} />}
+      {!running && state && <RoutingTrace state={state} />}
     </Flex>
   );
 }

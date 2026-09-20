@@ -5,10 +5,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
-import { humanDecisionSchema } from "@/lib/estimator/contracts";
+import { humanDecisionSchema, type RunProgress } from "@/lib/estimator/contracts";
 import { EstimatorError } from "@/lib/estimator/errors";
-import { resumeSupervisedEstimation, startSupervisedEstimation } from "@/lib/estimator/graph";
-import { runUpdateFrom } from "@/lib/supervisor";
+import {
+  draftCommercialProposal,
+  getSupervisedRunProgress,
+  getSupervisedRunState,
+  launchSupervisedEstimation,
+  resumeSupervisedEstimation,
+} from "@/lib/estimator/graph";
+import { FAILED, responseFromState, runUpdateFrom } from "@/lib/supervisor";
 
 export type FormState = { error: string | null };
 
@@ -30,17 +36,73 @@ export async function startRun(_previous: FormState, formData: FormData): Promis
     });
     id = run.id;
 
-    const response = await startSupervisedEstimation(transcript, estimationId);
-    await prisma.supervisorRun.update({
-      where: { id },
-      data: runUpdateFrom(response),
-    });
+    // Session 15: this returns as soon as the service accepts the work, not
+    // when the work is done. The row stays `running` and the screen polls it —
+    // which is what stopped this action's own timeout from being a ceiling on
+    // how long an estimation is allowed to take.
+    await launchSupervisedEstimation(transcript, estimationId);
   } catch (error) {
     if (error instanceof EstimatorError) return { error: error.userMessage };
     throw error;
   }
 
   redirect(`/supervisor/${id}`);
+}
+
+export type SyncResult = { progress: RunProgress | null; error: string | null };
+
+/**
+ * One poll: read the progress and, when the run has settled, fold the result
+ * into our row.
+ *
+ * A Server Action and not a route handler on purpose. This writes, and a GET
+ * that writes to the database is precisely the shape worth not copying from the
+ * reference implementation — there, the polling endpoint persists the run state
+ * as a side effect, so a crawler or a prefetch mutates a row.
+ */
+export async function syncRun(id: string): Promise<SyncResult> {
+  const run = await prisma.supervisorRun.findUnique({
+    where: { id },
+    select: { id: true, estimationId: true, estimate: true, reviewPayload: true, confidence: true },
+  });
+  if (!run) return { progress: null, error: "Esa ejecución ya no existe." };
+
+  let progress: RunProgress;
+  try {
+    progress = await getSupervisedRunProgress(run.estimationId);
+  } catch (error) {
+    // A failed poll is not a failed run: the network blinked, or the service is
+    // restarting while the graph's own state sits safely in the checkpointer.
+    // Reporting it as a dead run would be worse than saying nothing.
+    if (error instanceof EstimatorError) return { progress: null, error: error.userMessage };
+    throw error;
+  }
+
+  if (progress.status === "running") return { progress, error: null };
+
+  if (progress.status === "failed") {
+    await prisma.supervisorRun.update({
+      where: { id },
+      data: {
+        runState: FAILED,
+        status: FAILED,
+        errors: [...progress.errors, progress.failure ?? "La ejecución murió sin decir por qué."],
+      },
+    });
+    revalidatePath(`/supervisor/${id}`);
+    return { progress, error: null };
+  }
+
+  // Settled: the estimate and the final status live in the checkpoint, which is
+  // read with the verb meant for reading rather than carried on every poll.
+  const state = await getSupervisedRunState(run.estimationId);
+  await prisma.supervisorRun.update({
+    where: { id },
+    data: runUpdateFrom(responseFromState(state, progress), run),
+  });
+  revalidatePath(`/supervisor/${id}`);
+  revalidatePath("/supervisor");
+  return { progress, error: null };
 }
 
 export async function submitReview(_previous: FormState, formData: FormData): Promise<FormState> {
@@ -79,5 +141,37 @@ export async function submitReview(_previous: FormState, formData: FormData): Pr
 
   revalidatePath(`/supervisor/${id}`);
   revalidatePath("/supervisor");
+  return { error: null };
+}
+
+/**
+ * Draft — or redraft — the commercial proposal.
+ *
+ * Redrafting is a first-class outcome, not a retry: the numbers are settled and
+ * only the prose is regenerated, so a proposal whose tone missed costs one
+ * generation rather than a whole estimation. The previous draft is overwritten
+ * because nothing here reads an older one; keeping a history would be a feature
+ * nobody asked for.
+ */
+export async function generateProposal(
+  _previous: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const id = String(formData.get("id") ?? "");
+  const run = await prisma.supervisorRun.findUnique({
+    where: { id },
+    select: { id: true, estimationId: true },
+  });
+  if (!run) return { error: "Esa estimación ya no existe." };
+
+  try {
+    const proposal = await draftCommercialProposal(run.estimationId);
+    await prisma.supervisorRun.update({ where: { id }, data: { proposal } });
+  } catch (error) {
+    if (error instanceof EstimatorError) return { error: error.userMessage };
+    throw error;
+  }
+
+  revalidatePath(`/supervisor/${id}`);
   return { error: null };
 }

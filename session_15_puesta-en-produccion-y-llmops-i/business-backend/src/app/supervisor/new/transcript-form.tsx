@@ -10,7 +10,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="primary" htmlType="submit" loading={pending} size="large">
-      {pending ? "Coordinando agentes…" : "Estimar"}
+      {pending ? "Arrancando…" : "Estimar"}
     </Button>
   );
 }
@@ -42,7 +42,8 @@ export function TranscriptForm() {
           <Space align="center" size="middle">
             <SubmitButton />
             <Typography.Text type="secondary">
-              Puede tardar bastante: son varias llamadas al modelo encadenadas.
+              Arranca y te lleva a la pantalla de la ejecución. Tarda minutos, pero puedes
+              cerrar la pestaña: el progreso se guarda en cada paso.
             </Typography.Text>
           </Space>
         </Space>

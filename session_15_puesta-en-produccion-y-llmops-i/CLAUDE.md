@@ -16,6 +16,12 @@ There is ONE `docker-compose.yml`, at the root of the session folder, and it def
 
 Session guides for the instructor live in `guides/` (git-ignored). `guides/session-4-live-guide.md` is the most recent.
 
+What the business frontend still does NOT port from the reference app — and what
+each missing piece would cost, split by whether it needs new Python — is in
+[`docs/alcance-pendiente.md`](docs/alcance-pendiente.md). Read it before adding a
+screen: two of the pending ones need no AI-service work at all, and one of them
+would mean changing the graph, not the UI.
+
 ## Common commands (estimator)
 
 Dependency / runtime management uses **uv** (Astral) and Python 3.11.

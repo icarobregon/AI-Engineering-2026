@@ -1,0 +1,180 @@
+# Alcance pendiente del backend de negocio
+
+Qué quedó fuera al portar la aplicación de referencia, por qué, y qué costaría
+cada pieza. Escrito al cierre de la Sesión 15 para afrontarlo en la **Sesión 16**.
+
+## De dónde sale esta lista
+
+Del `config/routes.rb` de la aplicación Rails del profesor
+(`LIDR-academy/ai-engineering`, rama `session_15`), cruzado con los endpoints que
+el servicio IA expone hoy. No es una lista de ideas: es la diferencia entre dos
+inventarios reales.
+
+Cuando se decidió el alcance, el criterio fue **cimientos + camino núcleo**: la
+frontera pública, el cliente HTTP único, los contratos en zod, la persistencia y
+las dos pantallas que el entregable de la sesión evalúa (estimación transaccional
+y supervisor con revisión humana). Todo lo demás se aplazó a propósito, no por
+descuido.
+
+Después, ya con los cimientos puestos, entraron cinco piezas más porque salían
+baratas —consumían contratos que ya existían—: conversación, modo
+Actor-Critic-Boss, laboratorio de chunking, traza de enrutado del supervisor y
+ajustes de modelo.
+
+## El estado, de un vistazo
+
+| Pantalla del profesor | Aquí | Endpoints del servicio IA |
+|---|---|---|
+| `root` — panel | ✅ portada | — |
+| `estimations` | ✅ portada | ya existen |
+| `chat_sessions` (+ ACB) | ✅ portada | ya existen |
+| `rag/chunking_comparisons` | ⚠️ parcial — sin histórico | ya existen |
+| `rag/supervisor_estimation_runs` | ✅ portada | ya existen |
+| `ai_settings` | ✅ portada | ya existen |
+| `rag/index_runs` | ❌ pendiente | **ya existen** |
+| `rag/estimation_runs` | ❌ pendiente | **ya existen** |
+| `agents/graph_flow` | ❌ pendiente | falta uno, trivial |
+| `agents/profiles` | ❌ pendiente | falta trabajo en Python |
+| `rag/graph_estimation_runs` | ❌ pendiente | falta trabajo en Python |
+
+La tabla está ordenada por coste creciente. Las dos primeras pendientes no piden
+una sola línea de Python.
+
+---
+
+## 1. Histórico del laboratorio de chunking · barato
+
+**Qué falta.** El profesor tiene tres pantallas bajo `rag/chunking_comparisons`:
+`new` (formulario), `show` (un run concreto) e `index` (histórico, las últimas 20
+sin paginar). Aquí sólo existe la primera: se ejecuta y se pinta, y al recargar se
+pierde.
+
+**Por qué importa más de lo que parece.** No es comodidad. Las cuatro estrategias
+de pago cuestan dinero y tardan minutos; el histórico es el mecanismo que evita
+volver a pagarlas. El propio texto del profesor lo dice: «cada run se guarda para
+revisitarlo sin re-pagar las estrategias LLM».
+
+**Qué haría falta.** Una tabla en el esquema `business` con la petición, el
+payload íntegro y la duración, más dos rutas. Cero cambios en Python.
+
+## 2. Corpus e índice (S11) · barato
+
+**Qué falta.** `rag/index_runs`: añadir información nueva a la base vectorial y
+seguir el trabajo de indexado hasta que el corpus crece. En la app de referencia
+es el **único sitio con polling** (1500 ms).
+
+**Lo que ya está.** El servicio IA expone exactamente esa forma:
+`POST /api/v1/ingestion/runs` responde 202 con un identificador de trabajo, y
+`GET /api/v1/ingestion/jobs/{job_id}` lo consulta. Es el contrato que esta
+pantalla necesita, ya construido y ahora además autenticado.
+
+**Qué haría falta.** La pantalla y el sondeo. Es la primera del repo que necesita
+estado asíncrono en cliente, así que conviene resolver ahí el patrón —sondeo con
+corte, error recuperable, cancelación al desmontar— antes de repetirlo en la del
+grafo.
+
+## 3. Diagrama del grafo (S13) · barato
+
+**Qué falta.** `agents/graph_flow`: una vista de sólo lectura del flujo
+multi-agente.
+
+**Lo que ya está.** LangGraph sabe emitir el diagrama en Mermaid desde el grafo
+compilado, así que el dibujo no se mantiene a mano: sale de la topología real. Hoy
+no hay ningún endpoint que lo sirva.
+
+**Qué haría falta.** Un `GET` en el servicio IA que devuelva el Mermaid y una
+pantalla que lo pinte. La alternativa —commitear el diagrama como fichero— es más
+barata todavía pero se desincroniza del código en cuanto alguien toque un nodo, que
+es justo lo que la S14 hizo dos veces.
+
+## 4. Asistente RAG de cinco pasos (S09–S12) · el más grande sin Python
+
+**Qué falta.** `rag/estimation_runs`, con una acción por etapa y todas
+re-ejecutables: `reformulate` → `generate` (estructura) → `estimate_hours` →
+`verify`.
+
+**Lo que ya está.** Todo el lado Python:
+`/v1/estimate/stages/{reformulate,retrieve,assemble,generate,structure}`,
+`/v1/estimate/tasks/hours` y `/v1/estimate/from-transcript` como camino de
+comparación. No falta un endpoint.
+
+**Qué haría falta.** Es la pantalla más grande del pendiente, y todo el trabajo es
+de interfaz y de persistencia: un asistente con estado, cada paso re-ejecutable sin
+perder lo anterior, una estructura editable por el humano entre la generación y las
+horas, horas por tarea con su fiabilidad —las que no alcanzan el umbral salen
+marcadas y sin cifra— y un paso final que calcula coste desde tarifas editables.
+
+**El matiz que hay que entender antes de empezar.** La S10 le dio la vuelta al
+flujo: la estructura ya **no** se genera con presupuestos recuperados delante,
+porque hacerlo empobrecía el árbol. Se genera libre desde el brief reformulado, y
+el retrieval vuelve a entrar **por tarea** en `/v1/estimate/tasks/hours`. Portar
+esto como «recuperar y luego generar» sería portar la versión equivocada.
+
+## 5. Consola de agentes (S12) · pide Python
+
+**Qué falta.** `agents/profiles`: perfiles con nombre y personalizables para el
+agente escrito a mano, con el Actor-Critic-Boss mostrado en sólo lectura.
+
+**Lo que falta de verdad.** El agente de la S12 **no tiene endpoint HTTP**: se
+ejecuta con `scripts/run_agent_s12.py`. Hay que decidir primero si esa consola
+tiene sentido sin exponerlo, y si lo exponemos, con qué contrato —el bucle es
+largo, así que o se sirve asíncrono con sondeo como el de indexado, o hay que
+asumir una petición de varios minutos.
+
+**Y una decisión de diseño previa.** Los perfiles son configuración de negocio
+—nombre, modelo, esfuerzo, iteraciones máximas— así que viven en el esquema
+`business`, no en el servicio IA. El servicio recibe los valores en la llamada; no
+los guarda.
+
+## 6. Asistente de grafo con propuesta y PDF (S13) · el más caro
+
+**Qué falta.** `rag/graph_estimation_runs`, y es la pieza con más partes:
+
+- **Dos puertas humanas**, no una: `resume_structure` y `resume_final`.
+- **Feed de actividad por agente**, sondeado mientras corre cada tramo.
+- **Generación de propuesta comercial** tras completarse.
+- **Descarga de la propuesta en PDF.**
+
+**Lo que ya está.** `POST /v1/estimate/graph`, su `resume` y
+`GET /v1/estimate/graph/{id}/state`.
+
+**Lo que no, y por qué no es sólo interfaz.** Tres cosas:
+
+1. **Nuestro grafo tiene UNA puerta humana**, no dos. Hay un único `interrupt()`,
+   en `human_review_gate`. El asistente del profesor es el de la S13, con dos
+   paradas; el nuestro evolucionó en la S14 hacia el supervisor con enrutado
+   dinámico y una sola pausa, que es lo que la pantalla del supervisor ya explota.
+   Portar las dos puertas es **cambiar el grafo**, no cambiar la interfaz. Decidir
+   si lo queremos es lo primero.
+2. **No hay endpoint de progreso.** `GET .../state` devuelve el checkpoint, no una
+   actividad por agente. Se puede sondear y derivar el avance de `routing_trail`,
+   que es exactamente lo que ya pinta la traza de enrutado, pero es una
+   aproximación, no el feed del original.
+3. **La propuesta comercial no existe en ninguna capa.** Es una generación nueva y
+   pertenece al servicio IA, porque aquí no se estima ni se redacta: esta capa
+   valida, llama, persiste y pinta. El PDF sí es de esta capa.
+
+---
+
+## Lo que NO es alcance pendiente
+
+Para que no se cuele por inercia en la sesión siguiente:
+
+- **Usuarios y permisos.** La aplicación de referencia tampoco los tiene. Toda la
+  autorización que existe es el token entre servicios. Añadir login es alcance
+  nuevo, no paridad. Queda dicho en el README del frontend como limitación.
+- **Fidelidad visual con la app del profesor.** Su tema declara `brand`, `ink`,
+  `success` y `danger`, pero **no** declara `warning`, y usa clases `text-warning`
+  por toda la interfaz que en Tailwind 4 no emiten regla. Su intención es ámbar y
+  así está portado aquí, pero su pantalla se ve sin color. No validar el port
+  contra una captura suya.
+
+## Deuda propia, no del port
+
+- **El BFF no tiene batería de tests.** La del servicio IA tiene 591; ésta, cero.
+  Es la deuda más incómoda de la lista, porque el BFF ya tiene lógica real —la
+  taxonomía de errores, el mapeo de respuesta a fila, la recuperación del 404 de
+  sesión— y ninguna está cubierta.
+- **`ruff format` reformatearía 33 ficheros del servicio IA.** El proyecto valida
+  con `ruff check`, que pasa limpio; el formateo nunca se aplicó en bloque.
+  Hacerlo es un commit ruidoso que conviene aislar.

@@ -192,11 +192,14 @@ de servidor que sólo consulta datos y un componente cliente que pinta.
   nombre; renombrarla obliga a tocar el servicio IA, sus tests y su documentación.
 - **Sin tests.** El BFF no tiene batería propia todavía.
 - **Pantallas no portadas:** asistente RAG de cinco pasos (S09–S12), corpus e
-  índice (S11), consola de agentes (S12) y el asistente de grafo con feed en
-  vivo y PDF (S13). Las tres últimas exigirían además endpoints nuevos en el
-  servicio IA.
-- **El laboratorio no persiste nada.** La comparación se ejecuta y se muestra; no
-  hay histórico de runs.
+  índice (S11), diagrama del grafo (S13), consola de agentes (S12) y el asistente
+  de grafo con propuesta y PDF (S13). Las dos primeras no necesitan ni una línea
+  de Python —sus endpoints ya existen—, el diagrama pide uno trivial y las dos
+  últimas sí piden trabajo en el servicio IA. El desglose pieza a pieza, con lo
+  que hay y lo que falta en cada una, está en
+  [`../docs/alcance-pendiente.md`](../docs/alcance-pendiente.md).
+- **El laboratorio no guarda los runs.** El original tiene histórico justamente
+  para no volver a pagar las estrategias caras.
 - **Desarrollo fuera de Docker.** Con la frontera cerrada, `localhost:8000` y
   `localhost:5433` ya no existen; iterar sin contenedores exige publicarlos
   temporalmente.

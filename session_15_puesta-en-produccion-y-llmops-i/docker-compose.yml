@@ -61,8 +61,11 @@ services:
     env_file:
       - ./estimator/.env
     environment:
-      # These override whatever the .env says: those values are written for
-      # running uvicorn outside Docker, where the hosts are localhost.
+      # Redundante con el .env a proposito. REDIS_URL coincide; DATABASE_URL se
+      # reconstruye aqui para interpolar las credenciales del .env de la RAIZ,
+      # que es donde viven, en vez de fiarse de la copia del .env del servicio.
+      # Para correr el servicio FUERA de Docker no se toca ningun fichero: se
+      # sobrescriben estas dos en la invocacion (docs/deployment-local.md).
       REDIS_URL: redis://redis:6379
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@estimator-postgres:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}
       # One shared secret per environment, set in one place.

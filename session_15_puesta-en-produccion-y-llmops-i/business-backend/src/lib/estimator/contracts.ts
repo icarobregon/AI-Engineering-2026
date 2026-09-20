@@ -552,3 +552,15 @@ export const RELIABILITY_OK = 0.66;
 
 /** Tarifa por defecto de una fila nueva. Sin ella el coste sale 0 sin avisar. */
 export const DEFAULT_RATE_EUR = 75;
+
+// ---------------------------------------------------------------------------
+// Diagrama del grafo multi-agente (S13–S14)
+// ---------------------------------------------------------------------------
+
+export const graphDiagramSchema = z.object({
+  /** Sintaxis Mermaid, derivada del grafo COMPILADO. */
+  mermaid: z.string(),
+  nodes: z.array(z.string()),
+  entry_point: z.string(),
+});
+export type GraphDiagram = z.infer<typeof graphDiagramSchema>;

@@ -99,6 +99,22 @@ export function DashboardView({
         </Col>
         <Col span={8}>
           <Card
+            title="Flujo multi-agente"
+            extra={<Typography.Text type="secondary">Sesiones 13–14</Typography.Text>}
+          >
+            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                Qué agentes hay, qué puede tocar cada uno y cómo se pasan el control. Leído del
+                grafo compilado, no de un dibujo.
+              </Typography.Paragraph>
+              <Link href="/grafo">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card
             title="Asistente de estimación"
             extra={<Typography.Text type="secondary">Sesiones 09–12</Typography.Text>}
           >

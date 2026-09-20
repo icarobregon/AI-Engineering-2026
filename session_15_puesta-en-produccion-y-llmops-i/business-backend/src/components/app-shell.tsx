@@ -19,6 +19,7 @@ const items = [
   { key: "/chat", label: <Link href="/chat">Conversación</Link> },
   { key: "/supervisor", label: <Link href="/supervisor">Supervisor</Link> },
   { key: "/asistente", label: <Link href="/asistente">Asistente</Link> },
+  { key: "/grafo", label: <Link href="/grafo">Grafo</Link> },
   { key: "/corpus", label: <Link href="/corpus">Corpus</Link> },
   { key: "/lab/chunking", label: <Link href="/lab/chunking">Laboratorio</Link> },
   { key: "/ajustes", label: <Link href="/ajustes">Ajustes</Link> },

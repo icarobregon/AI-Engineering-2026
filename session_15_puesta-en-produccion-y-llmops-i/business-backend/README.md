@@ -29,6 +29,7 @@ src/
 │   ├── chat/                 # S05 — conversación con memoria, y modo Actor-Critic-Boss
 │   ├── lab/chunking/         # S07 — comparador de estrategias de troceado
 │   ├── asistente/            # S09–S12 — asistente RAG de cinco pasos
+│   ├── grafo/                # S13–S14 — el flujo multi-agente, de sólo lectura
 │   ├── corpus/               # S11 — estado del corpus y ampliaciones del índice
 │   ├── supervisor/           # S14 — supervisor, traza de enrutado y bandeja de revisión
 │   ├── ajustes/              # modelos en caliente (PUT /api/v1/config/models)
@@ -43,6 +44,7 @@ src/
 │   │   ├── chunking.ts       #   POST /embeddings/compare (consultas y top_k en el mismo cuerpo)
 │   │   ├── corpus.ts         #   GET /embeddings/index/stats + POST /embeddings/ingest
 │   │   ├── wizard.ts         #   /v1/estimate/stages/{reformulate,structure} + /tasks/hours
+│   │   ├── graph-diagram.ts  #   GET /v1/estimate/graph/diagram
 │   │   ├── graph.ts          #   POST /v1/estimate/graph (+ resume)
 │   │   └── config.ts         #   GET/PUT /api/v1/config/models
 │   ├── data/                 # presupuestos de muestra que alimentan el laboratorio
@@ -97,6 +99,25 @@ si se seleccionan, el botón cambia a
 «Comparar (gasta dinero)». El aviso de coste no es adorno, y tiene una letra
 pequeña que la pantalla declara: lo que se mide es la llamada extra del troceador,
 no los embeddings del playground, así que infravalora el gasto real.
+
+**Flujo multi-agente** (`/grafo`, S13–S14). Qué agentes hay, qué herramienta puede
+tocar cada uno y cómo se pasan el control. De sólo lectura.
+
+**La topología se lee del grafo compilado**, no de un dibujo mantenido a mano —que
+es lo que hace la aplicación de referencia, y se desincroniza en cuanto alguien
+toca un nodo—. Y no es sólo higiene: desde la S14 las aristas no se declaran,
+viven dentro de cada `Command`, y LangGraph las reconstruye resolviendo la
+anotación de cada nodo. Si esa anotación dejara de resolver, las aristas
+desaparecerían de esta pantalla, que es la señal más temprana de un fallo por lo
+demás mudo.
+
+Un nodo que se añada en Python aparece aquí sin tocar la pantalla; si no tiene
+glosa escrita, sale con su nombre y sin descripción. Aparecer sin glosa es mucho
+mejor que no aparecer.
+
+El diagrama se pinta con componentes, y el Mermaid se sirve copiable en vez de
+renderizarlo: la librería pesa 124 MB descomprimidos, demasiado contenedor por un
+diagrama de siete nodos.
 
 **Asistente de estimación** (`/asistente`, S09–S12). Cinco pasos con una persona
 revisando entre medias: la transcripción se convierte en un brief tipado, el
@@ -237,8 +258,8 @@ de servidor que sólo consulta datos y un componente cliente que pinta.
 - **La cabecera es `X-API-Key`, no `X-Service-Token`.** Mismo mecanismo, otro
   nombre; renombrarla obliga a tocar el servicio IA, sus tests y su documentación.
 - **Sin tests.** El BFF no tiene batería propia todavía.
-- **Pantallas no portadas:** diagrama del grafo (S13), consola de agentes (S12) y
-  el asistente de grafo con propuesta y PDF (S13). El desglose pieza a pieza está
+- **Pantallas no portadas:** consola de agentes (S12) y el asistente de grafo con
+  propuesta y PDF (S13). El desglose pieza a pieza está
   en [`../docs/alcance-pendiente.md`](../docs/alcance-pendiente.md).
 - **El paso de estructura es una petición de minutos sostenida por una Server
   Action.** `gpt-5` con razonamiento alto tarda tres minutos largos; medido, 172 s

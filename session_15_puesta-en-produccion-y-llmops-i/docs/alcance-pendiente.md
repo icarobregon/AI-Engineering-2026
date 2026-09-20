@@ -33,7 +33,7 @@ ajustes de modelo.
 | `ai_settings` | ✅ portada | ya existen |
 | `rag/index_runs` | ✅ portada | hizo falta uno nuevo |
 | `rag/estimation_runs` | ✅ portada | ya existían |
-| `agents/graph_flow` | ❌ pendiente | falta uno, trivial |
+| `agents/graph_flow` | ✅ portada | hizo falta uno, trivial |
 | `agents/profiles` | ❌ pendiente | falta trabajo en Python |
 | `rag/graph_estimation_runs` | ❌ pendiente | falta trabajo en Python |
 
@@ -82,19 +82,16 @@ chunks. Funciona a este tamaño y dejaría de funcionar sin avisar; ahora la
 pantalla lo enseña. Crear el índice es trabajo aparte, y no trivial: hay que
 elegir parámetros y reindexar.
 
-## 3. Diagrama del grafo (S13) · barato
+## 3. Diagrama del grafo (S13) · ✅ hecho
 
-**Qué falta.** `agents/graph_flow`: una vista de sólo lectura del flujo
-multi-agente.
+Portado en `/grafo`, con `GET /v1/estimate/graph/diagram` nuevo en el servicio IA.
 
-**Lo que ya está.** LangGraph sabe emitir el diagrama en Mermaid desde el grafo
-compilado, así que el dibujo no se mantiene a mano: sale de la topología real. Hoy
-no hay ningún endpoint que lo sirva.
-
-**Qué haría falta.** Un `GET` en el servicio IA que devuelva el Mermaid y una
-pantalla que lo pinte. La alternativa —commitear el diagrama como fichero— es más
-barata todavía pero se desincroniza del código en cuanto alguien toque un nodo, que
-es justo lo que la S14 hizo dos veces.
+**Y no se portó lo que hace el profesor, a propósito.** Su pantalla es 100 %
+estática: ocho nodos escritos a mano en una constante de Ruby que describen el
+pipeline de la S13, con personajes de Matrix y cajas de CSS. Copiar esa constante
+habría documentado un grafo que nosotros ya no tenemos: el nuestro evolucionó en
+la S14 hacia un supervisor con siete nodos y enrutado dinámico. El dibujo se lee
+del grafo compilado.
 
 ## 4. Asistente RAG de cinco pasos (S09–S12) · ✅ hecho
 

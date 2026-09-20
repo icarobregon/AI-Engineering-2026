@@ -45,6 +45,42 @@ type Run = {
 
 const MIN = 100;
 
+/**
+ * Qué ajustes empuja un perfil, dicho dentro de su propia opción.
+ *
+ * Elegir un perfil ES elegir un modelo y un esfuerzo, así que tenerlos que
+ * buscar en la tabla de abajo para saber qué vas a lanzar es una vuelta de más.
+ * Mismo formato que el precio en el desplegable de Ajustes: el nombre a la
+ * izquierda y el dato secundario a la derecha, sin romper línea.
+ */
+function opcionPerfil(
+  value: string,
+  nombre: string,
+  perfil: Pick<Profile, "model" | "reasoningEffort" | "isDefault"> | null,
+) {
+  const ajustes = perfil
+    ? [perfil.model, perfil.reasoningEffort].filter(Boolean).join(" · ")
+    : "";
+  return {
+    value,
+    label: (
+      <Flex justify="space-between" align="center" gap={12}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+          {nombre}
+          {perfil?.isDefault && (
+            <Typography.Text type="secondary"> · por defecto</Typography.Text>
+          )}
+        </span>
+        <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+          {/* Un perfil sin ajustes y «sin perfil» acaban en el mismo sitio —todo
+              lo resuelve el servicio—, así que dicen lo mismo. */}
+          {ajustes || "todo del servicio"}
+        </Typography.Text>
+      </Flex>
+    ),
+  };
+}
+
 function LaunchButton({ suficiente }: { suficiente: boolean }) {
   const { pending } = useFormStatus();
   return (
@@ -98,13 +134,10 @@ export function ConsoleView({
               <Select
                 value={perfil}
                 onChange={setPerfil}
-                style={{ width: 320 }}
+                style={{ width: 460 }}
                 options={[
-                  { value: "", label: "Sin perfil (todo por defecto del servicio)" },
-                  ...profiles.map((p) => ({
-                    value: p.id,
-                    label: p.isDefault ? `${p.name} · por defecto` : p.name,
-                  })),
+                  opcionPerfil("", "Sin perfil", null),
+                  ...profiles.map((p) => opcionPerfil(p.id, p.name, p)),
                 ]}
               />
             </Form.Item>

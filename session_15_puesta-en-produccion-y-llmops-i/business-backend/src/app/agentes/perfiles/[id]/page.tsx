@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/db";
+import type { ModelsConfig } from "@/lib/estimator/contracts";
 import { getModelsConfig } from "@/lib/estimator/config";
 import { ProfileForm } from "../profile-form";
 
@@ -17,15 +18,19 @@ export default async function EditarPerfilPage({
   if (!profile) notFound();
 
   let availableModels: string[] = [];
+  let modelPrices: ModelsConfig["model_prices"] = {};
   try {
-    availableModels = (await getModelsConfig()).available_models;
+    const config = await getModelsConfig();
+    availableModels = config.available_models;
+    modelPrices = config.model_prices;
   } catch {
-    // Sin catálogo se puede escribir el nombre del modelo a mano.
+    // Sin catálogo, el desplegable queda vacío y no hay precios que enseñar.
   }
 
   return (
     <ProfileForm
       availableModels={availableModels}
+      modelPrices={modelPrices}
       profile={{
         id: profile.id,
         name: profile.name,

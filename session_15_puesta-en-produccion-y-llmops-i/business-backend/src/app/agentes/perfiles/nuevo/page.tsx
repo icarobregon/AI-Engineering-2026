@@ -1,3 +1,4 @@
+import type { ModelsConfig } from "@/lib/estimator/contracts";
 import { getModelsConfig } from "@/lib/estimator/config";
 import { ProfileForm } from "../profile-form";
 
@@ -6,10 +7,13 @@ export const metadata = { title: "Nuevo perfil de agente" };
 
 export default async function NuevoPerfilPage() {
   let availableModels: string[] = [];
+  let modelPrices: ModelsConfig["model_prices"] = {};
   try {
-    availableModels = (await getModelsConfig()).available_models;
+    const config = await getModelsConfig();
+    availableModels = config.available_models;
+    modelPrices = config.model_prices;
   } catch {
-    // Sin catálogo se puede escribir el nombre del modelo a mano.
+    // Sin catálogo, el desplegable queda vacío y no hay precios que enseñar.
   }
-  return <ProfileForm availableModels={availableModels} profile={null} />;
+  return <ProfileForm availableModels={availableModels} modelPrices={modelPrices} profile={null} />;
 }

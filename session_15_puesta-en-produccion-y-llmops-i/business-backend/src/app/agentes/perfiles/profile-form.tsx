@@ -18,7 +18,8 @@ import {
   Typography,
 } from "antd";
 
-import { reasoningEfforts } from "@/lib/estimator/contracts";
+import { usdPerMillion } from "@/lib/format";
+import { reasoningEfforts, type ModelsConfig } from "@/lib/estimator/contracts";
 import { saveProfile, type FormState } from "../actions";
 
 type Profile = {
@@ -30,6 +31,28 @@ type Profile = {
   maxIterations: number | null;
   isDefault: boolean;
 };
+
+/** Una opción del desplegable de modelos, con su precio a la derecha. */
+function opcionModelo(
+  value: string,
+  texto: string,
+  precios: ModelsConfig["model_prices"],
+) {
+  const precio = precios[value];
+  return {
+    value,
+    label: (
+      <Flex justify="space-between" align="center" gap={12}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{texto}</span>
+        {precio && (
+          <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+            {usdPerMillion(precio.input, precio.output)}
+          </Typography.Text>
+        )}
+      </Flex>
+    ),
+  };
+}
 
 function SubmitButton({ editando }: { editando: boolean }) {
   const { pending } = useFormStatus();
@@ -50,9 +73,11 @@ function SubmitButton({ editando }: { editando: boolean }) {
  */
 export function ProfileForm({
   availableModels,
+  modelPrices,
   profile,
 }: {
   availableModels: string[];
+  modelPrices: ModelsConfig["model_prices"];
   profile: Profile | null;
 }) {
   const [state, action] = useActionState<FormState, FormData>(saveProfile, {
@@ -122,11 +147,15 @@ export function ProfileForm({
                 <Select
                   value={model}
                   onChange={setModel}
-                  style={{ width: 260 }}
+                  style={{ width: 360 }}
                   showSearch
+                  // Mismo formato que el desplegable de Ajustes: el precio al
+                  // lado del nombre. Elegir el modelo de un perfil es decidir lo
+                  // que va a costar cada ejecución que lo use, y el catálogo va
+                  // de 0,05 a 600 US$ por millón.
                   options={[
-                    { value: "", label: "Por defecto del servicio" },
-                    ...availableModels.map((m) => ({ value: m, label: m })),
+                    opcionModelo("", "Por defecto del servicio", modelPrices),
+                    ...availableModels.map((m) => opcionModelo(m, m, modelPrices)),
                   ]}
                 />
               </Form.Item>

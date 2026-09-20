@@ -34,7 +34,7 @@ ajustes de modelo.
 | `rag/index_runs` | ✅ portada | hizo falta uno nuevo |
 | `rag/estimation_runs` | ✅ portada | ya existían |
 | `agents/graph_flow` | ✅ portada | hizo falta uno, trivial |
-| `agents/profiles` | ❌ pendiente | falta trabajo en Python |
+| `agents/profiles` | ✅ portada | hizo falta exponer el agente |
 | `rag/graph_estimation_runs` | ❌ pendiente | falta trabajo en Python |
 
 La tabla está ordenada por coste creciente. La columna de endpoints dice lo que
@@ -109,21 +109,22 @@ Queda abierto, y anotado en el README del frontend: el paso de estructura es una
 petición de minutos sostenida por una Server Action. Es la forma que tiene la app
 de referencia, pero no es la forma correcta.
 
-## 5. Consola de agentes (S12) · pide Python
+## 5. Consola de agentes (S12) · ✅ hecho
 
-**Qué falta.** `agents/profiles`: perfiles con nombre y personalizables para el
-agente escrito a mano, con el Actor-Critic-Boss mostrado en sólo lectura.
+Portada en `/agentes`, con `POST /v1/estimate/agent/run` nuevo en el servicio IA.
 
-**Lo que falta de verdad.** El agente de la S12 **no tiene endpoint HTTP**: se
-ejecuta con `scripts/run_agent_s12.py`. Hay que decidir primero si esa consola
-tiene sentido sin exponerlo, y si lo exponemos, con qué contrato —el bucle es
-largo, así que o se sirve asíncrono con sondeo como el de indexado, o hay que
-asumir una petición de varios minutos.
+**Y se portó la pantalla que la referencia promete, no la que entrega.** El
+inventario destapó que allí nadie lee `Agents::Profile` fuera de su propio CRUD:
+el asistente llama al agente con `config: {}` literal, `Profile#config_payload` no
+se invoca en ningún sitio de su `app/`, el botón «Probar» no pasa el id y la
+casilla «por defecto» sólo pinta una etiqueta. Era un formulario decorativo porque
+el agente de la S12 no tenía endpoint. Ahora lo tiene, y un perfil gobierna modelo,
+esfuerzo e iteraciones de verdad.
 
-**Y una decisión de diseño previa.** Los perfiles son configuración de negocio
-—nombre, modelo, esfuerzo, iteraciones máximas— así que viven en el esquema
-`business`, no en el servicio IA. El servicio recibe los valores en la llamada; no
-los guarda.
+El trabajo asíncrono reutiliza el patrón de la ampliación del corpus en vez de
+inventar uno: la acción lanza en segundo plano, la pantalla sondea su propia fila,
+el sondeo sólo lee y un run sin señales se declara colgado en lugar de sondearse
+para siempre.
 
 ## 6. Asistente de grafo con propuesta y PDF (S13) · el más caro
 

@@ -564,3 +564,48 @@ export const graphDiagramSchema = z.object({
   entry_point: z.string(),
 });
 export type GraphDiagram = z.infer<typeof graphDiagramSchema>;
+
+// ---------------------------------------------------------------------------
+// Consola de agentes (S12) — POST /v1/estimate/agent/run
+// ---------------------------------------------------------------------------
+
+export const reasoningEfforts = ["minimal", "low", "medium", "high"] as const;
+export type ReasoningEffort = (typeof reasoningEfforts)[number];
+
+export const agentComponentSchema = z
+  .object({
+    name: z.string(),
+    estimated_hours: z.number(),
+  })
+  .loose();
+
+export const agentEstimateSchema = z.object({
+  project: z.string(),
+  components: z.array(agentComponentSchema).default([]),
+  total_hours: z.number(),
+  notes: z.string(),
+});
+export type AgentEstimate = z.infer<typeof agentEstimateSchema>;
+
+/** Un paso del bucle: qué herramienta pidió el modelo y qué le contestó. */
+export const agentStepSchema = z
+  .object({
+    tool: z.string().nullable().default(null),
+  })
+  .loose();
+
+export const agentTraceSchema = z.object({
+  steps: z.array(agentStepSchema).default([]),
+  iterations: z.number().int().default(0),
+  /** `natural` = el modelo dejó de pedir herramientas. Cualquier otro = se cortó. */
+  stop_reason: z.string().default("natural"),
+  model: z.string().default(""),
+  reasoning_effort: z.string().default(""),
+});
+export type AgentTrace = z.infer<typeof agentTraceSchema>;
+
+export const agentRunResponseSchema = z.object({
+  estimate: agentEstimateSchema,
+  trace: agentTraceSchema,
+});
+export type AgentRunResponse = z.infer<typeof agentRunResponseSchema>;

@@ -153,3 +153,72 @@ model RagRun {
   @@index([createdAt])
   @@map("rag_runs")
 }
+
+/// Sesión 12 — un perfil del agente escrito a mano.
+///
+/// Es configuración de NEGOCIO —cómo queremos que corra el agente—, así que vive
+/// aquí y no en el servicio IA: el servicio recibe los valores en la llamada y no
+/// los guarda. Esa separación es la que permite tener varios perfiles sin que el
+/// servicio sepa que existen.
+model AgentProfile {
+  id String @id @default(uuid())
+
+  name        String
+  description String?
+
+  /// Los tres que el endpoint del agente acepta por llamada. Nulo significa
+  /// «lo que diga el .env del servicio», que es distinto de un valor por
+  /// defecto copiado aquí: copiarlo lo congelaría.
+  model           String?
+  reasoningEffort String? @map("reasoning_effort")
+  maxIterations   Int?    @map("max_iterations")
+
+  /// El que se preselecciona al lanzar. A diferencia de la app de referencia,
+  /// aquí esto hace algo: allí `is_default` sólo pintaba una etiqueta.
+  isDefault Boolean @default(false) @map("is_default")
+
+  runs AgentRun[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@map("agent_profiles")
+}
+
+/// Sesión 12 — una ejecución del agente, lanzada desde la consola.
+///
+/// El bucle encadena varias llamadas a un modelo de razonamiento y tarda
+/// minutos, así que el trabajo corre en segundo plano y la pantalla sondea esta
+/// fila. Mismo patrón que las ampliaciones del corpus, y por los mismos motivos.
+model AgentRun {
+  id String @id @default(uuid())
+
+  profile   AgentProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  profileId String?       @map("profile_id")
+
+  /// Los ajustes CON LOS QUE SE LANZÓ, copiados. El perfil puede cambiar después
+  /// —o borrarse— y esta ejecución tiene que seguir explicándose a sí misma.
+  model           String
+  reasoningEffort String @map("reasoning_effort")
+  maxIterations   Int    @map("max_iterations")
+
+  transcript String
+
+  /// pending | running | completed | failed.
+  status       String  @default("pending")
+  errorMessage String? @map("error_message")
+
+  /// La estimación y la traza, tal y como las devuelve el servicio.
+  estimate Json? @db.JsonB
+  trace    Json? @db.JsonB
+
+  startedAt  DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@map("agent_runs")
+}

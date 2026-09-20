@@ -99,6 +99,22 @@ export function DashboardView({
         </Col>
         <Col span={8}>
           <Card
+            title="Consola de agentes"
+            extra={<Typography.Text type="secondary">Sesión 12</Typography.Text>}
+          >
+            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                Perfiles con nombre para el agente escrito a mano, y las ejecuciones que han
+                gobernado.
+              </Typography.Paragraph>
+              <Link href="/agentes">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card
             title="Flujo multi-agente"
             extra={<Typography.Text type="secondary">Sesiones 13–14</Typography.Text>}
           >

@@ -29,6 +29,7 @@ src/
 │   ├── chat/                 # S05 — conversación con memoria, y modo Actor-Critic-Boss
 │   ├── lab/chunking/         # S07 — comparador de estrategias de troceado
 │   ├── asistente/            # S09–S12 — asistente RAG de cinco pasos
+│   ├── agentes/              # S12 — consola de perfiles y ejecuciones del agente
 │   ├── grafo/                # S13–S14 — el flujo multi-agente, de sólo lectura
 │   ├── corpus/               # S11 — estado del corpus y ampliaciones del índice
 │   ├── supervisor/           # S14 — supervisor, traza de enrutado y bandeja de revisión
@@ -45,6 +46,7 @@ src/
 │   │   ├── corpus.ts         #   GET /embeddings/index/stats + POST /embeddings/ingest
 │   │   ├── wizard.ts         #   /v1/estimate/stages/{reformulate,structure} + /tasks/hours
 │   │   ├── graph-diagram.ts  #   GET /v1/estimate/graph/diagram
+│   │   ├── agent.ts          #   POST /v1/estimate/agent/run
 │   │   ├── graph.ts          #   POST /v1/estimate/graph (+ resume)
 │   │   └── config.ts         #   GET/PUT /api/v1/config/models
 │   ├── data/                 # presupuestos de muestra que alimentan el laboratorio
@@ -99,6 +101,31 @@ si se seleccionan, el botón cambia a
 «Comparar (gasta dinero)». El aviso de coste no es adorno, y tiene una letra
 pequeña que la pantalla declara: lo que se mide es la llamada extra del troceador,
 no los embeddings del playground, así que infravalora el gasto real.
+
+**Consola de agentes** (`/agentes`, S12). Perfiles con nombre para el agente
+escrito a mano —modelo, esfuerzo de razonamiento y techo de iteraciones— y las
+ejecuciones que han gobernado, con su estimación y su traza.
+
+**Aquí un perfil gobierna de verdad, y en la aplicación de referencia no.** Allí
+nadie lee `Agents::Profile` fuera de su propio CRUD: el asistente que supuestamente
+los usa llama al agente con `config: {}` literal, `Profile#config_payload` —
+documentado como «el body que se POSTea al servicio»— no se invoca en ningún sitio
+de su `app/`, el botón «Probar» no pasa el id del perfil y la casilla «por defecto»
+sólo pinta una etiqueta. Era un formulario decorativo, y la razón de fondo es que
+el agente de la S12 no tenía endpoint HTTP. Ahora lo tiene.
+
+Los tres ajustes son **opcionales**, y dejar uno en blanco no es lo mismo que
+copiar aquí el valor por defecto del servicio: copiarlo lo congelaría, y el día que
+cambie el `.env` este perfil seguiría empujando el valor viejo. Lo que queda en
+blanco lo resuelve el servicio en cada ejecución.
+
+Los ajustes se **copian** a la ejecución al lanzarla. El perfil puede cambiar
+después, o borrarse, y esa ejecución sigue diciendo con qué corrió; borrar un
+perfil no borra su historia.
+
+La traza distingue si el bucle paró solo o si lo cortamos: `natural` significa que
+el modelo dejó de pedir herramientas, y cualquier otra cosa lleva un aviso, porque
+la estimación es entonces la que el agente pudo cerrar con lo que llevaba.
 
 **Flujo multi-agente** (`/grafo`, S13–S14). Qué agentes hay, qué herramienta puede
 tocar cada uno y cómo se pasan el control. De sólo lectura.
@@ -258,8 +285,13 @@ de servidor que sólo consulta datos y un componente cliente que pinta.
 - **La cabecera es `X-API-Key`, no `X-Service-Token`.** Mismo mecanismo, otro
   nombre; renombrarla obliga a tocar el servicio IA, sus tests y su documentación.
 - **Sin tests.** El BFF no tiene batería propia todavía.
-- **Pantallas no portadas:** consola de agentes (S12) y el asistente de grafo con
-  propuesta y PDF (S13). El desglose pieza a pieza está
+- **Pantalla no portada:** el asistente de grafo con propuesta y PDF (S13). Es la
+  única que queda, y la más cara: pide dos puertas humanas y nuestro grafo tiene
+  una, así que portarla es cambiar el grafo, no la interfaz.
+- **Una ejecución del agente no sobrevive a un reinicio.** El bucle corre en el
+  proceso de Node; si se reinicia a mitad, la fila queda sin quien la mueva. El
+  detalle lo detecta y lo dice, pero no lo reanuda — el bucle del agente no es
+  reanudable. El desglose pieza a pieza está
   en [`../docs/alcance-pendiente.md`](../docs/alcance-pendiente.md).
 - **El paso de estructura es una petición de minutos sostenida por una Server
   Action.** `gpt-5` con razonamiento alto tarda tres minutos largos; medido, 172 s

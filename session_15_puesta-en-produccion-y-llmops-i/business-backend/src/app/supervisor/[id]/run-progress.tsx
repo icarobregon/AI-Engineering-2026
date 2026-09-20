@@ -52,6 +52,16 @@ export function RunProgressPanel({ id }: { id: string }) {
   const espera = useRef(PRIMERA_ESPERA);
   const fallos = useRef(0);
   const vivo = useRef(true);
+  /*
+    El temporizador no puede reprogramar `sondear` por su nombre: dentro del
+    propio useCallback esa referencia apunta al binding de ESTE render, que
+    todavía no existe cuando se construye la función. Hoy funciona de milagro
+    controlado —lo que la función toca son refs y setters, todos estables— pero
+    deja una trampa puesta: si algún día entra en el cuerpo algo que dependa de
+    `id`, el temporizador pendiente seguiría llamando a la copia vieja. Un ref
+    que apunta siempre a la última versión rompe el ciclo y la trampa a la vez.
+  */
+  const ultimoSondeo = useRef<() => void>(() => {});
 
   const sondear = useCallback(async () => {
     let resultado: SyncResult;
@@ -89,8 +99,12 @@ export function RunProgressPanel({ id }: { id: string }) {
     }
 
     espera.current = Math.min(Math.round(espera.current * FACTOR), ESPERA_MAXIMA);
-    if (vivo.current) window.setTimeout(sondear, espera.current);
+    if (vivo.current) window.setTimeout(() => ultimoSondeo.current(), espera.current);
   }, [id, router]);
+
+  useEffect(() => {
+    ultimoSondeo.current = sondear;
+  }, [sondear]);
 
   useEffect(() => {
     vivo.current = true;

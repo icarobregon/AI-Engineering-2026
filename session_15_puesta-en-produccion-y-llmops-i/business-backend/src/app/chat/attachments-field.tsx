@@ -35,9 +35,16 @@ export function AttachmentsField({ clearOn }: { clearOn: unknown }) {
   // estimating, so keeping them listed after a turn lands would re-send them on
   // the next one. Only a result clears them — an error leaves the selection
   // alone so the retry does not start from scratch.
-  useEffect(() => {
-    if (clearOn) setFileList([]);
-  }, [clearOn]);
+  //
+  // Comparado durante el render y no desde un efecto. Es la forma que documenta
+  // React para reajustar estado cuando cambia una prop, y evita el commit de más
+  // que impone `useEffect` + setState: con el efecto, cada turno que aterriza
+  // pintaba la lista vieja y volvía a pintar enseguida vacía.
+  const [ultimoLimpiado, setUltimoLimpiado] = useState(clearOn);
+  if (clearOn && clearOn !== ultimoLimpiado) {
+    setUltimoLimpiado(clearOn);
+    setFileList([]);
+  }
 
   return (
     <Form.Item

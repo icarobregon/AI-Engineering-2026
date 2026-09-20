@@ -27,8 +27,17 @@ export function DashboardView({
           <Card
             title="Estimación transaccional"
             extra={<Typography.Text type="secondary">Sesión 04</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
           >
-            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
                 Un disparo: descripción del proyecto dentro, desglose por fases con coste y
                 confianza fuera.
@@ -55,8 +64,17 @@ export function DashboardView({
           <Card
             title="Supervisor y revisión humana"
             extra={<Typography.Text type="secondary">Sesión 14</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
           >
-            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
                 Agentes especializados coordinados en ejecución. Se detiene sólo cuando la
                 estimación no es fiable.
@@ -90,8 +108,17 @@ export function DashboardView({
           <Card
             title="Conversación"
             extra={<Typography.Text type="secondary">Sesión 05</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
           >
-            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
                 Estimación a varios turnos, con memoria, adjuntos y el modo
                 Actor-Critic-Boss.
@@ -106,8 +133,17 @@ export function DashboardView({
           <Card
             title="Consola de agentes"
             extra={<Typography.Text type="secondary">Sesión 12</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
           >
-            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
                 Perfiles con nombre para el agente escrito a mano, y las ejecuciones que han
                 gobernado.
@@ -122,8 +158,17 @@ export function DashboardView({
           <Card
             title="Flujo multi-agente"
             extra={<Typography.Text type="secondary">Sesiones 13–14</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
           >
-            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
                 Qué agentes hay, qué puede tocar cada uno y cómo se pasan el control. Leído del
                 grafo compilado, no de un dibujo.
@@ -138,8 +183,17 @@ export function DashboardView({
           <Card
             title="Asistente de estimación"
             extra={<Typography.Text type="secondary">Sesiones 09–12</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
           >
-            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
                 De una transcripción a una estimación fundamentada, en cinco pasos y con una
                 persona revisando entre medias.
@@ -154,8 +208,17 @@ export function DashboardView({
           <Card
             title="Corpus e índice"
             extra={<Typography.Text type="secondary">Sesión 11</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
           >
-            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
                 Mira qué hay indexado en la base vectorial y amplíalo con presupuestos nuevos,
                 viendo el corpus crecer.
@@ -170,8 +233,17 @@ export function DashboardView({
           <Card
             title="Laboratorio de chunking"
             extra={<Typography.Text type="secondary">Sesión 07</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
           >
-            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
                 Trocea el mismo corpus con ocho estrategias y compara coste, tamaño y qué
                 recupera cada una.
@@ -183,8 +255,20 @@ export function DashboardView({
           </Card>
         </Col>
         <Col span={8}>
-          <Card title="Ajustes" extra={<Typography.Text type="secondary">Transversal</Typography.Text>}>
-            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+          <Card
+            title="Ajustes"
+            extra={<Typography.Text type="secondary">Transversal</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
+          >
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
                 Cambia en caliente el modelo de cada pieza del sistema, sin recrear
                 contenedores.

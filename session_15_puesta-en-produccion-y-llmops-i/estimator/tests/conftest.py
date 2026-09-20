@@ -9,7 +9,7 @@ from app.dependencies import (
     get_openai_client,
     get_session_store,
 )
-from app.api.security import require_estimate_key
+from app.api.security import require_estimate_key, require_retrieval_key
 from app.main import app
 from app.domain.schemas.estimation import EstimationResult
 from app.domain.estimation_service import EstimationService
@@ -30,8 +30,10 @@ def _bypass_service_key(request):
         yield
         return
     app.dependency_overrides[require_estimate_key] = lambda: None
+    app.dependency_overrides[require_retrieval_key] = lambda: None
     yield
     app.dependency_overrides.pop(require_estimate_key, None)
+    app.dependency_overrides.pop(require_retrieval_key, None)
 
 
 @pytest.fixture

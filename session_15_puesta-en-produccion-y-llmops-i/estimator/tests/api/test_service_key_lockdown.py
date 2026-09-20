@@ -1,9 +1,10 @@
-"""Las tres familias de rutas que dejaron de ser anónimas en la Sesión 15.
+"""Las rutas que dejaron de ser anónimas en la Sesión 15.
 
-Hasta este cambio, `/sessions/*`, `/embeddings/*` y `/api/v1/config/*` contestaban
-sin cabecera. La frontera de red seguía intacta —el servicio IA no publica puerto—
-pero dentro de la red cualquiera podía conversar (y gastar tokens del proveedor),
-escribir en el corpus o cambiar el modelo que atiende todo lo demás.
+Hasta este cambio, `/sessions/*`, `/embeddings/*`, `/api/v1/config/*`,
+`POST /search` y `/api/v1/ingestion/*` contestaban sin cabecera. La frontera de
+red seguía intacta —el servicio IA no publica puerto— pero dentro de la red
+cualquiera podía conversar (y gastar tokens del proveedor), escribir en el corpus
+o cambiar el modelo que atiende todo lo demás.
 
 Estos tests van sobre la cerradura, así que llevan `real_auth`: el bypass del
 conftest anularía justo lo que se quiere comprobar.
@@ -25,9 +26,11 @@ AUTH = {"X-API-Key": KEY}
 
 @pytest.fixture
 def client(monkeypatch) -> TestClient:
-    monkeypatch.setattr(
-        security, "get_settings", lambda: type("S", (), {"ESTIMATE_API_KEY": KEY})()
-    )
+    # Las dos claves valen lo mismo aquí a propósito: lo que se prueba es que cada
+    # ruta EXIGE una, no cuál de las dos. Que `/search` lleve la de retrieval y no
+    # la de estimación se lee en `app/api/search.py`, no se adivina desde un test.
+    ajustes = type("S", (), {"ESTIMATE_API_KEY": KEY, "RETRIEVAL_API_KEY": KEY})()
+    monkeypatch.setattr(security, "get_settings", lambda: ajustes)
     return TestClient(app)
 
 
@@ -44,6 +47,11 @@ CERRADAS = [
     ("PUT", "/api/v1/config/models"),
     ("GET", "/api/v1/config/retrieval"),
     ("PUT", "/api/v1/config/retrieval"),
+    # La de la S08, con la clave de retrieval: es la que usa su sustituta.
+    ("POST", "/search"),
+    # El pipeline offline: lanza corridas que ESCRIBEN en el corpus.
+    ("POST", "/api/v1/ingestion/runs"),
+    ("GET", "/api/v1/ingestion/jobs/cualquiera"),
 ]
 
 

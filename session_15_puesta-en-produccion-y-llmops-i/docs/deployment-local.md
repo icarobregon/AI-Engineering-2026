@@ -117,7 +117,9 @@ Comprobación, desde la propia red:
 ```bash
 docker compose exec -T ai-service python -c "
 import urllib.request, urllib.error
-for metodo, ruta in [('POST','/sessions'),('POST','/embeddings/compare'),('GET','/api/v1/config/models'),('GET','/health')]:
+rutas = [('POST','/sessions'),('POST','/embeddings/compare'),('GET','/api/v1/config/models'),
+         ('POST','/search'),('POST','/api/v1/ingestion/runs'),('GET','/health')]
+for metodo, ruta in rutas:
     req = urllib.request.Request('http://localhost:8000'+ruta, method=metodo,
                                  data=b'{}' if metodo=='POST' else None,
                                  headers={'Content-Type':'application/json'})
@@ -127,11 +129,9 @@ for metodo, ruta in [('POST','/sessions'),('POST','/embeddings/compare'),('GET',
 "
 ```
 
-Debe dar `401` en las tres primeras y `200` en `/health`, que se queda abierto a
-propósito: cerrarlo mataría el healthcheck de Docker.
-
-**Lo que sigue abierto, y es deuda conocida:** `POST /search` (la ruta de la S08,
-conservada por compatibilidad) y `/api/v1/ingestion/*`.
+Debe dar `401` en las cinco primeras y `200` en `/health`, que es **lo único que
+queda abierto**, y a propósito: cerrarlo mataría el healthcheck de Docker y con él
+el arranque ordenado de compose.
 
 ### 5. Los datos sobreviven a un ciclo completo
 

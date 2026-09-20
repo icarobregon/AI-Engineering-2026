@@ -10,13 +10,20 @@ from __future__ import annotations
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.security import require_retrieval_key
 from app.dependencies import get_semantic_retriever
 from app.generation.rag.retriever import SemanticRetriever
 from app.generation.rag.schemas import SearchRequest, SearchResponse
 
 log = structlog.get_logger()
 
-router = APIRouter(tags=["search"])
+# Cerrada desde la S15-bis. Lleva la clave de RETRIEVAL, no la de estimacion: su
+# sustituta —/v1/retrieval/search, misma intencion y mejor contrato— usa esa, y
+# darle a la vieja una clave distinta de la de su reemplazo seria incoherente.
+router = APIRouter(
+    tags=["search"],
+    dependencies=[Depends(require_retrieval_key)],
+)
 
 
 @router.post("/search", response_model=SearchResponse)

@@ -166,7 +166,11 @@ POST /api/v1/estimate
 - **Rutas HTTP**: `/api/v1/estimate`, `/sessions/*`, `/api/v1/ingestion/*`, `/embeddings/ingest`,
   `/search`, `/api/v1/config/models`.
   Cualquier cliente del servicio depende de ellas y de la forma JSON de
-  `EstimationResponse` / `ACBResponse`.
+  `EstimationResponse` / `ACBResponse`. **Desde la S15 TODAS exigen `X-API-Key`** —
+  `RETRIEVAL_API_KEY` en `/search` y en `/v1/retrieval/*`, `ESTIMATE_API_KEY` en el
+  resto—. Es un cambio de contrato, el único de esta lista: la ruta sigue ahí y la
+  forma JSON no se toca, pero un cliente que no mande cabecera recibe 401. `/health`
+  es la única que queda abierta, porque la interroga el healthcheck de Docker.
 - **`EstimationResult`** (`domain/schemas/estimation.py`): `total_cost_eur` es un
   `computed_field` — se deriva de las fases, no se le pide al modelo, así que el presupuesto
   cuadra por construcción y no por reintento. El único `model_validator` que dispara re-prompt

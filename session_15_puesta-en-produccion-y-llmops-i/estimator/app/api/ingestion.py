@@ -14,6 +14,7 @@ import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.security import require_estimate_key
 from app.dependencies import (
     get_catalog,
     get_filesystem_loader,
@@ -33,7 +34,13 @@ from app.domain.schemas.ingestion import (
 
 log = structlog.get_logger()
 
-router = APIRouter(prefix="/api/v1/ingestion", tags=["ingestion"])
+# Cerrada desde la S15-bis. Lanza corridas del pipeline offline: ESCRIBE en el
+# corpus, igual que /embeddings/ingest, asi que lleva la misma clave que aquella.
+router = APIRouter(
+    prefix="/api/v1/ingestion",
+    tags=["ingestion"],
+    dependencies=[Depends(require_estimate_key)],
+)
 
 
 def _run_in_background(

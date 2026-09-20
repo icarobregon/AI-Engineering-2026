@@ -94,6 +94,17 @@ def _service_headers() -> dict[str, str]:
     return {"X-API-Key": os.getenv("ESTIMATE_API_KEY", "")}
 
 
+def _retrieval_headers() -> dict[str, str]:
+    """``/search`` lleva la clave de RETRIEVAL, no la de estimacion.
+
+    Este script hace las dos cosas —siembra y consulta—, asi que necesita las dos
+    claves. Si solo hay una configurada, ``RETRIEVAL_API_KEY`` cae a la de
+    estimacion, que es el mismo apano que hace compose.
+    """
+    clave = os.getenv("RETRIEVAL_API_KEY") or os.getenv("ESTIMATE_API_KEY", "")
+    return {"X-API-Key": clave}
+
+
 def ingest_corpus(client: httpx.Client, base_url: str) -> None:
     """One document per budget; 409 means already ingested (idempotent)."""
     budgets = json.loads(CORPUS_PATH.read_text())
@@ -125,7 +136,11 @@ def ingest_corpus(client: httpx.Client, base_url: str) -> None:
 
 def run_queries(client: httpx.Client, base_url: str) -> None:
     for index, (label, query) in enumerate(QUERIES, start=1):
-        response = client.post(f"{base_url}/search", json={"query": query, "k": TOP_K})
+        response = client.post(
+            f"{base_url}/search",
+            headers=_retrieval_headers(),
+            json={"query": query, "k": TOP_K},
+        )
         response.raise_for_status()
         body = response.json()
 

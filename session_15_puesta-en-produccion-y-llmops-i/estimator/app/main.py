@@ -1,5 +1,7 @@
-import structlog
+import logging
 from contextlib import asynccontextmanager
+
+import structlog
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -22,7 +24,15 @@ from app.api.routers.retrieval_advanced import router as retrieval_advanced_rout
 
 
 def configure_logging() -> None:
-    """Set up structlog: JSON in production, human-readable in development."""
+    """Set up structlog: JSON in production, human-readable in development.
+
+    ``LOG_LEVEL`` se cablea aquí, y hasta la Sesión 15 no lo estaba: la variable
+    existía, estaba tipada y llegaba al contenedor, pero `structlog.configure`
+    no la miraba. `add_log_level` sólo ANOTA el nivel en el evento; no filtra
+    nada. El resultado era un servicio que en producción escribía sus 181
+    eventos pasara lo que pasara, con un mando en el `.env` que prometía poder
+    bajarlos y no estaba conectado a nada.
+    """
     settings = get_settings()
 
     if settings.APP_ENV == "production":
@@ -39,7 +49,12 @@ def configure_logging() -> None:
             structlog.processors.format_exc_info,
             renderer,
         ],
-        wrapper_class=structlog.stdlib.BoundLogger,
+        # Filtra de verdad, en lugar de limitarse a etiquetar. `getLevelName`
+        # traduce el nombre al entero de stdlib; el Literal de Settings es lo
+        # que garantiza que aquí no llega un nombre que no existe.
+        wrapper_class=structlog.make_filtering_bound_logger(
+            logging.getLevelName(settings.LOG_LEVEL)
+        ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,

@@ -162,12 +162,13 @@ Lo que vive **fuera** del template (en código): el contrato (`EstimationRequest
 | `FALLBACK_MODEL` | `claude-haiku-4-5-20251001` | Se usa si el primario falla |
 | `REDIS_URL` | `redis://localhost:6379` | Cache exact-match |
 | `CACHE_TTL` | `86400` | Segundos |
-| `APP_ENV` | `development` | Controla el renderer de structlog |
+| `APP_ENV` | `development` | Controla el renderer de structlog (JSON en `production`) |
+| `LOG_LEVEL` | `DEBUG` | Volumen de logs. **Cableado en la S15**: hasta entonces existía, estaba tipada y no filtraba nada. `DEBUG`/`INFO`/`WARNING`/`ERROR`; cualquier otro valor falla al arrancar |
 | `ESTIMATE_API_KEY` | — | **Obligatoria desde la S15.** Token (`X-API-Key`) de todas las rutas de estimación (incluida `POST /api/v1/estimate`), de `/sessions/*`, de `/embeddings/*`, de `/api/v1/config/*` y de `/api/v1/ingestion/*`. En blanco ⇒ 401 en todas. Bajo Compose la inyecta `AI_SERVICE_TOKEN` del `.env` de la raíz de la sesión |
 | `RETRIEVAL_API_KEY` | — | Token de `/v1/retrieval/search`, `/v1/retrieval/advanced-search` y de la `POST /search` de la S08, que lleva la misma clave que su sustituta |
 
 `/health` es la única ruta abierta, y a propósito: cerrarla mataría el healthcheck de Docker.
-| `ESTIMATOR_API_BASE_URL` | `http://localhost:8000` | Lo lee el cliente Streamlit |
+| `ESTIMATOR_API_BASE_URL` | `http://localhost:8000` | Lo lee el cliente Streamlit **directamente del entorno**: no es un campo de `Settings` y el servicio nunca lo mira |
 
 `get_settings()` es un singleton cacheado con `lru_cache`: cualquier cambio en `.env` requiere reiniciar uvicorn (no basta con `--reload`). **Excepción: los modelos LLM** — ver la sección siguiente.
 

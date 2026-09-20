@@ -11,13 +11,21 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # --- Session 2 fields (kept for backwards compatibility with the live demos) ---
+    # --- Session 2 fields ---------------------------------------------------
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
-    LLM_PROVIDER: Literal["openai", "anthropic"] = "anthropic"
-    LLM_MODEL: str = "claude-haiku-4-5"
     APP_ENV: Literal["development", "staging", "production"] = "development"
+    # El volumen de los logs. Es un Literal porque llega hasta
+    # `make_filtering_bound_logger` como nivel de stdlib: un valor fuera de esta
+    # lista no se descubriría al arrancar sino al primer log que no saliera.
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "DEBUG"
+    # LLM_PROVIDER y LLM_MODEL estaban aquí desde la Sesión 2 y NADIE las leía.
+    # El proveedor se infiere del nombre del modelo (`_provider_from_model`) y el
+    # modelo sale de PRIMARY_MODEL, de los knobs por etapa o del override en
+    # caliente. Declaradas como Literal, su único efecto vivo era tumbar el
+    # arranque con un valor fuera de la lista: validación sobre algo que nadie
+    # consultaba. `extra="ignore"` hace que un .env viejo que aún las traiga no
+    # rompa nada.
 
     # --- Session 3 fields (LiteLLM wrapper, Redis cache, Streamlit transport) ---
     PRIMARY_MODEL: str = "gpt-4o-mini"
@@ -101,7 +109,10 @@ class Settings(BaseSettings):
     # Used to gather metrics before flipping the cache on in production.
     SEMANTIC_CACHE_LOG_ONLY: bool = False
 
-    ESTIMATOR_API_BASE_URL: str = "http://localhost:8000"
+    # ESTIMATOR_API_BASE_URL NO está aquí a propósito. La variable sigue viva,
+    # pero su único lector es `streamlit_app.py`, que la coge del entorno con
+    # `os.getenv` y nunca pasó por Settings. Un campo que ningún módulo lee sólo
+    # sirve para hacer creer que el servicio se configura con él.
 
     # --- Session 5 fields (conversational memory + attachments) ---
     # MAX_CONVERSATION_TURNS counts user+assistant pairs. The system prompt is

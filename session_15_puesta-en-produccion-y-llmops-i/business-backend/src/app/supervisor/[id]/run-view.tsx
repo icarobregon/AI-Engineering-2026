@@ -6,6 +6,7 @@ import {
   Alert,
   Button,
   Card,
+  Collapse,
   Descriptions,
   Flex,
   List,
@@ -89,6 +90,7 @@ function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
 export type RunDetail = {
   id: string;
   estimationId: string;
+  transcript: string;
   runState: string;
   status: string | null;
   estimate: unknown;
@@ -131,6 +133,36 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
           </Link>
         </Space>
       </Flex>
+
+      {/*
+        De dónde salió todo. Va aquí —hijo directo del Flex, sin guarda— porque
+        las ramas de abajo son excluyentes entre sí: metida en una, faltaría en
+        las otras cuatro (corriendo, pausada, terminada, fallida, y la quinta de
+        facto: pausada con un payload que no valida). Cerrado por defecto: es el
+        material de partida, no lo que se viene a mirar.
+      */}
+      <Collapse
+        items={[
+          {
+            key: "transcript",
+            label: "Transcripción de origen",
+            children: (
+              <Typography.Paragraph
+                style={{
+                  marginBottom: 0,
+                  // Es texto plano con saltos de línea: sin esto sale corrido.
+                  whiteSpace: "pre-wrap",
+                  // Y sin el tope, abrirla empuja la página varias pantallas.
+                  maxHeight: 420,
+                  overflowY: "auto",
+                }}
+              >
+                {run.transcript}
+              </Typography.Paragraph>
+            ),
+          },
+        ]}
+      />
 
       {running && <RunProgressPanel id={run.id} />}
 

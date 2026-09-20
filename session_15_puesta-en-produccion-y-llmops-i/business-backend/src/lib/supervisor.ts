@@ -26,6 +26,16 @@ type Current = {
 export function runUpdateFrom(
   response: GraphEstimateResponse,
   current: Current = {},
+  /**
+   * La confianza leída del checkpoint, para quien la tenga a mano.
+   *
+   * El contrato HTTP no la lleva: `GraphEstimateResponse` no tiene ese campo y
+   * sólo aparece colada dentro de `review_payload`, que existe únicamente cuando
+   * dispara la puerta humana. Y la puerta dispara por DEBAJO del umbral, así que
+   * esa vía sólo informaba de las ejecuciones que no se ganan la confianza: las
+   * buenas guardaban null y la columna enseñaba un guion habiendo un 0,86.
+   */
+  fromState?: number | null,
 ): Prisma.SupervisorRunUpdateInput {
   const awaiting = response.status === AWAITING_REVIEW;
   const confidence = response.review_payload?.confidence;
@@ -38,7 +48,13 @@ export function runUpdateFrom(
       current.reviewPayload ??
       undefined) as Prisma.InputJsonValue,
     errors: response.errors as Prisma.InputJsonValue,
-    confidence: confidence ?? current.confidence ?? null,
+    // El orden no es cosmético. El payload manda porque es la foto que vio el
+    // revisor; el checkpoint va después; y la fila sigue siendo el último
+    // recurso, porque el resume contesta SIN payload y sin ese fallback aprobar
+    // una estimación le borraría la confianza. Todo con `??` y nunca con `||`:
+    // un 0 es un valor legítimo —es justo el que dispara la puerta— y `||` lo
+    // convertiría en el guion que significa «no lo sé».
+    confidence: confidence ?? fromState ?? current.confidence ?? null,
   };
 }
 

@@ -64,6 +64,31 @@ describe("runUpdateFrom", () => {
     expect(fila.confidence).toBe(0.88);
   });
 
+  it("la confianza del checkpoint llena el hueco de las ejecuciones que NO pausan", () => {
+    // El fallo que esto arregla: la puerta humana dispara por DEBAJO del umbral,
+    // así que `review_payload` sólo informaba de las ejecuciones malas. Las
+    // buenas guardaban null y la columna enseñaba un guion habiendo un 0,86.
+    expect(runUpdateFrom(respuesta(), {}, 0.858).confidence).toBe(0.858);
+  });
+
+  it("el payload manda sobre el checkpoint: es la foto que vio el revisor", () => {
+    const fila = runUpdateFrom(respuesta({ review_payload: INFORME }), {}, 0.9);
+
+    expect(fila.confidence).toBe(0.42);
+  });
+
+  it("el checkpoint manda sobre la fila, que sigue siendo el último recurso", () => {
+    expect(runUpdateFrom(respuesta(), { confidence: 0.1 }, 0.858).confidence).toBe(0.858);
+    // Sin checkpoint —el resume contesta sin payload— la fila conserva lo suyo.
+    expect(runUpdateFrom(respuesta(), { confidence: 0.1 }).confidence).toBe(0.1);
+  });
+
+  it("un cero del checkpoint es un cero, no un hueco", () => {
+    // `||` en vez de `??` aquí convertiría en «no lo sé» justo la señal que
+    // hace que una estimación acabe delante de una persona.
+    expect(runUpdateFrom(respuesta(), { confidence: 0.7 }, 0).confidence).toBe(0);
+  });
+
   it("sin confianza por ninguna parte, null y no undefined", () => {
     // `undefined` en Prisma significa «no toques esta columna»; `null` significa
     // «ponla a null». Aquí queremos lo segundo.

@@ -14,6 +14,7 @@ export default async function SupervisorRunPage({ params }: { params: Promise<{ 
     select: {
       id: true,
       estimationId: true,
+      transcript: true,
       runState: true,
       status: true,
       estimate: true,

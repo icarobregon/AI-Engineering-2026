@@ -99,7 +99,7 @@ export function DashboardView({
       </Row>
 
       {/* El gutter va en pareja: un número suelto es SÓLO el horizontal, y estas
-          siete tarjetas envuelven en tres líneas. Sin el vertical, una tarjeta
+          seis tarjetas envuelven en dos líneas. Sin el vertical, una tarjeta
           con una línea de texto de más queda pegada a la de abajo, sin un píxel
           entre medias. Los 24 son los mismos que separan esta fila de la de
           arriba. */}
@@ -124,106 +124,6 @@ export function DashboardView({
                 Actor-Critic-Boss.
               </Typography.Paragraph>
               <Link href="/chat">
-                <Button>Abrir</Button>
-              </Link>
-            </Space>
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card
-            title="Consola de agentes"
-            extra={<Typography.Text type="secondary">Sesión 12</Typography.Text>}
-            style={{ height: "100%", display: "flex", flexDirection: "column" }}
-            styles={{ body: { flex: 1, display: "flex" } }}
-          >
-            <Space
-              direction="vertical"
-              size="middle"
-              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
-              // es lo que alinea los botones entre sí en vez de dejarlos donde
-              // acabe el texto de cada una.
-              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
-            >
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                Perfiles con nombre para el agente escrito a mano, y las ejecuciones que han
-                gobernado.
-              </Typography.Paragraph>
-              <Link href="/agentes">
-                <Button>Abrir</Button>
-              </Link>
-            </Space>
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card
-            title="Flujo multi-agente"
-            extra={<Typography.Text type="secondary">Sesiones 13–14</Typography.Text>}
-            style={{ height: "100%", display: "flex", flexDirection: "column" }}
-            styles={{ body: { flex: 1, display: "flex" } }}
-          >
-            <Space
-              direction="vertical"
-              size="middle"
-              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
-              // es lo que alinea los botones entre sí en vez de dejarlos donde
-              // acabe el texto de cada una.
-              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
-            >
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                Qué agentes hay, qué puede tocar cada uno y cómo se pasan el control. Leído del
-                grafo compilado, no de un dibujo.
-              </Typography.Paragraph>
-              <Link href="/grafo">
-                <Button>Abrir</Button>
-              </Link>
-            </Space>
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card
-            title="Asistente de estimación"
-            extra={<Typography.Text type="secondary">Sesiones 09–12</Typography.Text>}
-            style={{ height: "100%", display: "flex", flexDirection: "column" }}
-            styles={{ body: { flex: 1, display: "flex" } }}
-          >
-            <Space
-              direction="vertical"
-              size="middle"
-              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
-              // es lo que alinea los botones entre sí en vez de dejarlos donde
-              // acabe el texto de cada una.
-              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
-            >
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                De una transcripción a una estimación fundamentada, en cinco pasos y con una
-                persona revisando entre medias.
-              </Typography.Paragraph>
-              <Link href="/asistente">
-                <Button>Abrir</Button>
-              </Link>
-            </Space>
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card
-            title="Corpus e índice"
-            extra={<Typography.Text type="secondary">Sesión 11</Typography.Text>}
-            style={{ height: "100%", display: "flex", flexDirection: "column" }}
-            styles={{ body: { flex: 1, display: "flex" } }}
-          >
-            <Space
-              direction="vertical"
-              size="middle"
-              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
-              // es lo que alinea los botones entre sí en vez de dejarlos donde
-              // acabe el texto de cada una.
-              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
-            >
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                Mira qué hay indexado en la base vectorial y amplíalo con presupuestos nuevos,
-                viendo el corpus crecer.
-              </Typography.Paragraph>
-              <Link href="/corpus">
                 <Button>Abrir</Button>
               </Link>
             </Space>
@@ -256,8 +156,8 @@ export function DashboardView({
         </Col>
         <Col span={8}>
           <Card
-            title="Ajustes"
-            extra={<Typography.Text type="secondary">Transversal</Typography.Text>}
+            title="Corpus e índice"
+            extra={<Typography.Text type="secondary">Sesión 11</Typography.Text>}
             style={{ height: "100%", display: "flex", flexDirection: "column" }}
             styles={{ body: { flex: 1, display: "flex" } }}
           >
@@ -270,10 +170,85 @@ export function DashboardView({
               style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
             >
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                Cambia en caliente el modelo de cada pieza del sistema, sin recrear
-                contenedores.
+                Mira qué hay indexado en la base vectorial y amplíalo con presupuestos nuevos,
+                viendo el corpus crecer.
               </Typography.Paragraph>
-              <Link href="/ajustes">
+              <Link href="/corpus">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card
+            title="Consola de agentes"
+            extra={<Typography.Text type="secondary">Sesión 12</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
+          >
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                Perfiles con nombre para el agente escrito a mano, y las ejecuciones que han
+                gobernado.
+              </Typography.Paragraph>
+              <Link href="/agentes">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card
+            title="Asistente de estimación"
+            extra={<Typography.Text type="secondary">Sesiones 09–12</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
+          >
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                De una transcripción a una estimación fundamentada, en cinco pasos y con una
+                persona revisando entre medias.
+              </Typography.Paragraph>
+              <Link href="/asistente">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card
+            title="Flujo multi-agente"
+            extra={<Typography.Text type="secondary">Sesiones 13–14</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
+          >
+            <Space
+              direction="vertical"
+              size="middle"
+              // Estirar y repartir: con las tarjetas ya a la misma altura, esto
+              // es lo que alinea los botones entre sí en vez de dejarlos donde
+              // acabe el texto de cada una.
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                Qué agentes hay, qué puede tocar cada uno y cómo se pasan el control. Leído del
+                grafo compilado, no de un dibujo.
+              </Typography.Paragraph>
+              <Link href="/grafo">
                 <Button>Abrir</Button>
               </Link>
             </Space>

@@ -32,7 +32,7 @@ ajustes de modelo.
 | `rag/supervisor_estimation_runs` | ✅ portada | ya existen |
 | `ai_settings` | ✅ portada | ya existen |
 | `rag/index_runs` | ✅ portada | hizo falta uno nuevo |
-| `rag/estimation_runs` | ❌ pendiente | **ya existen** |
+| `rag/estimation_runs` | ✅ portada | ya existían |
 | `agents/graph_flow` | ❌ pendiente | falta uno, trivial |
 | `agents/profiles` | ❌ pendiente | falta trabajo en Python |
 | `rag/graph_estimation_runs` | ❌ pendiente | falta trabajo en Python |
@@ -96,28 +96,21 @@ pantalla que lo pinte. La alternativa —commitear el diagrama como fichero— e
 barata todavía pero se desincroniza del código en cuanto alguien toque un nodo, que
 es justo lo que la S14 hizo dos veces.
 
-## 4. Asistente RAG de cinco pasos (S09–S12) · el más grande sin Python
+## 4. Asistente RAG de cinco pasos (S09–S12) · ✅ hecho
 
-**Qué falta.** `rag/estimation_runs`, con una acción por etapa y todas
-re-ejecutables: `reformulate` → `generate` (estructura) → `estimate_hours` →
-`verify`.
+Portado en `/asistente`. Aquí el pronóstico sí acertó: no hizo falta ni un
+endpoint nuevo. El profesor llama a `/v1/estimate/agent/{structure,hours}` y
+nosotros teníamos lo mismo en `/v1/estimate/stages/structure` y
+`/v1/estimate/tasks/hours`; era un cambio de ruta, no de capacidad.
 
-**Lo que ya está.** Todo el lado Python:
-`/v1/estimate/stages/{reformulate,retrieve,assemble,generate,structure}`,
-`/v1/estimate/tasks/hours` y `/v1/estimate/from-transcript` como camino de
-comparación. No falta un endpoint.
+Lo que sí hizo falta arreglar fue un defecto de configuración que sólo se ve
+ejecutándolo: la ruta RAG corría el modelo de razonamiento con `LLM_TIMEOUT`
+(120 s), cortaba cada intento antes de que terminara y fallaba a los 362 s
+habiendo pagado tres generaciones. Ver `GENERATION_TIMEOUT`.
 
-**Qué haría falta.** Es la pantalla más grande del pendiente, y todo el trabajo es
-de interfaz y de persistencia: un asistente con estado, cada paso re-ejecutable sin
-perder lo anterior, una estructura editable por el humano entre la generación y las
-horas, horas por tarea con su fiabilidad —las que no alcanzan el umbral salen
-marcadas y sin cifra— y un paso final que calcula coste desde tarifas editables.
-
-**El matiz que hay que entender antes de empezar.** La S10 le dio la vuelta al
-flujo: la estructura ya **no** se genera con presupuestos recuperados delante,
-porque hacerlo empobrecía el árbol. Se genera libre desde el brief reformulado, y
-el retrieval vuelve a entrar **por tarea** en `/v1/estimate/tasks/hours`. Portar
-esto como «recuperar y luego generar» sería portar la versión equivocada.
+Queda abierto, y anotado en el README del frontend: el paso de estructura es una
+petición de minutos sostenida por una Server Action. Es la forma que tiene la app
+de referencia, pero no es la forma correcta.
 
 ## 5. Consola de agentes (S12) · pide Python
 

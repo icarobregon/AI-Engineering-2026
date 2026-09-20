@@ -28,6 +28,7 @@ src/
 │   ├── estimations/          # S04 — estimación transaccional
 │   ├── chat/                 # S05 — conversación con memoria, y modo Actor-Critic-Boss
 │   ├── lab/chunking/         # S07 — comparador de estrategias de troceado
+│   ├── asistente/            # S09–S12 — asistente RAG de cinco pasos
 │   ├── corpus/               # S11 — estado del corpus y ampliaciones del índice
 │   ├── supervisor/           # S14 — supervisor, traza de enrutado y bandeja de revisión
 │   ├── ajustes/              # modelos en caliente (PUT /api/v1/config/models)
@@ -41,6 +42,7 @@ src/
 │   │   ├── sessions.ts       #   POST /sessions (+ /{id}/estimate, /{id}/estimate-acb)
 │   │   ├── chunking.ts       #   POST /embeddings/compare (consultas y top_k en el mismo cuerpo)
 │   │   ├── corpus.ts         #   GET /embeddings/index/stats + POST /embeddings/ingest
+│   │   ├── wizard.ts         #   /v1/estimate/stages/{reformulate,structure} + /tasks/hours
 │   │   ├── graph.ts          #   POST /v1/estimate/graph (+ resume)
 │   │   └── config.ts         #   GET/PUT /api/v1/config/models
 │   ├── data/                 # presupuestos de muestra que alimentan el laboratorio
@@ -95,6 +97,31 @@ si se seleccionan, el botón cambia a
 «Comparar (gasta dinero)». El aviso de coste no es adorno, y tiene una letra
 pequeña que la pantalla declara: lo que se mide es la llamada extra del troceador,
 no los embeddings del playground, así que infravalora el gasto real.
+
+**Asistente de estimación** (`/asistente`, S09–S12). Cinco pasos con una persona
+revisando entre medias: la transcripción se convierte en un brief tipado, el
+brief se descompone en módulos y tareas, una persona corrige ese árbol, el corpus
+histórico pone horas tarea a tarea, y una persona ajusta horas y tarifas antes de
+confirmar. Cada paso se puede volver a ejecutar, y hacerlo avisa de lo que se va
+a perder.
+
+**La estructura se genera SIN mirar el corpus, y es lo importante de entender.**
+Hacerlo con presupuestos históricos delante empobrecía el árbol, porque el modelo
+se ceñía a lo que ya existía; desde la S10 se genera libre y el corpus vuelve a
+entrar por tarea en el paso de horas. La pantalla lo dice en un aviso para que
+nadie lo «arregle» sin querer.
+
+Las horas salen del consenso ponderado de las tareas históricas más parecidas, y
+la pantalla distingue tres casos: analogía firme, consenso flojo —por debajo del
+66 % de fiabilidad— y sin analogía, que no recibe número. Ese último caso es el
+que convierte la pantalla en útil: dice qué NO sabe el corpus, en vez de inventar
+una cifra. En una prueba real sobre una cadena de clínicas dentales, «Service
+design & journeys» y «Operations alignment per clinic» salieron sin analogía —no
+existen en un corpus de componentes de software— y las puso la persona.
+
+El emparejamiento horas↔tarea va **por posición**, no por nombre: el contrato
+devuelve las tareas en el orden en que se enviaron, y el nombre se rompe en cuanto
+alguien renombra algo entre pasos.
 
 **Corpus e índice** (`/corpus`, S11). Qué hay indexado en la base vectorial y cómo
 ampliarlo. El índice enseña dos cosas independientes: la foto EN VIVO del corpus
@@ -210,10 +237,14 @@ de servidor que sólo consulta datos y un componente cliente que pinta.
 - **La cabecera es `X-API-Key`, no `X-Service-Token`.** Mismo mecanismo, otro
   nombre; renombrarla obliga a tocar el servicio IA, sus tests y su documentación.
 - **Sin tests.** El BFF no tiene batería propia todavía.
-- **Pantallas no portadas:** asistente RAG de cinco pasos (S09–S12), diagrama del
-  grafo (S13), consola de agentes (S12) y el asistente de grafo con propuesta y
-  PDF (S13). El desglose pieza a pieza está en
-  [`../docs/alcance-pendiente.md`](../docs/alcance-pendiente.md).
+- **Pantallas no portadas:** diagrama del grafo (S13), consola de agentes (S12) y
+  el asistente de grafo con propuesta y PDF (S13). El desglose pieza a pieza está
+  en [`../docs/alcance-pendiente.md`](../docs/alcance-pendiente.md).
+- **El paso de estructura es una petición de minutos sostenida por una Server
+  Action.** `gpt-5` con razonamiento alto tarda tres minutos largos; medido, 172 s
+  y 0,13 $. La app de referencia tiene la misma forma —síncrona, sin sondeo— y por
+  eso se portó así, pero convertirlo en trabajo en segundo plano con sondeo, como
+  el del corpus, es lo que pide una pantalla que vaya a usarse de verdad.
 - **Una ampliación del corpus no sobrevive a un reinicio.** El lote se procesa en
   el proceso de Node; si se reinicia a mitad, la fila queda sin quien la mueva. El
   detalle lo detecta y lo dice —«sin señales»— en vez de sondear para siempre, pero

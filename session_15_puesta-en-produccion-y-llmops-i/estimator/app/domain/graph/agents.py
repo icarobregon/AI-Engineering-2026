@@ -632,6 +632,12 @@ def build_finalize() -> Callable[[EstimationState], Awaitable[Command]]:
             # human_decision, which is the record that matters.
             status = "needs_review"
         elif decision.get("action") in ("approve", "adjust"):
+            # "adjust" ya no se puede EMITIR —HumanDecision sólo acepta approve y
+            # reject desde la S15— pero aquí se lee del ESTADO, no de una petición,
+            # y los checkpoints escritos antes lo llevan dentro. Quitarlo haría que
+            # una estimación aprobada en la S14 cayera al `else` y se releyera como
+            # "needs_review" si su validación no fue coherente. No es código muerto:
+            # es el único sitio del servicio que ve decisiones históricas.
             status = "validated"
         else:
             status = "validated" if validation.get("is_coherent") else "needs_review"

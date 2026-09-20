@@ -118,6 +118,24 @@ def _render_pause(payload: dict) -> str:
     return "\n".join(lines)
 
 
+def _parse_component_hours(raw: str | None) -> dict[str, float] | None:
+    """``c1=80,c3=40.5`` -> ``{"c1": 80.0, "c3": 40.5}``.
+
+    Por id y nunca por posición ni por nombre, que es la misma regla que sigue el
+    servicio: una línea emparejada por el nombre que escribió el modelo es como
+    siete componentes volvieron una vez marcados como sin respaldo.
+    """
+    if not raw:
+        return None
+    horas: dict[str, float] = {}
+    for par in raw.split(","):
+        clave, sep, valor = par.partition("=")
+        if not sep:
+            raise ValueError(f"Expected id=hours, got {par!r}")
+        horas[clave.strip()] = float(valor)
+    return horas
+
+
 def _render_routing(state: dict) -> str:
     """The shape the run actually took. In Session 13 this was in the code."""
     header = f"ROUTING TRAIL — {state.get('routing_steps', 0)} decision(s)"
@@ -133,13 +151,21 @@ def _render_final(state: dict) -> str:
     lines = [header, "=" * len(header), ""]
     for component in estimate.get("components") or []:
         flag = "" if component.get("grounded") else "  [NO PRECEDENT]"
-        lines.append(f"- {component.get('name')}: {component.get('estimated_hours')}h{flag}")
+        # El original sólo está sellado en las líneas que el revisor cambió de
+        # verdad, así que imprimirlo cuando está es imprimir exactamente el
+        # desacuerdo entre el sistema y la persona, sin comparar números aquí.
+        antes = component.get("original_estimated_hours")
+        cambio = f"  (was {antes}h)" if antes is not None else ""
+        lines.append(
+            f"- {component.get('name')}: {component.get('estimated_hours')}h{cambio}{flag}"
+        )
         lines.append(f"    {component.get('rationale')}")
     lines.append("")
     lines.append(f"TOTAL: {estimate.get('total_hours')}h")
     if estimate.get("original_total_hours") is not None:
         lines.append(
-            f"  (the system said {estimate['original_total_hours']}h; a human adjusted it)"
+            f"  (the system said {estimate['original_total_hours']}h; a reviewer "
+            f"repriced it line by line)"
         )
     lines.append(f"Confidence: {state.get('confidence')}")
     lines.append(f"Notes: {estimate.get('notes')}")
@@ -223,15 +249,20 @@ async def main() -> int:
     )
     parser.add_argument(
         "--decision",
-        choices=["approve", "adjust", "reject"],
+        choices=["approve", "reject"],
         default="approve",
         help="What the simulated reviewer answers if the run pauses.",
     )
     parser.add_argument(
-        "--adjusted-hours",
-        type=float,
+        "--component-hours",
         default=None,
-        help="The total the reviewer decides on, with --decision adjust.",
+        metavar="c1=80,c3=40.5",
+        help=(
+            "The hours the reviewer decides on, per component id. Applied on "
+            "approve AND on reject. The total is never sent: it is derived from "
+            "these, which is what keeps the bottom line and the breakdown from "
+            "disagreeing."
+        ),
     )
     parser.add_argument("--thread-id", default=None, help="Overrides the generated thread_id.")
     parser.add_argument("--out", type=Path, default=None, help="Also write the run here.")
@@ -253,9 +284,15 @@ async def main() -> int:
     agents = get_graph_nodes(search_backend=_load_stub_backend() if args.stub else None)
     verify_tool_grants(agents)
     thread_id = args.thread_id or f"run-{args.transcript.stem}-{int(time.time())}"
+    try:
+        component_hours = _parse_component_hours(args.component_hours)
+    except ValueError as error:
+        print(f"--component-hours: {error}", file=sys.stderr)
+        return 2
+
     decision = {
         "action": args.decision,
-        "adjusted_hours": args.adjusted_hours,
+        "component_hours": component_hours,
         "comment": "simulated review from scripts/run_graph_s14.py",
         "reviewer_id": "script",
     }

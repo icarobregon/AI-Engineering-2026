@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import {
@@ -77,13 +77,24 @@ function StageButton({
   confirm?: string;
 }) {
   const [state, run] = useActionState<FormState, FormData>(action, VACIO);
+  // El formulario se referencia, no se busca desde el evento: el botón de
+  // confirmación del Popconfirm vive en un PORTAL, fuera del `<form>`, así que
+  // un `closest("form")` desde su click devuelve null y la etapa no se lanza
+  // nunca — sin error, sin nada. Lo mismo pasaba al borrar un perfil.
+  const formRef = useRef<HTMLFormElement>(null);
   return (
     <Space direction="vertical" size={8} style={{ width: "100%" }}>
       {state.error && <Alert type="error" showIcon message={state.error} />}
       {state.notice && <Alert type="success" showIcon message={state.notice} />}
-      <form action={run}>
+      <form action={run} ref={formRef}>
         <input type="hidden" name="run_id" value={runId} />
-        <StageSubmit label={label} loadingLabel={loadingLabel} danger={danger} confirm={confirm} />
+        <StageSubmit
+          label={label}
+          loadingLabel={loadingLabel}
+          danger={danger}
+          confirm={confirm}
+          onConfirm={() => formRef.current?.requestSubmit()}
+        />
       </form>
     </Space>
   );
@@ -94,11 +105,13 @@ function StageSubmit({
   loadingLabel,
   danger,
   confirm,
+  onConfirm,
 }: {
   label: string;
   loadingLabel: string;
   danger?: boolean;
   confirm?: string;
+  onConfirm: () => void;
 }) {
   const { pending } = useFormStatus();
   const boton = (
@@ -119,9 +132,7 @@ function StageSubmit({
       description={confirm}
       okText="Re-ejecutar"
       cancelText="Cancelar"
-      onConfirm={(e) => {
-        (e?.currentTarget as HTMLElement)?.closest("form")?.requestSubmit();
-      }}
+      onConfirm={onConfirm}
     >
       {boton}
     </Popconfirm>

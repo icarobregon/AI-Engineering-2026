@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
   Alert,
@@ -79,6 +79,34 @@ function opcionPerfil(
       </Flex>
     ),
   };
+}
+
+/**
+ * Borrar un perfil, tras confirmar.
+ *
+ * La referencia al formulario es imprescindible y no un adorno: el botón de
+ * confirmación del Popconfirm se renderiza en un PORTAL, fuera del `<form>`, así
+ * que buscar el formulario desde el evento —`closest("form")`— devuelve null y el
+ * borrado no llega a lanzarse nunca, sin error en consola.
+ */
+function DeleteProfileButton({ id }: { id: string }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  return (
+    <form action={deleteProfile} ref={formRef}>
+      <input type="hidden" name="id" value={id} />
+      <Popconfirm
+        title="Borrar el perfil"
+        description="Las ejecuciones que ya corrieron con él se conservan: cada una guardó sus ajustes."
+        okText="Borrar"
+        cancelText="Cancelar"
+        onConfirm={() => formRef.current?.requestSubmit()}
+      >
+        <Button danger size="small" htmlType="button">
+          Borrar
+        </Button>
+      </Popconfirm>
+    </form>
+  );
 }
 
 function LaunchButton({ suficiente }: { suficiente: boolean }) {
@@ -247,22 +275,7 @@ export function ConsoleView({
                         Editar
                       </Button>
                     </Link>
-                    <form action={deleteProfile}>
-                      <input type="hidden" name="id" value={p.id} />
-                      <Popconfirm
-                        title="Borrar el perfil"
-                        description="Las ejecuciones que ya corrieron con él se conservan: cada una guardó sus ajustes."
-                        okText="Borrar"
-                        cancelText="Cancelar"
-                        onConfirm={(e) =>
-                          (e?.currentTarget as HTMLElement)?.closest("form")?.requestSubmit()
-                        }
-                      >
-                        <Button danger size="small" htmlType="button">
-                          Borrar
-                        </Button>
-                      </Popconfirm>
-                    </form>
+                    <DeleteProfileButton id={p.id} />
                   </Space>
                 ),
               },

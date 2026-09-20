@@ -20,6 +20,7 @@ from app.api.routers.estimate_tasks import router as estimate_tasks_router
 from app.api.routers.agent import router as agent_router
 from app.api.routers.estimate_graph import router as estimate_graph_router
 from app.api.routers.retrieval import router as retrieval_router
+from app.api.routers.references import router as references_router
 from app.api.routers.retrieval_advanced import router as retrieval_advanced_router
 
 
@@ -180,6 +181,9 @@ app.include_router(estimate_tasks_router)
 # Sessions 13-14 — the same estimate, produced by a supervisor coordinating
 # specialist agents, with a human gate that can pause and resume the run.
 app.include_router(estimate_graph_router)
+# El desglose de las referencias que cita el grafo: abre el numero que el
+# revisor tiene que validar. Va detras del grafo porque solo existe para el.
+app.include_router(references_router)
 
 # Sesión 12 — el agente escrito a mano, que hasta ahora sólo corría por script.
 # Exponerlo es lo que permite que una consola de perfiles gobierne algo real.

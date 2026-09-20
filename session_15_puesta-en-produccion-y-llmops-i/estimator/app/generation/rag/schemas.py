@@ -600,3 +600,55 @@ class CorpusStatsResponse(BaseModel):
     collections: list[CollectionStatView]
     total_documents: int = Field(ge=0)
     total_chunks: int = Field(ge=0)
+
+
+class ReferenceTaskView(BaseModel):
+    """Una tarea del módulo histórico: la unidad que de verdad lleva horas."""
+
+    component_id: str
+    name: str
+    description: str
+    tech_stack: str
+    complexity: str
+    estimated_hours: float = Field(ge=0)
+
+
+class ReferenceView(BaseModel):
+    """Una referencia que respalda una estimación, con su contexto y su desglose.
+
+    ``total_hours`` es la suma de ``tasks`` y coincide con el ``amount`` que el
+    grafo guardó en su ``budget_match``: es el mismo número, visto por dentro.
+    """
+
+    reference_budget_id: str
+    budget_id: str
+    module: str
+    project: str
+    client_sector: str
+    year: int | None = None
+    main_technology: str
+    total_hours: float = Field(ge=0)
+    tasks: list[ReferenceTaskView]
+
+
+class ReferencesRequest(BaseModel):
+    """Las referencias a resolver, tal y como las cita el grafo."""
+
+    references: list[str] = Field(
+        min_length=1,
+        max_length=50,
+        description="Identificadores con la forma {budget_id}/{module}.",
+    )
+
+
+class ReferencesResponse(BaseModel):
+    """Lo encontrado y lo que no.
+
+    ``missing`` va aparte en vez de omitirse: una referencia que el grafo cita y
+    el corpus ya no tiene es exactamente el caso que hay que poder enseñar —el
+    número se apoya en algo que ha dejado de estar—, y un hueco silencioso lo
+    haría indistinguible de un fallo de red.
+    """
+
+    references: list[ReferenceView]
+    missing: list[str]

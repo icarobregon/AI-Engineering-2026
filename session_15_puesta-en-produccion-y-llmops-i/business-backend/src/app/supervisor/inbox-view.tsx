@@ -10,7 +10,8 @@ import { AWAITING_REVIEW, statusLabel } from "@/lib/supervisor";
 export type RunRow = {
   id: string;
   createdAt: Date;
-  transcript: string;
+  title: string | null;
+  origen: string | null;
   confidence: number | null;
   status: string | null;
 };
@@ -24,9 +25,32 @@ export function InboxView({ awaiting, recent }: { awaiting: RunRow[]; recent: Ru
       render: (value: Date) => new Date(value).toLocaleString("es-ES"),
     },
     {
-      title: "Transcripción",
-      dataIndex: "transcript",
-      render: (value: string) => (value.length > 90 ? `${value.slice(0, 90)}…` : value),
+      /*
+        El título y no la transcripción. Un recorte a 90 caracteres empieza casi
+        siempre por la misma fórmula de acta —«Reunión de descubrimiento —
+        Proyecto…»— y con dos ejecuciones de la misma reunión los dos recortes
+        salían idénticos: la columna ocupaba el ancho sin distinguir nada. El
+        título que pone el sistema sí dice de qué va cada una.
+      */
+      title: "Título",
+      key: "title",
+      render: (_: unknown, row: RunRow) =>
+        row.title ??
+        (row.origen ? (
+          /*
+            Todavía no hay título —en curso, o muerta antes de estimar— así que
+            se enseña de dónde salió. Atenuado y en cursiva a propósito: dice que
+            esto no es el nombre que puso el sistema, sino la línea de la que
+            partió, y así una fila a medias no se confunde con una terminada.
+          */
+          <Typography.Text type="secondary" italic>
+            {row.origen}
+          </Typography.Text>
+        ) : (
+          // Ni título ni transcripción con contenido: la misma raya con la que
+          // Confianza dice «no lo sé».
+          <Typography.Text type="secondary">—</Typography.Text>
+        )),
     },
     {
       title: "Confianza",

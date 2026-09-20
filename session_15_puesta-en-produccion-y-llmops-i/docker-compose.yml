@@ -21,6 +21,12 @@ services:
       AI_SERVICE_URL: http://ai-service:8000
       # `:?` fails the run loudly instead of starting with an empty secret.
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?set AI_SERVICE_TOKEN in .env}
+      # El servicio IA ya recibe esta variable; sin esta línea, rellenarla en el
+      # .env apretaba su cerradura SIN darle la clave nueva a este contenedor, y
+      # todo lo de retrieval empezaba a contestar 401 sin que nada lo dijera.
+      # Vacía es «sin configurar» en los dos lados: allí por el `:-`, aquí porque
+      # el cliente trata el blanco como ausente.
+      AI_SERVICE_RETRIEVAL_TOKEN: ${AI_SERVICE_RETRIEVAL_TOKEN:-}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@estimator-postgres:5432/${POSTGRES_DB}?schema=business
     depends_on:
       business-migrate:

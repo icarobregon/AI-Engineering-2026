@@ -65,6 +65,31 @@ describe("el token", () => {
     expect(ultimaLlamada().headers["X-API-Key"]).toBe("token-de-estimacion");
   });
 
+  it("una clave de retrieval VACÍA cuenta como no configurada", async () => {
+    // `.env.example` trae esa variable sin valor porque es opcional, así que
+    // copiarlo tal cual —lo que dice el README— llenaba la cabecera con una
+    // cadena vacía y el servicio contestaba 401 a todo lo de retrieval.
+    process.env.AI_SERVICE_RETRIEVAL_TOKEN = "";
+    await callEstimator("/search", { token: "retrieval" });
+
+    expect(ultimaLlamada().headers["X-API-Key"]).toBe("token-de-estimacion");
+  });
+
+  it("una clave de retrieval con sólo espacios tampoco cuenta", async () => {
+    process.env.AI_SERVICE_RETRIEVAL_TOKEN = "   ";
+    await callEstimator("/search", { token: "retrieval" });
+
+    expect(ultimaLlamada().headers["X-API-Key"]).toBe("token-de-estimacion");
+  });
+
+  it("sin clave de estimación no se manda una cabecera vacía", async () => {
+    // Mejor un 401 del guardia que una cabecera que parece puesta y no lo está.
+    process.env.AI_SERVICE_TOKEN = "";
+    await callEstimator("/algo");
+
+    expect(ultimaLlamada().headers["X-API-Key"]).toBeUndefined();
+  });
+
   it("token: 'none' no manda cabecera: /health no la quiere", async () => {
     await callEstimator("/health", { token: "none" });
     expect(ultimaLlamada().headers["X-API-Key"]).toBeUndefined();

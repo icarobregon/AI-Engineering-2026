@@ -39,13 +39,25 @@ type RequestOptions = {
   timeoutMs?: number;
 };
 
+/**
+ * Una variable de entorno VACÍA es una variable sin configurar.
+ *
+ * No es una sutileza: `.env.example` trae `AI_SERVICE_RETRIEVAL_TOKEN=` sin
+ * valor, porque la clave de retrieval es opcional. Con `??` —que sólo atrapa
+ * `null` y `undefined`— copiar el ejemplo tal cual, que es justo lo que dice el
+ * README, dejaba la cadena vacía viajando como `X-API-Key` y el servicio
+ * contestando 401 a todo lo de retrieval. La misma regla vale para `:-` de
+ * Compose y para el servicio IA, donde una clave en blanco desactiva su ruta.
+ */
+function configurado(valor: string | undefined): string | null {
+  return valor && valor.trim().length > 0 ? valor : null;
+}
+
 function tokenFor(kind: NonNullable<RequestOptions["token"]>): string | null {
   if (kind === "none") return null;
-  const value =
-    kind === "estimate"
-      ? process.env.AI_SERVICE_TOKEN
-      : (process.env.AI_SERVICE_RETRIEVAL_TOKEN ?? process.env.AI_SERVICE_TOKEN);
-  return value ?? null;
+  const estimate = configurado(process.env.AI_SERVICE_TOKEN);
+  if (kind === "estimate") return estimate;
+  return configurado(process.env.AI_SERVICE_RETRIEVAL_TOKEN) ?? estimate;
 }
 
 /** The estimator answers `{"detail": ...}`; detail is a string or an object. */

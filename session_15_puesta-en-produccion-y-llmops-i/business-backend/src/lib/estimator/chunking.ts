@@ -28,7 +28,6 @@ export async function compareChunking(input: {
 }): Promise<CompareResponse> {
   const payload = await callEstimator<unknown>("/embeddings/compare", {
     method: "POST",
-    // This route carries no authentication in the AI service.
     timeoutMs: 600_000,
     body: {
       budgets,

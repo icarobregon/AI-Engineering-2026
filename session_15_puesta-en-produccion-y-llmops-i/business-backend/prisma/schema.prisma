@@ -20,17 +20,17 @@ datasource db {
 
 /// Session 4 — one transactional estimate, request and answer.
 model Estimation {
-  id          String   @id @default(uuid())
-  description String
-  projectType String   @map("project_type")
-  detailLevel String   @map("detail_level")
-  outputFormat String  @map("output_format")
+  id           String @id @default(uuid())
+  description  String
+  projectType  String @map("project_type")
+  detailLevel  String @map("detail_level")
+  outputFormat String @map("output_format")
 
   /// The validated EstimationResponse, stored whole: the AI service owns this
   /// shape, and re-deriving columns from it would just be a second source of
   /// truth that drifts.
-  responsePayload Json   @map("response_payload")
-  promptVersion   String @map("prompt_version")
+  responsePayload Json    @map("response_payload")
+  promptVersion   String  @map("prompt_version")
   cached          Boolean @default(false)
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -58,10 +58,10 @@ model SupervisorRun {
   /// awaiting_human_review | routing_budget_exhausted.
   status String?
 
-  estimate      Json?   @db.JsonB
-  reviewPayload Json?   @map("review_payload") @db.JsonB
-  humanDecision Json?   @map("human_decision") @db.JsonB
-  errors        Json    @default("[]") @db.JsonB
+  estimate      Json?  @db.JsonB
+  reviewPayload Json?  @map("review_payload") @db.JsonB
+  humanDecision Json?  @map("human_decision") @db.JsonB
+  errors        Json   @default("[]") @db.JsonB
   confidence    Float?
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -70,4 +70,44 @@ model SupervisorRun {
   @@index([createdAt])
   @@index([runState, status])
   @@map("supervisor_runs")
+}
+
+/// Sesión 11 — una ampliación del corpus vectorial y cómo fue.
+///
+/// El trabajo asíncrono vive AQUÍ, no en el servicio IA: su ruta de ingesta es
+/// síncrona y acepta un documento por llamada, así que el lote, su progreso y su
+/// resultado son estado de negocio. Es el mismo reparto que hace la aplicación de
+/// referencia, cuyo sondeo también consulta a su propio backend.
+model IndexRun {
+  id String @id @default(uuid())
+
+  chunkType String @map("chunk_type")
+
+  /// El JSON tal y como lo pegó la persona. La app de referencia NO lo guarda, y
+  /// sin él no se puede reintentar una ampliación ni diagnosticar por qué falló.
+  documentsJson String @map("documents_json")
+
+  submittedCount Int @map("submitted_count")
+  processedCount Int @default(0) @map("processed_count")
+  /// Documentos que el servicio IA ya tenía (409). No son un fallo.
+  skippedCount   Int @default(0) @map("skipped_count")
+  chunksCreated  Int @default(0) @map("chunks_created")
+
+  /// pending | running | completed | failed.
+  status String @default("pending")
+
+  /// Por qué falló. La app de referencia lo recibe del servicio y lo descarta,
+  /// y por eso pinta en verde un trabajo fallido.
+  errorMessage String? @map("error_message")
+
+  /// La foto del corpus antes y después, congelada. No se vuelve a pedir al
+  /// servicio al abrir la página: el "antes" ya no existiría.
+  beforeStats Json? @map("before_stats") @db.JsonB
+  afterStats  Json? @map("after_stats") @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@map("index_runs")
 }

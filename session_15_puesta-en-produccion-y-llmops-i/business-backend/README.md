@@ -28,6 +28,7 @@ src/
 │   ├── estimations/          # S04 — estimación transaccional
 │   ├── chat/                 # S05 — conversación con memoria, y modo Actor-Critic-Boss
 │   ├── lab/chunking/         # S07 — comparador de estrategias de troceado
+│   ├── corpus/               # S11 — estado del corpus y ampliaciones del índice
 │   ├── supervisor/           # S14 — supervisor, traza de enrutado y bandeja de revisión
 │   ├── ajustes/              # modelos en caliente (PUT /api/v1/config/models)
 │   └── api/health/           # liveness del propio contenedor
@@ -39,6 +40,7 @@ src/
 │   │   ├── estimations.ts    #   POST /api/v1/estimate
 │   │   ├── sessions.ts       #   POST /sessions (+ /{id}/estimate, /{id}/estimate-acb)
 │   │   ├── chunking.ts       #   POST /embeddings/compare (consultas y top_k en el mismo cuerpo)
+│   │   ├── corpus.ts         #   GET /embeddings/index/stats + POST /embeddings/ingest
 │   │   ├── graph.ts          #   POST /v1/estimate/graph (+ resume)
 │   │   └── config.ts         #   GET/PUT /api/v1/config/models
 │   ├── data/                 # presupuestos de muestra que alimentan el laboratorio
@@ -93,6 +95,23 @@ si se seleccionan, el botón cambia a
 «Comparar (gasta dinero)». El aviso de coste no es adorno, y tiene una letra
 pequeña que la pantalla declara: lo que se mide es la llamada extra del troceador,
 no los embeddings del playground, así que infravalora el gasto real.
+
+**Corpus e índice** (`/corpus`, S11). Qué hay indexado en la base vectorial y cómo
+ampliarlo. El índice enseña dos cosas independientes: la foto EN VIVO del corpus
+—documentos y chunks por colección— y el histórico de ampliaciones, que es nuestro.
+Pegas uno o varios presupuestos en JSON y se indexan de uno en uno, con el progreso
+en vivo y las fotos del corpus antes y después. Un documento que el servicio ya
+tenga se salta en vez de duplicarse.
+
+La columna «Índice» dice si cada colección tiene índice HNSW, y es el dato que no
+se adivina mirando las filas: sin él una búsqueda vectorial recorre la tabla
+entera. Hoy dice «recorrido secuencial» en presupuestos, con 1603 chunks — no es
+un fallo de la pantalla, es el estado real del sistema.
+
+**El trabajo asíncrono vive aquí, no en el servicio IA.** Su ruta de ingesta es
+síncrona y acepta un documento por llamada, así que el lote, su progreso y su
+resultado son estado de negocio. Es el mismo reparto que hace la aplicación de
+referencia, cuyo sondeo también consulta a su propio backend.
 
 **Supervisor y revisión humana** (`/supervisor`, S14). Bandeja de ejecuciones,
 lanzamiento de una nueva y detalle con la estimación, las señales que dispararon
@@ -191,13 +210,14 @@ de servidor que sólo consulta datos y un componente cliente que pinta.
 - **La cabecera es `X-API-Key`, no `X-Service-Token`.** Mismo mecanismo, otro
   nombre; renombrarla obliga a tocar el servicio IA, sus tests y su documentación.
 - **Sin tests.** El BFF no tiene batería propia todavía.
-- **Pantallas no portadas:** asistente RAG de cinco pasos (S09–S12), corpus e
-  índice (S11), diagrama del grafo (S13), consola de agentes (S12) y el asistente
-  de grafo con propuesta y PDF (S13). Las dos primeras no necesitan ni una línea
-  de Python —sus endpoints ya existen—, el diagrama pide uno trivial y las dos
-  últimas sí piden trabajo en el servicio IA. El desglose pieza a pieza, con lo
-  que hay y lo que falta en cada una, está en
+- **Pantallas no portadas:** asistente RAG de cinco pasos (S09–S12), diagrama del
+  grafo (S13), consola de agentes (S12) y el asistente de grafo con propuesta y
+  PDF (S13). El desglose pieza a pieza está en
   [`../docs/alcance-pendiente.md`](../docs/alcance-pendiente.md).
+- **Una ampliación del corpus no sobrevive a un reinicio.** El lote se procesa en
+  el proceso de Node; si se reinicia a mitad, la fila queda sin quien la mueva. El
+  detalle lo detecta y lo dice —«sin señales»— en vez de sondear para siempre, pero
+  no lo reanuda.
 - **El laboratorio no guarda los runs.** El original tiene histórico justamente
   para no volver a pagar las estrategias caras.
 - **Desarrollo fuera de Docker.** Con la frontera cerrada, `localhost:8000` y

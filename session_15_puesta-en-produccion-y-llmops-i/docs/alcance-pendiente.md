@@ -31,14 +31,17 @@ ajustes de modelo.
 | `rag/chunking_comparisons` | ⚠️ parcial — sin histórico | ya existen |
 | `rag/supervisor_estimation_runs` | ✅ portada | ya existen |
 | `ai_settings` | ✅ portada | ya existen |
-| `rag/index_runs` | ❌ pendiente | **ya existen** |
+| `rag/index_runs` | ✅ portada | hizo falta uno nuevo |
 | `rag/estimation_runs` | ❌ pendiente | **ya existen** |
 | `agents/graph_flow` | ❌ pendiente | falta uno, trivial |
 | `agents/profiles` | ❌ pendiente | falta trabajo en Python |
 | `rag/graph_estimation_runs` | ❌ pendiente | falta trabajo en Python |
 
-La tabla está ordenada por coste creciente. Las dos primeras pendientes no piden
-una sola línea de Python.
+La tabla está ordenada por coste creciente. La columna de endpoints dice lo que
+cuesta de verdad cada pieza, y conviene leerla con desconfianza: la de corpus
+decía «ya existen» por parecido de nombres, y al abrir el código resultó que no.
+Antes de dar por bueno que algo está cubierto, hay que leer qué hace el endpoint,
+no cómo se llama.
 
 ---
 
@@ -57,21 +60,27 @@ revisitarlo sin re-pagar las estrategias LLM».
 **Qué haría falta.** Una tabla en el esquema `business` con la petición, el
 payload íntegro y la duración, más dos rutas. Cero cambios en Python.
 
-## 2. Corpus e índice (S11) · barato
+## 2. Corpus e índice (S11) · ✅ hecho
 
-**Qué falta.** `rag/index_runs`: añadir información nueva a la base vectorial y
-seguir el trabajo de indexado hasta que el corpus crece. En la app de referencia
-es el **único sitio con polling** (1500 ms).
+Portada en `/corpus`. **Y con una corrección a lo que decía antes este documento.**
 
-**Lo que ya está.** El servicio IA expone exactamente esa forma:
-`POST /api/v1/ingestion/runs` responde 202 con un identificador de trabajo, y
-`GET /api/v1/ingestion/jobs/{job_id}` lo consulta. Es el contrato que esta
-pantalla necesita, ya construido y ahora además autenticado.
+Aquí se afirmaba que no necesitaba «ni una línea de Python» porque
+`POST /api/v1/ingestion/runs` y `GET /api/v1/ingestion/jobs/{id}` ya existían. Era
+falso, y el error fue deducirlo del parecido de los nombres sin leer qué hacen:
+esas rutas son el pipeline offline de la S06 sobre fuentes CATALOGADAS en disco,
+no «indexa estos documentos». La app de referencia llama a
+`/embeddings/index/{stats,runs,jobs}` y de esas tres no teníamos ninguna.
 
-**Qué haría falta.** La pantalla y el sondeo. Es la primera del repo que necesita
-estado asíncrono en cliente, así que conviene resolver ahí el patrón —sondeo con
-corte, error recuperable, cancelación al desmontar— antes de repetirlo en la del
-grafo.
+De las tres sólo hizo falta **una**, `GET /embeddings/index/stats`, porque en la
+app del profesor el sondeo va contra un endpoint suyo de Rails y no contra el
+servicio IA: el trabajo asíncrono podía vivir en el BFF llamando a
+`/embeddings/ingest` documento a documento, que es como está hecho.
+
+Lo que se descubrió al construirlo: **no existe ningún índice HNSW ni IVFFlat en
+el sistema**. Toda búsqueda vectorial es hoy un recorrido secuencial sobre 1603
+chunks. Funciona a este tamaño y dejaría de funcionar sin avisar; ahora la
+pantalla lo enseña. Crear el índice es trabajo aparte, y no trivial: hay que
+elegir parámetros y reindexar.
 
 ## 3. Diagrama del grafo (S13) · barato
 

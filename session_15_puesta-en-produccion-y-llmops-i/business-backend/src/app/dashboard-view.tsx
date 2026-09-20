@@ -99,6 +99,22 @@ export function DashboardView({
         </Col>
         <Col span={8}>
           <Card
+            title="Corpus e índice"
+            extra={<Typography.Text type="secondary">Sesión 11</Typography.Text>}
+          >
+            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                Mira qué hay indexado en la base vectorial y amplíalo con presupuestos nuevos,
+                viendo el corpus crecer.
+              </Typography.Paragraph>
+              <Link href="/corpus">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card
             title="Laboratorio de chunking"
             extra={<Typography.Text type="secondary">Sesión 07</Typography.Text>}
           >

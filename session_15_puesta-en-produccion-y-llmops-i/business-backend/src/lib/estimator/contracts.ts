@@ -405,3 +405,43 @@ export const modelsConfigSchema = z.object({
   ),
 });
 export type ModelsConfig = z.infer<typeof modelsConfigSchema>;
+
+// ---------------------------------------------------------------------------
+// Corpus e índice (S11) — GET /embeddings/index/stats
+// ---------------------------------------------------------------------------
+
+export const collectionStatSchema = z.object({
+  collection: z.string(),
+  documents: z.number().int().nonnegative(),
+  chunks: z.number().int().nonnegative(),
+  /**
+   * Sin índice HNSW la búsqueda vectorial es un sequential scan: funciona con
+   * mil chunks y deja de funcionar con cien mil, sin avisar y sin error.
+   */
+  hnsw_indexed: z.boolean(),
+});
+export type CollectionStat = z.infer<typeof collectionStatSchema>;
+
+export const corpusStatsSchema = z.object({
+  collections: z.array(collectionStatSchema),
+  total_documents: z.number().int().nonnegative(),
+  total_chunks: z.number().int().nonnegative(),
+});
+export type CorpusStats = z.infer<typeof corpusStatsSchema>;
+
+/** Lo que `POST /embeddings/ingest` responde por documento aceptado. */
+export const ingestResponseSchema = z.object({
+  document_id: z.number().int(),
+  chunks_created: z.number().int().nonnegative(),
+  embedding_dimension: z.number().int(),
+  ingestion_time_ms: z.number().int().nonnegative(),
+});
+export type IngestResponse = z.infer<typeof ingestResponseSchema>;
+
+/** Los dos tipos de chunk que el corpus acepta hoy. */
+export const chunkTypes = ["budget_component", "historical_task"] as const;
+export type ChunkType = (typeof chunkTypes)[number];
+
+/** Estados de una ampliación. `failed` existe para que un fallo no se pinte en verde. */
+export const indexRunStatuses = ["pending", "running", "completed", "failed"] as const;
+export type IndexRunStatus = (typeof indexRunStatuses)[number];

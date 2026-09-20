@@ -5,7 +5,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
-import { humanDecisionSchema, type RunProgress } from "@/lib/estimator/contracts";
+import {
+  humanDecisionSchema,
+  reviewPayloadSchema,
+  type RunProgress,
+} from "@/lib/estimator/contracts";
 import { EstimatorError } from "@/lib/estimator/errors";
 import {
   draftCommercialProposal,
@@ -15,6 +19,7 @@ import {
   resumeSupervisedEstimation,
 } from "@/lib/estimator/graph";
 import { FAILED, responseFromState, runUpdateFrom } from "@/lib/supervisor";
+import { componentesSinPrecio, parseComponentHours } from "./review";
 
 export type FormState = { error: string | null };
 
@@ -107,21 +112,50 @@ export async function syncRun(id: string): Promise<SyncResult> {
 
 export async function submitReview(_previous: FormState, formData: FormData): Promise<FormState> {
   const id = String(formData.get("id") ?? "");
-  const rawHours = formData.get("adjusted_hours");
+  const accion = String(formData.get("action") ?? "");
+  const revisor = String(formData.get("reviewer_id") ?? "").trim();
+  const motivo = String(formData.get("comment") ?? "").trim();
 
-  const parsed = humanDecisionSchema.safeParse({
-    action: formData.get("action"),
-    adjusted_hours: rawHours ? Number(rawHours) : null,
-    comment: formData.get("comment") || null,
-    reviewer_id: formData.get("reviewer_id") || null,
-  });
-  if (!parsed.success) return { error: "Decisión inválida: elige aprobar, ajustar o rechazar." };
-  if (parsed.data.action === "adjust" && parsed.data.adjusted_hours == null) {
-    return { error: "Para ajustar hay que indicar el total de horas." };
+  if (accion !== "approve" && accion !== "reject") {
+    return { error: "Decisión inválida: sólo se puede aprobar o rechazar." };
+  }
+  // Se comprueba aquí ADEMÁS de deshabilitar el botón. Lo de la pantalla es
+  // cortesía; esto es la regla, y es lo único que sigue en pie si alguien llama
+  // a la acción desde fuera del formulario.
+  if (!revisor || !motivo) {
+    return { error: "Revisor y Motivo son obligatorios para aprobar o rechazar." };
+  }
+
+  let componentHours: Record<string, number>;
+  try {
+    componentHours = parseComponentHours(formData.get("component_hours"));
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Horas inválidas." };
   }
 
   const run = await prisma.supervisorRun.findUnique({ where: { id } });
   if (!run) return { error: "Esa estimación ya no existe." };
+
+  // Los componentes se leen de lo GUARDADO, no de lo que mandó el formulario:
+  // uno omitido entero no se puede echar de menos mirando sólo lo que llegó.
+  const briefing = reviewPayloadSchema.safeParse(run.reviewPayload);
+  const componentes = briefing.success ? (briefing.data.estimate?.components ?? []) : [];
+  if (accion === "approve") {
+    const sinPrecio = componentesSinPrecio(componentes, componentHours);
+    if (sinPrecio.length > 0) {
+      return {
+        error: `No se puede aprobar con componentes a 0 h: ${sinPrecio.join(", ")}.`,
+      };
+    }
+  }
+
+  const parsed = humanDecisionSchema.safeParse({
+    action: accion,
+    component_hours: componentHours,
+    comment: motivo,
+    reviewer_id: revisor,
+  });
+  if (!parsed.success) return { error: "Decisión inválida." };
 
   try {
     const response = await resumeSupervisedEstimation(run.estimationId, parsed.data);

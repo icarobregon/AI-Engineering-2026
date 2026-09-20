@@ -349,18 +349,22 @@ async def test_resuming_with_an_approval_finishes_the_run(fake_llm, empty_backen
     assert state["human_decision"] == decision
 
 
-async def test_resuming_with_an_adjustment_replaces_the_total_and_keeps_the_original(
+async def test_resuming_with_reviewed_hours_rebuilds_the_total_and_keeps_the_original(
     fake_llm, empty_backend
 ):
     checkpointer = MemorySaver()
     graph = build_test_graph(fake_llm, empty_backend, checkpointer)
-    await graph.ainvoke(start("h4"), config("h4"))
+    primera = await graph.ainvoke(start("h4"), config("h4"))
+
+    # El revisor pone precio a cada línea. El total NO se manda: se deriva.
+    componentes = (primera.get("__interrupt__")[0].value["estimate"] or {})["components"]
+    horas = {c["component_id"]: 60.0 for c in componentes}
 
     state = await graph.ainvoke(
-        Command(resume={"action": "adjust", "adjusted_hours": 180.0}), config("h4")
+        Command(resume={"action": "approve", "component_hours": horas}), config("h4")
     )
 
-    assert state["estimate"]["total_hours"] == 180.0
+    assert state["estimate"]["total_hours"] == 60.0 * len(horas)
     # What the system produced and what the human decided are both evidence: the
     # gap between them is how the confidence threshold gets calibrated.
     assert state["estimate"]["original_total_hours"] == 0.0

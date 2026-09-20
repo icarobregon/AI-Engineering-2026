@@ -14,7 +14,7 @@ business backend, where those decisions belong.
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -36,11 +36,27 @@ class GraphEstimateRequest(BaseModel):
 class HumanDecision(BaseModel):
     """What a reviewer sends back to release a paused estimation."""
 
-    action: Literal["approve", "adjust", "reject"]
-    adjusted_hours: Optional[float] = Field(
+    # Dos, no tres. "adjust" —un total suelto— murió en la Sesión 15: el revisor
+    # pone precio COMPONENTE A COMPONENTE y el total se deriva de la suma, así
+    # que aprobar con cambios ES aprobar. Este esquema valida peticiones
+    # ENTRANTES, no relee checkpoints: los `human_decision` escritos antes viven
+    # en el estado como dicts y nunca vuelven a pasar por aquí, así que conservar
+    # el valor sólo habría dejado aceptando una acción que ningún cliente puede
+    # producir ya.
+    action: Literal["approve", "reject"]
+    component_hours: Optional[dict[str, Annotated[float, Field(ge=0)]]] = Field(
         default=None,
-        ge=0,
-        description="The total the reviewer decided on. Only read when action is 'adjust'.",
+        description=(
+            "The hours the reviewer decided on, keyed by `component_id`. Applied "
+            "on approve AND on reject: a rejection is also evidence of what was "
+            "considered, and throwing it away loses the gap between what the "
+            "system proposed and what a person thought, which is what the "
+            "confidence threshold gets calibrated against. Keyed by id and never "
+            "by name or position — a line matched by a model-authored name is "
+            "how seven components once came back flagged as unbacked. The TOTAL "
+            "is never sent: it is derived from these, which is what makes the "
+            "bottom line and the breakdown incapable of disagreeing."
+        ),
     )
     comment: Optional[str] = Field(default=None, description="Why, for the record.")
     reviewer_id: Optional[str] = Field(

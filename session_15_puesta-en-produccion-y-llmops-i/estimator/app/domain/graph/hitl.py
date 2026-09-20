@@ -89,23 +89,61 @@ def build_review_reason(reasons: list[str]) -> str:
 def apply_human_decision(estimate: dict | None, decision: dict) -> dict | None:
     """Fold the reviewer's decision into the estimate.
 
-    Only ``adjust`` changes a number, and it changes the total only — a reviewer
-    revising the bottom line has not told us which component they disagreed with,
-    and spreading their number across the breakdown would invent a per-component
-    opinion they never gave. The original total is kept beside it: what the
-    system produced and what the human decided are both evidence, and the gap
-    between them is how the threshold gets calibrated.
+    Since Session 15 the reviewer prices COMPONENT BY COMPONENT and the total is
+    their sum, so the total is never sent and never trusted: deriving it here is
+    what makes the bottom line and the breakdown incapable of disagreeing.
+
+    What the system produced is kept beside what the person decided, per line and
+    in total. Both are evidence — the gap between them is what the confidence
+    threshold gets calibrated against — and the proposal reads this same estimate,
+    so the document that reaches the client carries the approved numbers and can
+    say which ones a human changed.
+
+    Applied on approve AND on reject. A rejection is also a record of what was
+    considered before saying no.
+
+    The bare-total ``adjust`` of Sessions 13-14 is gone with it. It was only ever
+    reachable from a live request, and no client can send that action any more —
+    checkpoints written back then keep their own shape in the state and are never
+    replayed through here.
     """
-    if not estimate or decision.get("action") != "adjust":
+    if not estimate:
         return estimate
 
-    adjusted = decision.get("adjusted_hours")
-    if adjusted is None:
+    hours = decision.get("component_hours") or {}
+    if not hours:
         return estimate
+
+    lines = []
+    for line in estimate.get("components") or []:
+        component_id = line.get("component_id")
+        # Sólo se tocan las líneas que el revisor nombró, y por ID: un id que no
+        # está en la estimación se ignora en lugar de crear una línea que nadie
+        # estimó ni respaldó con nada.
+        if component_id not in hours:
+            lines.append(line)
+            continue
+        decided = float(hours[component_id])
+        previous = line.get("estimated_hours")
+        lines.append(
+            {
+                **line,
+                "estimated_hours": decided,
+                # Sólo cuando de verdad cambia: un campo "original" presente en
+                # todas las filas obliga a la pantalla a comparar para saber si
+                # hubo revisión, y acaba tachando números iguales.
+                **(
+                    {"original_estimated_hours": previous}
+                    if previous is not None and float(previous) != decided
+                    else {}
+                ),
+            }
+        )
 
     return {
         **estimate,
-        "total_hours": float(adjusted),
+        "components": lines,
+        "total_hours": round(sum(float(line.get("estimated_hours") or 0.0) for line in lines), 1),
         "original_total_hours": estimate.get("total_hours"),
     }
 

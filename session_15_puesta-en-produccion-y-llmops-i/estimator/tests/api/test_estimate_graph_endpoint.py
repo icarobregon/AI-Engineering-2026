@@ -252,7 +252,12 @@ def test_the_resume_endpoint_sends_the_decision_and_returns_the_final_estimate(
 
     response = client.post(
         "/v1/estimate/graph/EST-9/resume",
-        json={"action": "adjust", "adjusted_hours": 180, "reviewer_id": "u-42"},
+        json={
+            "action": "approve",
+            "component_hours": {"c1": 180.0},
+            "reviewer_id": "u-42",
+            "comment": "Reviso la única línea sin precedente.",
+        },
         headers=HEADERS,
     )
 
@@ -260,8 +265,10 @@ def test_the_resume_endpoint_sends_the_decision_and_returns_the_final_estimate(
     assert response.json()["status"] == "validated"
     resumed, config = graph.calls[0]
     assert isinstance(resumed, Command)
-    assert resumed.resume["action"] == "adjust"
-    assert resumed.resume["adjusted_hours"] == 180
+    assert resumed.resume["action"] == "approve"
+    # Las horas viajan por component_id. El TOTAL no viaja: lo deriva el servicio.
+    assert resumed.resume["component_hours"] == {"c1": 180.0}
+    assert "adjusted_hours" not in resumed.resume
     assert config["configurable"]["thread_id"] == "EST-9"
 
 

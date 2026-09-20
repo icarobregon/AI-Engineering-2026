@@ -6,7 +6,6 @@ import {
   Alert,
   Button,
   Card,
-  Collapse,
   Descriptions,
   Flex,
   List,
@@ -27,11 +26,11 @@ import {
 import { AWAITING_REVIEW, FAILED, statusLabel } from "@/lib/supervisor";
 import { hours, percent } from "@/lib/format";
 import type { GraphState, HistoricalBand } from "@/lib/estimator/contracts";
+import { CollapseCard } from "@/components/collapse-card";
 import { ProposalCard } from "./proposal-card";
-import { ReviewForm } from "./review-form";
+import { ReviewEstimateForm } from "./review-estimate-form";
 import { RoutingTrace } from "./routing-trace";
 import { RunProgressPanel } from "./run-progress";
-
 
 function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
   return (
@@ -44,7 +43,9 @@ function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
               {hours(estimate.original_total_hours)}
             </Typography.Text>
           )}
-          <Typography.Text strong>{hours(estimate.total_hours)}</Typography.Text>
+          <Typography.Text strong>
+            {hours(estimate.total_hours)}
+          </Typography.Text>
         </Space>
       }
       styles={{ body: { padding: 0 } }}
@@ -60,7 +61,9 @@ function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
             render: (value: string, row) => (
               <Space direction="vertical" size={0}>
                 <Typography.Text strong>{value}</Typography.Text>
-                <Typography.Text type="secondary">{row.rationale}</Typography.Text>
+                <Typography.Text type="secondary">
+                  {row.rationale}
+                </Typography.Text>
               </Space>
             ),
           },
@@ -72,14 +75,32 @@ function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
             dataIndex: "grounded",
             width: 130,
             render: (grounded: boolean) =>
-              grounded ? <Tag color="green">Con precedente</Tag> : <Tag color="red">Sin precedente</Tag>,
+              grounded ? (
+                <Tag color="green">Con precedente</Tag>
+              ) : (
+                <Tag color="red">Sin precedente</Tag>
+              ),
           },
           {
             title: "Horas",
             dataIndex: "estimated_hours",
-            width: 100,
+            width: 150,
             align: "right",
-            render: hours,
+            render: (value: number, row) => (
+              <Space size={6}>
+                {/*
+                  Sólo aparece en las líneas que el revisor cambió: el servicio
+                  guarda el original únicamente cuando difiere, así que esto no
+                  compara números y no puede acabar tachando cifras idénticas.
+                */}
+                {row.original_estimated_hours != null && (
+                  <Typography.Text delete type="secondary">
+                    {hours(row.original_estimated_hours)}
+                  </Typography.Text>
+                )}
+                <Typography.Text>{hours(value)}</Typography.Text>
+              </Space>
+            ),
           },
         ]}
       />
@@ -138,7 +159,10 @@ function Senales({
       </Card>
       {proposedHours != null && (
         <Card style={{ flex: "1 1 220px" }}>
-          <Statistic title="Propuesta del sistema" value={hours(proposedHours)} />
+          <Statistic
+            title="Propuesta del sistema"
+            value={hours(proposedHours)}
+          />
         </Card>
       )}
     </Flex>
@@ -158,7 +182,13 @@ export type RunDetail = {
   proposal: unknown;
 };
 
-export function RunView({ run, state }: { run: RunDetail; state: GraphState | null }) {
+export function RunView({
+  run,
+  state,
+}: {
+  run: RunDetail;
+  state: GraphState | null;
+}) {
   const review = reviewPayloadSchema.safeParse(run.reviewPayload);
   const estimate = draftEstimateSchema.safeParse(run.estimate);
   const decision = humanDecisionSchema.safeParse(run.humanDecision);
@@ -170,6 +200,41 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
   // no pintarla.
   const running = run.runState === "running";
   const failed = run.runState === FAILED;
+
+  /*
+    El estado del run, arriba del todo: es lo primero que hay que saber al
+    abrir. Sale a una variable porque vivía dentro del fragmento de la rama
+    pausada, y sacarlo de ahí sin más obligaba a repetir su guarda; en un
+    ternario TypeScript sigue estrechando `review.data`, cosa que un booleano
+    guardado aparte no hace.
+  */
+  const avisoDeParada =
+    !running && awaiting && review.success ? (
+      <Alert
+        type="warning"
+        showIcon
+        message="El sistema se ha parado y pide una decisión"
+        description={
+          /*
+            TODOS los disparadores, no el titular. `reason` resume varios en
+            «…, and N more concern(s)» y esconde el resto. La tarjeta que los
+            listaba se quitó por redundante con esta alerta, y lo era sólo
+            mientras hubiera uno: confianza, banda histórica y sin precedente
+            pueden dispararse a la vez, y este pasa a ser el único sitio donde
+            se ven enteros.
+          */
+          review.data.triggers.length > 1 ? (
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {review.data.triggers.map((trigger) => (
+                <li key={trigger}>{trigger}</li>
+              ))}
+            </ul>
+          ) : (
+            review.data.reason
+          )
+        }
+      />
+    ) : null;
 
   return (
     <Flex vertical gap={24}>
@@ -192,38 +257,6 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
         </Space>
       </Flex>
 
-      {/*
-        De dónde salió todo. Va aquí —hijo directo del Flex, sin guarda— porque
-        las ramas de abajo son excluyentes entre sí: metida en una, faltaría en
-        las otras cuatro (corriendo, pausada, terminada, fallida, y la quinta de
-        facto: pausada con un payload que no valida). Cerrado por defecto: es el
-        material de partida, no lo que se viene a mirar.
-      */}
-      <Collapse
-        items={[
-          {
-            key: "transcript",
-            label: "Transcripción de origen",
-            children: (
-              <Typography.Paragraph
-                style={{
-                  marginBottom: 0,
-                  // Es texto plano con saltos de línea: sin esto sale corrido.
-                  whiteSpace: "pre-wrap",
-                  // Y sin el tope, abrirla empuja la página varias pantallas.
-                  maxHeight: 420,
-                  overflowY: "auto",
-                }}
-              >
-                {run.transcript}
-              </Typography.Paragraph>
-            ),
-          },
-        ]}
-      />
-
-      {running && <RunProgressPanel id={run.id} />}
-
       {failed && (
         <Alert
           type="error"
@@ -233,34 +266,59 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
         />
       )}
 
+      {avisoDeParada}
+
+      {/*
+        De dónde salió todo. Va aquí —hijo directo del Flex, sin guarda— porque
+        las ramas de abajo son excluyentes entre sí: metida en una, faltaría en
+        las otras cuatro (corriendo, pausada, terminada, fallida, y la quinta de
+        facto: pausada con un payload que no valida). Cerrado por defecto: es el
+        material de partida, no lo que se viene a mirar.
+      */}
+      <CollapseCard title="Transcripción de origen">
+        <Typography.Paragraph
+          style={{
+            marginBottom: 0,
+            // Es texto plano con saltos de línea: sin esto sale corrido.
+            whiteSpace: "pre-wrap",
+            // Y sin el tope, abrirla empuja la página varias pantallas.
+            maxHeight: 420,
+            overflowY: "auto",
+          }}
+        >
+          {run.transcript}
+        </Typography.Paragraph>
+      </CollapseCard>
+
+      {running && <RunProgressPanel id={run.id} />}
+
       {!running && awaiting && review.success && (
         <>
-          <Alert
-            type="warning"
-            showIcon
-            message="El sistema se ha parado y pide una decisión"
-            description={review.data.reason}
-          />
-
           <Senales
             confidence={review.data.confidence}
             band={review.data.historical_band}
             proposedHours={review.data.estimate?.total_hours ?? null}
           />
 
-          <Card title="Qué disparó la parada">
-            <List
-              dataSource={review.data.triggers}
-              renderItem={(trigger) => <List.Item>{trigger}</List.Item>}
-            />
-          </Card>
-
-          {review.data.estimate && <EstimateTable estimate={review.data.estimate} />}
+          {/*
+            Justo detrás de los disparadores: lo que hay que decidir, pegado al
+            porqué de que haya que decidirlo. Lo que sigue —análogos y reservas—
+            es material de consulta, y queda a mano sin empujar el formulario
+            fuera de la primera pantalla.
+          */}
+          {review.data.estimate && (
+            <ReviewEstimateForm id={run.id} estimate={review.data.estimate} />
+          )}
 
           {review.data.budget_matches.length > 0 && (
-            <Card title="Presupuestos análogos encontrados" styles={{ body: { padding: 0 } }}>
+            <CollapseCard
+              title="Presupuestos análogos encontrados"
+              styles={{ body: { padding: 0 } }}
+            >
               <Table
-                rowKey={(row) => `${row.component_id}-${row.reference_budget_id}`}
+                rowKey={(row) =>
+                  `${row.component_id}-${row.reference_budget_id}`
+                }
                 dataSource={review.data.budget_matches}
                 pagination={false}
                 columns={[
@@ -282,64 +340,103 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
                   },
                 ]}
               />
-            </Card>
+            </CollapseCard>
           )}
 
           {review.data.concerns.length > 0 && (
-            <Card title="Reservas del validador">
+            <CollapseCard title="Reservas del validador">
               <List
                 dataSource={review.data.concerns}
                 renderItem={(concern) => <List.Item>{concern}</List.Item>}
               />
-            </Card>
+            </CollapseCard>
           )}
-
-          <ReviewForm id={run.id} proposedHours={review.data.estimate?.total_hours ?? null} />
         </>
       )}
 
       {!running && !awaiting && (
         <>
-          {run.errors != null && Array.isArray(run.errors) && run.errors.length > 0 && (
-            <Alert
-              type="warning"
-              showIcon
-              message="La ejecución degradó por el camino"
-              description={
-                <List dataSource={run.errors as string[]} renderItem={(e) => <List.Item>{e}</List.Item>} />
-              }
-            />
-          )}
+          {run.errors != null &&
+            Array.isArray(run.errors) &&
+            run.errors.length > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                message="La ejecución degradó por el camino"
+                description={
+                  <List
+                    dataSource={run.errors as string[]}
+                    renderItem={(e) => <List.Item>{e}</List.Item>}
+                  />
+                }
+              />
+            )}
 
           {/*
             Las mismas señales que ve un revisor, para quien abre una ejecución
             ya cerrada. Salen del checkpoint, que las conserva, y no de la fila:
             la confianza de la fila puede venir de un payload antiguo.
           */}
-          <Senales confidence={state?.values.confidence} band={state?.historical_band} />
+          <Senales
+            confidence={state?.values.confidence}
+            band={state?.historical_band}
+          />
 
+          {estimate.success ? (
+            <EstimateTable estimate={estimate.data} />
+          ) : (
+            <Alert
+              type="info"
+              showIcon
+              message="Esta ejecución todavía no ha producido un desglose."
+            />
+          )}
+
+          {/*
+            Después del desglose, y no antes: lo que decidió una persona se lee
+            mirando sobre qué lo decidió. Arriba obligaba a bajar, leer la tabla
+            y volver.
+          */}
           {decision.success && (
             <Card title="Decisión humana">
               <Descriptions
                 column={1}
                 items={[
-                  { key: "action", label: "Acción", children: decision.data.action },
+                  {
+                    key: "action",
+                    label: "Acción",
+                    children:
+                      decision.data.action === "reject"
+                        ? "Rechazada"
+                        : "Aprobada",
+                  },
                   {
                     key: "hours",
-                    label: "Horas fijadas",
-                    children: decision.data.adjusted_hours != null ? hours(decision.data.adjusted_hours) : "—",
+                    label: "Horas revisadas",
+                    children:
+                      // Desde la S15 el revisor pone precio línea a línea, así
+                      // que se cuentan las que tocó y el total sale de la tabla.
+                      // `adjusted_hours` es el total suelto de las S13-S14 y
+                      // sólo aparece en decisiones de entonces.
+                      decision.data.component_hours
+                        ? `${Object.keys(decision.data.component_hours).length} componente(s)`
+                        : decision.data.adjusted_hours != null
+                          ? `${hours(decision.data.adjusted_hours)} (total, S13-S14)`
+                          : "—",
                   },
-                  { key: "who", label: "Revisor", children: decision.data.reviewer_id ?? "—" },
-                  { key: "why", label: "Motivo", children: decision.data.comment ?? "—" },
+                  {
+                    key: "who",
+                    label: "Revisor",
+                    children: decision.data.reviewer_id ?? "—",
+                  },
+                  {
+                    key: "why",
+                    label: "Motivo",
+                    children: decision.data.comment ?? "—",
+                  },
                 ]}
               />
             </Card>
-          )}
-
-          {estimate.success ? (
-            <EstimateTable estimate={estimate.data} />
-          ) : (
-            <Alert type="info" showIcon message="Esta ejecución todavía no ha producido un desglose." />
           )}
 
           {estimate.success && estimate.data.notes && (

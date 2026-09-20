@@ -7,6 +7,8 @@ unit-testable without a graph, which is the point.
 
 from __future__ import annotations
 
+import pytest
+
 from app.domain.graph.band import historical_band, is_outside_historical_band
 from app.domain.graph.hitl import (
     apply_human_decision,
@@ -152,18 +154,107 @@ def test_an_approval_changes_nothing_about_the_numbers():
     assert apply_human_decision(estimate, {"action": "approve"}) == estimate
 
 
-def test_an_adjustment_replaces_the_total_and_keeps_what_the_system_said():
-    adjusted = apply_human_decision(
-        {"total_hours": 250.0}, {"action": "adjust", "adjusted_hours": 180}
+
+
+# --- el revisor pone precio componente a componente (S15) ----------------------
+
+
+REVISABLE = {
+    "project": "Lonja digital",
+    "total_hours": 200.0,
+    "components": [
+        {"component_id": "c1", "name": "Backend", "estimated_hours": 120.0, "grounded": True},
+        {"component_id": "c2", "name": "Visión", "estimated_hours": 0.0, "grounded": False},
+        {"component_id": "c3", "name": "Avisos", "estimated_hours": 80.0, "grounded": True},
+    ],
+}
+
+
+def test_the_total_is_the_sum_of_what_the_reviewer_priced():
+    """El total no se manda nunca: se deriva. Es lo que hace imposible que la
+    cifra de abajo y el desglose se contradigan."""
+    revisado = apply_human_decision(
+        REVISABLE, {"action": "approve", "component_hours": {"c2": 150.0}}
     )
 
-    assert adjusted["total_hours"] == 180.0
-    # Both numbers are evidence: the gap between them is how the threshold gets
-    # calibrated against what reviewers actually decide.
-    assert adjusted["original_total_hours"] == 250.0
+    assert revisado["total_hours"] == 350.0
+    assert revisado["original_total_hours"] == 200.0
 
 
-def test_an_adjustment_with_no_number_is_not_an_adjustment():
-    estimate = {"total_hours": 250.0}
+def test_only_the_lines_the_reviewer_named_are_touched():
+    revisado = apply_human_decision(
+        REVISABLE, {"action": "approve", "component_hours": {"c2": 150.0}}
+    )
+    por_id = {c["component_id"]: c for c in revisado["components"]}
 
-    assert apply_human_decision(estimate, {"action": "adjust"}) == estimate
+    assert por_id["c2"]["estimated_hours"] == 150.0
+    assert por_id["c1"] == REVISABLE["components"][0]
+    assert por_id["c3"] == REVISABLE["components"][2]
+
+
+def test_the_system_figure_is_kept_only_where_it_actually_changed():
+    # Un campo "original" en todas las filas obliga a la pantalla a comparar para
+    # saber si hubo revisión, y acaba tachando números idénticos.
+    revisado = apply_human_decision(
+        REVISABLE,
+        {"action": "approve", "component_hours": {"c1": 120.0, "c2": 150.0}},
+    )
+    por_id = {c["component_id"]: c for c in revisado["components"]}
+
+    assert "original_estimated_hours" not in por_id["c1"]
+    assert por_id["c2"]["original_estimated_hours"] == 0.0
+
+
+def test_an_id_that_is_not_in_the_estimate_is_ignored():
+    # Nunca se crea una línea que nadie estimó ni respaldó con nada.
+    revisado = apply_human_decision(
+        REVISABLE, {"action": "approve", "component_hours": {"c9": 999.0}}
+    )
+
+    assert len(revisado["components"]) == 3
+    assert revisado["total_hours"] == 200.0
+
+
+def test_a_rejection_also_records_what_was_considered():
+    """Un rechazo es evidencia de lo que se valoró antes de decir que no, y esa
+    distancia es con lo que se calibra el umbral."""
+    revisado = apply_human_decision(
+        REVISABLE, {"action": "reject", "component_hours": {"c2": 150.0}}
+    )
+
+    assert revisado["total_hours"] == 350.0
+    assert revisado["components"][1]["estimated_hours"] == 150.0
+
+
+def test_grounding_survives_the_reviewers_pen():
+    # `grounded` habla de si hay evidencia histórica, no de si hay un número: un
+    # componente que un humano puso a mano sigue sin precedente, y el cliente
+    # tiene que poder verlo en el documento final.
+    revisado = apply_human_decision(
+        REVISABLE, {"action": "approve", "component_hours": {"c2": 150.0}}
+    )
+
+    assert revisado["components"][1]["grounded"] is False
+
+
+def test_a_decision_with_no_hours_leaves_the_estimate_alone():
+    # Una aprobación a secas no toca ningún número: el sistema ya dijo lo suyo.
+    assert apply_human_decision(REVISABLE, {"action": "approve"}) == REVISABLE
+    assert apply_human_decision(REVISABLE, {"action": "approve", "component_hours": {}}) == REVISABLE
+
+
+def test_only_two_actions_are_accepted_at_the_door():
+    """El total suelto de las S13-S14 ya no es una acción posible.
+
+    Se comprueba en el ESQUEMA y no en la función: `apply_human_decision` no
+    mira la acción desde la S15 —aplica lo que llegue, apruebe o rechace— así
+    que el único sitio donde «adjust» puede rebotar es la validación de entrada.
+    """
+    from pydantic import ValidationError
+
+    from app.domain.schemas.graph_estimation import HumanDecision
+
+    assert HumanDecision(action="approve").action == "approve"
+    assert HumanDecision(action="reject").action == "reject"
+    with pytest.raises(ValidationError):
+        HumanDecision(action="adjust")

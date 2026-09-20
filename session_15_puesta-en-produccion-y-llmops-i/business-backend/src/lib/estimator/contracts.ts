@@ -68,7 +68,16 @@ export const estimatedComponentSchema = z.object({
   estimated_hours: z.number(),
   grounded: z.boolean(),
   rationale: z.string(),
+  /**
+   * Lo que dijo el sistema, presente SÓLO en las líneas que el revisor cambió.
+   * Que falte no significa «no revisado»: significa «revisado y confirmado», o
+   * no tocado. La distinción la hace el servicio para que la pantalla no tenga
+   * que comparar números y acabe tachando cifras idénticas.
+   */
+  original_estimated_hours: z.number().nullish(),
 });
+
+export type EstimatedComponent = z.infer<typeof estimatedComponentSchema>;
 
 export const draftEstimateSchema = z.object({
   project: z.string(),
@@ -226,17 +235,34 @@ export function deniedActions(errors: string[]): string[] {
   return errors.filter((e) => e.includes("denied —"));
 }
 
-export const humanActions = ["approve", "adjust", "reject"] as const;
+/**
+ * Las que un revisor puede ELEGIR hoy. «adjust» ya no está: desde la S15 se
+ * ajusta componente a componente y el total se deriva de la suma, así que
+ * aprobar con cambios ES aprobar.
+ */
+export const humanActions = ["approve", "reject"] as const;
 export type HumanAction = (typeof humanActions)[number];
 
 /**
- * `action` is required on the Python side and the router forwards the payload
- * without dropping nulls, so it always travels — even when the reviewer only
- * wrote a comment.
+ * Las que se pueden LEER, que es un superconjunto y por un motivo concreto: en
+ * `supervisor_runs.human_decision` hay decisiones guardadas como «adjust» de
+ * antes de la S15, y este esquema las relee para pintar la tarjeta de quién
+ * decidió qué. Narrow aquí y esa fila deja de parsear y su tarjeta desaparece.
+ *
+ * Ojo, el caso del servicio IA es el CONTRARIO y por eso allí sí se quitó: su
+ * `HumanDecision` valida peticiones entrantes y nunca relee un checkpoint, así
+ * que conservar el valor sólo dejaba aceptando una acción que nadie puede ya
+ * enviar. Un enum de lectura y otro de entrada no es incoherencia: son dos
+ * preguntas distintas.
  */
+export const humanActionsHistoricas = ["approve", "adjust", "reject"] as const;
+
 export const humanDecisionSchema = z.object({
-  action: z.enum(humanActions),
+  action: z.enum(humanActionsHistoricas),
+  /** El total suelto de las S13-S14. Sólo aparece en decisiones de entonces. */
   adjusted_hours: z.number().min(0).nullish(),
+  /** Las horas que decidió el revisor, por `component_id`. */
+  component_hours: z.record(z.string(), z.number().min(0)).nullish(),
   comment: z.string().nullish(),
   reviewer_id: z.string().nullish(),
 });

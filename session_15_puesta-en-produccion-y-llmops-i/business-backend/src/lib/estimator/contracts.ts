@@ -445,3 +445,110 @@ export type ChunkType = (typeof chunkTypes)[number];
 /** Estados de una ampliación. `failed` existe para que un fallo no se pinte en verde. */
 export const indexRunStatuses = ["pending", "running", "completed", "failed"] as const;
 export type IndexRunStatus = (typeof indexRunStatuses)[number];
+
+// ---------------------------------------------------------------------------
+// Asistente RAG de cinco pasos (S09–S12)
+// ---------------------------------------------------------------------------
+
+export const scales = ["small", "medium", "large", "unknown"] as const;
+export const confidences = ["high", "medium", "low", "insufficient"] as const;
+
+/** Lo que la reformulación saca de una transcripción llena de ruido. */
+export const estimationQuerySchema = z.object({
+  function: z.string(),
+  technologies: z.array(z.string()).default([]),
+  sector: z.string().nullable().default(null),
+  scale: z.enum(scales).default("unknown"),
+  country: z.string().nullable().default(null),
+  regulations: z.array(z.string()).default([]),
+  constraints: z.array(z.string()).default([]),
+});
+export type EstimationQuery = z.infer<typeof estimationQuerySchema>;
+
+export const reformulationSchema = z.object({
+  query: estimationQuerySchema,
+  search_text: z.string(),
+});
+export type Reformulation = z.infer<typeof reformulationSchema>;
+
+/**
+ * El árbol que devuelve la estructura.
+ *
+ * `grounded`, `sources` y `engineer_days` llegan vacíos o nulos en este flujo:
+ * desde la S10 la estructura se genera LIBRE, sin presupuestos delante, y el
+ * retrieval vuelve a entrar por tarea en el paso de horas. Se mantienen en el
+ * espejo porque el contrato los trae, no porque la pantalla los pinte.
+ */
+export const taskItemSchema = z.object({
+  name: z.string(),
+  description: z.string().nullable().default(null),
+  grounded: z.boolean().default(false),
+  engineer_days: z.number().int().nullable().default(null),
+});
+export type TaskItem = z.infer<typeof taskItemSchema>;
+
+export const workModuleSchema = z.object({
+  name: z.string(),
+  description: z.string().nullable().default(null),
+  tasks: z.array(taskItemSchema).default([]),
+});
+export type WorkModule = z.infer<typeof workModuleSchema>;
+
+export const estimateTreeSchema = z.object({
+  modules: z.array(workModuleSchema).default([]),
+  /** Un supuesto del modelo: qué asume, cuánto pesa y por qué. */
+  assumptions: z
+    .array(
+      z.object({
+        description: z.string(),
+        impact: z.string(),
+        rationale: z.string(),
+      }),
+    )
+    .default([]),
+  confidence: z.enum(confidences),
+});
+export type EstimateTree = z.infer<typeof estimateTreeSchema>;
+
+export const structureResultSchema = z.object({ estimate: estimateTreeSchema }).loose();
+export type StructureResult = z.infer<typeof structureResultSchema>;
+
+/** Una tarea histórica de la que salieron las horas. */
+export const taskNeighborSchema = z.object({
+  source_id: z.number().int(),
+  budget_id: z.string().nullable().default(null),
+  estimated_hours: z.number().int().nonnegative(),
+  distance: z.number(),
+});
+
+export const taskHoursEstimateSchema = z.object({
+  module: z.string(),
+  task: z.string(),
+  estimated_hours: z.number().int().nonnegative().nullable().default(null),
+  reliability: z.number().min(0).max(1).nullable().default(null),
+  has_match: z.boolean(),
+  dispersion: z.number().nonnegative().nullable().default(null),
+  neighbors: z.array(taskNeighborSchema).default([]),
+});
+export type TaskHoursEstimate = z.infer<typeof taskHoursEstimateSchema>;
+
+export const taskHoursResultSchema = z.object({
+  tasks: z.array(taskHoursEstimateSchema).default([]),
+});
+export type TaskHoursResult = z.infer<typeof taskHoursResultSchema>;
+
+/** Los cinco pasos, en orden. El `current_step` de la fila es uno de éstos. */
+export const wizardSteps = [
+  "reformulation",
+  "structure",
+  "review",
+  "hours",
+  "verification",
+] as const;
+export type WizardStep = (typeof wizardSteps)[number];
+
+/** Por debajo de esto, las horas se enseñan en ámbar: el consenso fue flojo. */
+export const RELIABILITY_OK = 0.66;
+
+/** Tarifa por defecto de una fila nueva. Sin ella el coste sale 0 sin avisar. */
+export const DEFAULT_RATE_EUR = 75;

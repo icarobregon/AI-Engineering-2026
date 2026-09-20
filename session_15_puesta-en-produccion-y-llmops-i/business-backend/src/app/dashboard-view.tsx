@@ -99,6 +99,22 @@ export function DashboardView({
         </Col>
         <Col span={8}>
           <Card
+            title="Asistente de estimación"
+            extra={<Typography.Text type="secondary">Sesiones 09–12</Typography.Text>}
+          >
+            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                De una transcripción a una estimación fundamentada, en cinco pasos y con una
+                persona revisando entre medias.
+              </Typography.Paragraph>
+              <Link href="/asistente">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card
             title="Corpus e índice"
             extra={<Typography.Text type="secondary">Sesión 11</Typography.Text>}
           >

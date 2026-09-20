@@ -111,3 +111,45 @@ model IndexRun {
   @@index([createdAt])
   @@map("index_runs")
 }
+
+/// Sesiones 09-12 — el asistente RAG de cinco pasos.
+///
+/// Una columna JSONB por paso, y el paso actual aparte. Cada etapa es
+/// re-ejecutable, así que lo que guarda una etapa no puede depender de que la
+/// siguiente exista: la fila es válida en cualquiera de los cinco estados.
+model RagRun {
+  id String @id @default(uuid())
+
+  /// Inmutable: re-ejecutar la reformulación la vuelve a leer, no la cambia.
+  transcript String
+
+  /// reformulation | structure | review | hours | verification.
+  currentStep String @default("reformulation") @map("current_step")
+
+  /// Paso 1 — el brief tipado que sale de la transcripción.
+  reformulation Json? @db.JsonB
+
+  /// Paso 2 — el árbol que propone el modelo, sin tocar.
+  structure Json? @db.JsonB
+
+  /// Paso 3 — el árbol DESPUÉS de que una persona lo corrija. Se guarda aparte
+  /// de `structure` para poder enseñar qué cambió el humano y qué propuso el
+  /// modelo; fundirlos perdería esa comparación para siempre.
+  reviewedModules Json? @map("reviewed_modules") @db.JsonB
+
+  /// Paso 4 — las horas por tarea, con su fiabilidad y sus vecinos.
+  taskHours Json? @map("task_hours") @db.JsonB
+
+  /// Paso 5 — horas y tarifas confirmadas por una persona, con sus totales.
+  /// Conserva la fiabilidad y los vecinos: la app de referencia los tira al
+  /// confirmar, y con ellos se va la única señal de qué números eran flojos.
+  verification Json? @db.JsonB
+
+  confirmedAt DateTime? @map("confirmed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@map("rag_runs")
+}

@@ -17,7 +17,14 @@
  * paréntesis de la flecha, el corchete de cierre en JSX y la tabulación, y
  * cambiar cualquiera de ellos empeora el ajuste. Lo escrito ya sigue esas
  * reglas; sólo discrepaba en el ancho.
+ *
+ * La versión va fijada en devDependencies, no delegada a `npx`. Sin eso, estos
+ * números sólo valdrían para la versión que se bajase ese día: los defaults que
+ * aquí se dan por buenos son los de Prettier 3, y un cambio de mayor en el
+ * formateador reescribiría el proyecto entero sin que nadie lo hubiera pedido.
  */
-export default {
+const config = {
   printWidth: 100,
 };
+
+export default config;

@@ -7,3 +7,8 @@ packages:
 allowBuilds:
   "@prisma/engines": true
   prisma: true
+  # Resolvedor nativo que arrastra eslint-config-next. En false a proposito: se
+  # comprobo que ESLint resuelve los imports sin su binario, y lo que hacia falta
+  # era decidirlo —mientras la entrada este a medias, `pnpm run` aborta—, no
+  # ejecutar un script de instalacion que no aporta nada aqui.
+  unrs-resolver: false

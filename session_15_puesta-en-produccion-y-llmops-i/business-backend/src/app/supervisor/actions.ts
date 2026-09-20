@@ -103,7 +103,10 @@ export async function syncRun(id: string): Promise<SyncResult> {
   const state = await getSupervisedRunState(run.estimationId);
   await prisma.supervisorRun.update({
     where: { id },
-    data: runUpdateFrom(responseFromState(state, progress), run, state.values.confidence),
+    data: runUpdateFrom(responseFromState(state, progress), run, {
+      confidence: state.values.confidence,
+      budgetMatches: state.values.budget_matches,
+    }),
   });
   revalidatePath(`/supervisor/${id}`);
   revalidatePath("/supervisor");

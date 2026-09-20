@@ -68,17 +68,19 @@ describe("runUpdateFrom", () => {
     // El fallo que esto arregla: la puerta humana dispara por DEBAJO del umbral,
     // así que `review_payload` sólo informaba de las ejecuciones malas. Las
     // buenas guardaban null y la columna enseñaba un guion habiendo un 0,86.
-    expect(runUpdateFrom(respuesta(), {}, 0.858).confidence).toBe(0.858);
+    expect(runUpdateFrom(respuesta(), {}, { confidence: 0.858 }).confidence).toBe(0.858);
   });
 
   it("el payload manda sobre el checkpoint: es la foto que vio el revisor", () => {
-    const fila = runUpdateFrom(respuesta({ review_payload: INFORME }), {}, 0.9);
+    const fila = runUpdateFrom(respuesta({ review_payload: INFORME }), {}, { confidence: 0.9 });
 
     expect(fila.confidence).toBe(0.42);
   });
 
   it("el checkpoint manda sobre la fila, que sigue siendo el último recurso", () => {
-    expect(runUpdateFrom(respuesta(), { confidence: 0.1 }, 0.858).confidence).toBe(0.858);
+    expect(runUpdateFrom(respuesta(), { confidence: 0.1 }, { confidence: 0.858 }).confidence).toBe(
+      0.858,
+    );
     // Sin checkpoint —el resume contesta sin payload— la fila conserva lo suyo.
     expect(runUpdateFrom(respuesta(), { confidence: 0.1 }).confidence).toBe(0.1);
   });
@@ -86,13 +88,63 @@ describe("runUpdateFrom", () => {
   it("un cero del checkpoint es un cero, no un hueco", () => {
     // `||` en vez de `??` aquí convertiría en «no lo sé» justo la señal que
     // hace que una estimación acabe delante de una persona.
-    expect(runUpdateFrom(respuesta(), { confidence: 0.7 }, 0).confidence).toBe(0);
+    expect(runUpdateFrom(respuesta(), { confidence: 0.7 }, { confidence: 0 }).confidence).toBe(0);
   });
 
   it("sin confianza por ninguna parte, null y no undefined", () => {
     // `undefined` en Prisma significa «no toques esta columna»; `null` significa
     // «ponla a null». Aquí queremos lo segundo.
     expect(runUpdateFrom(respuesta()).confidence).toBeNull();
+  });
+});
+
+describe("runUpdateFrom · las referencias que respaldan el número", () => {
+  const MATCH = {
+    component_id: "c1",
+    component: "Backend de autenticación",
+    reference_budget_id: "TASK-2022-0032/Authentication & Access",
+    amount: 79,
+    distance: 0.32,
+  };
+  const OTRO = { ...MATCH, reference_budget_id: "TASK-2024-0003/Authentication & Access" };
+
+  it("las guarda cuando vienen en el payload de la pausa", () => {
+    const informe = { ...(INFORME as object), budget_matches: [MATCH] } as typeof INFORME;
+
+    expect(runUpdateFrom(respuesta({ review_payload: informe })).budgetMatches).toEqual([MATCH]);
+  });
+
+  it("las guarda del checkpoint en las ejecuciones que NO pausan", () => {
+    // Éste es el agujero que la columna tapa: tres de las cuatro estimaciones
+    // validadas no tienen payload, así que sus referencias sólo vivían en el
+    // checkpoint y la página las perdía si el servicio IA no contestaba.
+    const fila = runUpdateFrom(respuesta(), {}, { budgetMatches: [MATCH, OTRO] });
+
+    expect(fila.budgetMatches).toEqual([MATCH, OTRO]);
+  });
+
+  it("un array vacío del payload no borra las que el checkpoint sí tiene", () => {
+    // El esquema del payload da `[]` por defecto, así que una respuesta sin
+    // referencias trae un vacío y no un null: con `??` ese vacío habría ganado.
+    const fila = runUpdateFrom(
+      respuesta({ review_payload: INFORME }),
+      {},
+      {
+        budgetMatches: [MATCH],
+      },
+    );
+
+    expect(fila.budgetMatches).toEqual([MATCH]);
+  });
+
+  it("el resume, que contesta sin payload, no borra lo que la fila ya tenía", () => {
+    const fila = runUpdateFrom(respuesta(), { budgetMatches: [MATCH] });
+
+    expect(fila.budgetMatches).toEqual([MATCH]);
+  });
+
+  it("sin referencias por ninguna parte, null", () => {
+    expect(runUpdateFrom(respuesta()).budgetMatches).toBeNull();
   });
 });
 

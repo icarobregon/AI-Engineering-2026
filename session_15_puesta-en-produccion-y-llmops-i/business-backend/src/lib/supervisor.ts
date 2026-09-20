@@ -21,24 +21,39 @@ type Current = {
   estimate?: Prisma.JsonValue | null;
   reviewPayload?: Prisma.JsonValue | null;
   confidence?: number | null;
+  budgetMatches?: Prisma.JsonValue | null;
+};
+
+/**
+ * Lo que sólo sabe el checkpoint, para quien lo tenga a mano.
+ *
+ * Objeto y no dos parámetros sueltos: el segundo llegó cuando ya había uno, y
+ * `runUpdateFrom(respuesta, fila, 0.858, matches)` no dice en el sitio de la
+ * llamada qué es cada número. Los dos vienen del MISMO lugar —`state.values`—,
+ * así que viajan juntos.
+ */
+type FromState = {
+  confidence?: number | null;
+  budgetMatches?: unknown;
 };
 
 export function runUpdateFrom(
   response: GraphEstimateResponse,
   current: Current = {},
   /**
-   * La confianza leída del checkpoint, para quien la tenga a mano.
-   *
-   * El contrato HTTP no la lleva: `GraphEstimateResponse` no tiene ese campo y
-   * sólo aparece colada dentro de `review_payload`, que existe únicamente cuando
-   * dispara la puerta humana. Y la puerta dispara por DEBAJO del umbral, así que
-   * esa vía sólo informaba de las ejecuciones que no se ganan la confianza: las
-   * buenas guardaban null y la columna enseñaba un guion habiendo un 0,86.
+   * Lo leído del checkpoint. El contrato HTTP no lleva ninguna de las dos cosas:
+   * `GraphEstimateResponse` no tiene esos campos y sólo aparecen coladas dentro
+   * de `review_payload`, que existe únicamente cuando dispara la puerta humana.
+   * Y la puerta dispara por DEBAJO del umbral, así que esa vía sólo informaba de
+   * las ejecuciones que no se ganan la confianza: las buenas guardaban null y la
+   * columna enseñaba un guion habiendo un 0,86. Con las referencias pasa lo
+   * mismo y peor, porque ahí lo que se pierde es la trazabilidad entera.
    */
-  fromState?: number | null,
+  fromState: FromState = {},
 ): Prisma.SupervisorRunUpdateInput {
   const awaiting = response.status === AWAITING_REVIEW;
   const confidence = response.review_payload?.confidence;
+  const matches = response.review_payload?.budget_matches;
 
   return {
     runState: awaiting ? "paused" : "completed",
@@ -54,7 +69,14 @@ export function runUpdateFrom(
     // una estimación le borraría la confianza. Todo con `??` y nunca con `||`:
     // un 0 es un valor legítimo —es justo el que dispara la puerta— y `||` lo
     // convertiría en el guion que significa «no lo sé».
-    confidence: confidence ?? fromState ?? current.confidence ?? null,
+    confidence: confidence ?? fromState.confidence ?? current.confidence ?? null,
+    // La misma cadena y por el mismo motivo. `length` y no `??` en el primer
+    // eslabón: el esquema del payload da `[]` por defecto, así que una respuesta
+    // sin referencias trae un array vacío y no un null, y con `??` ese vacío
+    // ganaría a las referencias que el checkpoint sí tiene.
+    budgetMatches: (matches?.length
+      ? matches
+      : (fromState.budgetMatches ?? current.budgetMatches ?? null)) as Prisma.InputJsonValue,
   };
 }
 

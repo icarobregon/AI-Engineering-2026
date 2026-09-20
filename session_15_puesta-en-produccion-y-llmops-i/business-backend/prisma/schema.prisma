@@ -60,6 +60,16 @@ model SupervisorRun {
 
   estimate      Json?  @db.JsonB
   reviewPayload Json?  @map("review_payload") @db.JsonB
+
+  /// Las referencias historicas que respaldan cada componente, copiadas del
+  /// checkpoint. Duplicarlas aqui es deliberado: el checkpointer sigue siendo la
+  /// fuente autoritativa, pero solo llegaban a esta fila dentro de
+  /// `review_payload`, que existe UNICAMENTE si el run se paro ante una persona.
+  /// Una estimacion que salio limpia no tiene payload, asi que su desglose
+  /// dependia de que el servicio IA contestara, y la pagina ya degrada ese fetch
+  /// a null cuando no lo hace. Sin esta columna, «de donde sale este numero» era
+  /// una pregunta que la pantalla no podia responder con el servicio caido.
+  budgetMatches Json? @map("budget_matches") @db.JsonB
   humanDecision Json?  @map("human_decision") @db.JsonB
   errors        Json   @default("[]") @db.JsonB
   confidence    Float?

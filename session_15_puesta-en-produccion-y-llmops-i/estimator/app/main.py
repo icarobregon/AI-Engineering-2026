@@ -15,6 +15,7 @@ from app.api.rate_limiting import limiter, rate_limit_exceeded_handler
 from app.api.routers.estimate import router as estimate_router
 from app.api.routers.estimate_stages import router as estimate_stages_router
 from app.api.routers.estimate_tasks import router as estimate_tasks_router
+from app.api.routers.agent import router as agent_router
 from app.api.routers.estimate_graph import router as estimate_graph_router
 from app.api.routers.retrieval import router as retrieval_router
 from app.api.routers.retrieval_advanced import router as retrieval_advanced_router
@@ -164,6 +165,10 @@ app.include_router(estimate_tasks_router)
 # Sessions 13-14 — the same estimate, produced by a supervisor coordinating
 # specialist agents, with a human gate that can pause and resume the run.
 app.include_router(estimate_graph_router)
+
+# Sesión 12 — el agente escrito a mano, que hasta ahora sólo corría por script.
+# Exponerlo es lo que permite que una consola de perfiles gobierne algo real.
+app.include_router(agent_router)
 
 
 @app.get("/health")

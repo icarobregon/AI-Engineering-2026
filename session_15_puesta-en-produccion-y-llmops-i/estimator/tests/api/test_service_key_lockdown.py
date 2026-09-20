@@ -45,6 +45,7 @@ CERRADAS = [
     ("POST", "/embeddings/compare"),
     ("GET", "/embeddings/index/stats"),
     ("GET", "/v1/estimate/graph/diagram"),
+    ("POST", "/v1/estimate/agent/run"),
     ("GET", "/api/v1/config/models"),
     ("PUT", "/api/v1/config/models"),
     ("GET", "/api/v1/config/retrieval"),

@@ -113,3 +113,6 @@ ignore_no_config = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "real_auth: deja intacta la dependencia de X-API-Key (el test va sobre la cerradura)",
+]

@@ -30,6 +30,7 @@ from app.foundation.attachments.extractor import (
     enrich_transcript,
     extract_text,
 )
+from app.api.security import require_estimate_key
 from app.config import get_settings
 from app.dependencies import get_estimation_service, get_session_store
 from app.foundation.guardrails.input import InputGuardrailViolation
@@ -47,7 +48,14 @@ from app.generation.conversation.tier_resolver import Tier
 
 log = structlog.get_logger()
 
-router = APIRouter(prefix="/sessions", tags=["sessions"])
+# Cerradas desde la S15-bis. Estiman, luego gastan tokens del proveedor: dejarlas
+# anonimas convertia la frontera de red en la unica defensa, y cualquier cosa que
+# llegara a correr dentro de la red podia vaciar la cuenta conversando.
+router = APIRouter(
+    prefix="/sessions",
+    tags=["sessions"],
+    dependencies=[Depends(require_estimate_key)],
+)
 
 
 class CreateSessionResponse(BaseModel):

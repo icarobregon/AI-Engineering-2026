@@ -13,12 +13,11 @@ import { z } from "zod";
 
 const createdSchema = z.object({ session_id: z.string() }).loose();
 
-/** None of these four routes is key-protected in the AI service. */
+/** Las cuatro exigen el token de servicio: `callEstimator` lo manda por defecto. */
 export async function createSession(): Promise<string> {
   const payload = await callEstimator<unknown>("/sessions", {
     method: "POST",
     body: {},
-    token: "none",
     timeoutMs: 10_000,
   });
   return createdSchema.parse(payload).session_id;
@@ -26,7 +25,6 @@ export async function createSession(): Promise<string> {
 
 export async function getSession(sessionId: string): Promise<SessionInfo> {
   const payload = await callEstimator<unknown>(`/sessions/${encodeURIComponent(sessionId)}`, {
-    token: "none",
     timeoutMs: 10_000,
   });
   return sessionInfoSchema.parse(payload);
@@ -58,7 +56,7 @@ function turnForm(input: TurnInput): FormData {
 export async function estimateInSession(input: TurnInput) {
   const payload = await callEstimator<unknown>(
     `/sessions/${encodeURIComponent(input.sessionId)}/estimate`,
-    { method: "POST", formData: turnForm(input), token: "none" },
+    { method: "POST", formData: turnForm(input) },
   );
   return sessionEstimationSchema.parse(payload);
 }
@@ -71,7 +69,7 @@ export async function estimateInSession(input: TurnInput) {
 export async function estimateWithAcb(input: TurnInput): Promise<AcbResponse> {
   const payload = await callEstimator<unknown>(
     `/sessions/${encodeURIComponent(input.sessionId)}/estimate-acb`,
-    { method: "POST", formData: turnForm(input), token: "none" },
+    { method: "POST", formData: turnForm(input) },
   );
   return acbResponseSchema.parse(payload);
 }

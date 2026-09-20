@@ -107,13 +107,31 @@ for (const url of ['http://ai-service:8000/api/v1/estimate','http://ai-service:8
 }"
 ```
 
-**No todas las rutas del servicio IA piden token, y conviene decirlo.** Las de
-sesiones (`/sessions/*`, que sirven a «Conversación»), las de troceado
-(`/embeddings/*`, el laboratorio) y las de configuración (`/api/v1/config/*`,
-«Ajustes») contestan sin cabecera. La frontera sigue intacta —el servicio IA no
-publica puerto y sólo se alcanza desde dentro de la red de Compose—, pero dentro
-de esa red esas tres son anónimas. Es deuda conocida, no un descuido: cerrarlas
-pide el mismo trabajo que se hizo con `/api/v1/estimate`.
+**Y las tres familias que servían a las pantallas nuevas también.** Sesiones
+(`/sessions/*`, «Conversación»), troceado (`/embeddings/*`, el laboratorio) y
+configuración (`/api/v1/config/*`, «Ajustes») dejaron de ser anónimas: son dos
+barreras, no una. La red mantiene el servicio inalcanzable desde fuera, y la clave
+lo mantiene inutilizable por cualquier otra cosa que acabe corriendo dentro.
+Comprobación, desde la propia red:
+
+```bash
+docker compose exec -T ai-service python -c "
+import urllib.request, urllib.error
+for metodo, ruta in [('POST','/sessions'),('POST','/embeddings/compare'),('GET','/api/v1/config/models'),('GET','/health')]:
+    req = urllib.request.Request('http://localhost:8000'+ruta, method=metodo,
+                                 data=b'{}' if metodo=='POST' else None,
+                                 headers={'Content-Type':'application/json'})
+    try: code = urllib.request.urlopen(req).status
+    except urllib.error.HTTPError as e: code = e.code
+    print(f'{metodo:5} {ruta:26} -> {code}')
+"
+```
+
+Debe dar `401` en las tres primeras y `200` en `/health`, que se queda abierto a
+propósito: cerrarlo mataría el healthcheck de Docker.
+
+**Lo que sigue abierto, y es deuda conocida:** `POST /search` (la ruta de la S08,
+conservada por compatibilidad) y `/api/v1/ingestion/*`.
 
 ### 5. Los datos sobreviven a un ciclo completo
 

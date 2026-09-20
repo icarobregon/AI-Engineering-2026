@@ -12,6 +12,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.security import require_estimate_key
 from app.config import Settings, get_settings
 from app.dependencies import get_runtime_config, get_runtime_retrieval_config
 from app.foundation.llm.runtime_config import (
@@ -34,7 +35,15 @@ _STAGE_TOGGLE_KEYS = {
     "temporal_decay_enabled": TEMPORAL_DECAY_KEY,
 }
 
-router = APIRouter(prefix="/api/v1/config", tags=["config"])
+# Cerrada desde la S15-bis. Es la superficie mas poderosa del servicio: quien
+# puede escribir aqui elige que modelo atiende TODO lo demas, y el catalogo va de
+# 0,05 a 600 US$ por millon de tokens. El GET tambien, porque enumera la
+# configuracion efectiva.
+router = APIRouter(
+    prefix="/api/v1/config",
+    tags=["config"],
+    dependencies=[Depends(require_estimate_key)],
+)
 
 EMBEDDING_MODEL_NOTE = "Read-only: changing it would invalidate all stored vectors."
 

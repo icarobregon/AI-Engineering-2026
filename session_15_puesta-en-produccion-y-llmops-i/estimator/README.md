@@ -163,7 +163,7 @@ Lo que vive **fuera** del template (en código): el contrato (`EstimationRequest
 | `REDIS_URL` | `redis://localhost:6379` | Cache exact-match |
 | `CACHE_TTL` | `86400` | Segundos |
 | `APP_ENV` | `development` | Controla el renderer de structlog |
-| `ESTIMATE_API_KEY` | — | **Obligatoria desde la S15.** Token (`X-API-Key`) de TODAS las rutas de estimación, incluida `POST /api/v1/estimate`. En blanco ⇒ 401 en todas. Bajo Compose la inyecta `AI_SERVICE_TOKEN` del `.env` de la raíz de la sesión |
+| `ESTIMATE_API_KEY` | — | **Obligatoria desde la S15.** Token (`X-API-Key`) de todas las rutas de estimación (incluida `POST /api/v1/estimate`), de `/sessions/*`, de `/embeddings/*` y de `/api/v1/config/*`. En blanco ⇒ 401 en todas. Bajo Compose la inyecta `AI_SERVICE_TOKEN` del `.env` de la raíz de la sesión. `/health` queda fuera a propósito: cerrarlo mataría el healthcheck |
 | `RETRIEVAL_API_KEY` | — | Token de `/v1/retrieval/search` y `/v1/retrieval/advanced-search` |
 | `ESTIMATOR_API_BASE_URL` | `http://localhost:8000` | Lo lee el cliente Streamlit |
 

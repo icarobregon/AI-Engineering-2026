@@ -84,6 +84,16 @@ def resolve_base_url(client: httpx.Client) -> str:
     raise SystemExit(1)
 
 
+def _service_headers() -> dict[str, str]:
+    """La cabecera que exigen las rutas cerradas del servicio IA.
+
+    ``/embeddings/ingest`` dejo de ser anonima: escribe en el corpus. La clave se
+    lee del entorno —dentro del contenedor la pone compose— y se manda vacia si no
+    esta, para que el fallo sea un 401 claro y no un KeyError a mitad de la siembra.
+    """
+    return {"X-API-Key": os.getenv("ESTIMATE_API_KEY", "")}
+
+
 def ingest_corpus(client: httpx.Client, base_url: str) -> None:
     """One document per budget; 409 means already ingested (idempotent)."""
     budgets = json.loads(CORPUS_PATH.read_text())
@@ -91,6 +101,7 @@ def ingest_corpus(client: httpx.Client, base_url: str) -> None:
     for budget in budgets:
         response = client.post(
             f"{base_url}/embeddings/ingest",
+            headers=_service_headers(),
             json={
                 "source_path": f"data/budgets_sample.json::{budget['budget_id']}",
                 "document_type": "historical_budget",

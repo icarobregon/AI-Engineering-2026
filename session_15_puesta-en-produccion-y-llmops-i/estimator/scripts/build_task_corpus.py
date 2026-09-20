@@ -853,6 +853,16 @@ def _resolve_base_url(client: httpx.Client) -> str:
     raise SystemExit(1)
 
 
+def _service_headers() -> dict[str, str]:
+    """La cabecera que exigen las rutas cerradas del servicio IA.
+
+    ``/embeddings/ingest`` dejo de ser anonima: escribe en el corpus. La clave se
+    lee del entorno —dentro del contenedor la pone compose— y se manda vacia si no
+    esta, para que el fallo sea un 401 claro y no un KeyError a mitad de la siembra.
+    """
+    return {"X-API-Key": os.getenv("ESTIMATE_API_KEY", "")}
+
+
 def ingest_corpus(corpus: list[dict], base_url: str | None = None) -> None:
     """One document per project; 409 means already ingested (idempotent)."""
     with httpx.Client(timeout=120.0) as client:
@@ -861,6 +871,7 @@ def ingest_corpus(corpus: list[dict], base_url: str | None = None) -> None:
         for project in corpus:
             response = client.post(
                 f"{base_url}/embeddings/ingest",
+                headers=_service_headers(),
                 json={
                     "source_path": f"data/task_corpus.json::{project['budget_id']}",
                     "document_type": DOCUMENT_TYPE,

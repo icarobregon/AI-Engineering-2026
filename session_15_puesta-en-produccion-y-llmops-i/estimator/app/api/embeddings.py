@@ -10,6 +10,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
+from app.api.security import require_estimate_key
 from app.dependencies import (
     ALL_STRATEGIES,
     build_chunkers,
@@ -27,7 +28,13 @@ from app.generation.rag.schemas import IngestRequest, IngestResponse
 
 log = structlog.get_logger()
 
-router = APIRouter(prefix="/embeddings", tags=["embeddings"])
+# Cerradas desde la S15-bis: /ingest ESCRIBE en el corpus y /compare puede llamar
+# al modelo (las estrategias semantica, proposicional y contextual se pagan).
+router = APIRouter(
+    prefix="/embeddings",
+    tags=["embeddings"],
+    dependencies=[Depends(require_estimate_key)],
+)
 
 
 @router.post(

@@ -11,7 +11,7 @@ import { modelsConfigSchema, type ModelsConfig } from "./contracts";
  * Today the app has no users, which is a documented limitation — see the README.
  */
 export async function getModelsConfig(): Promise<ModelsConfig> {
-  const payload = await callEstimator<unknown>("/api/v1/config/models", { token: "none" });
+  const payload = await callEstimator<unknown>("/api/v1/config/models");
   return modelsConfigSchema.parse(payload);
 }
 
@@ -24,7 +24,6 @@ export async function updateModels(models: Record<string, string | null>): Promi
   const payload = await callEstimator<unknown>("/api/v1/config/models", {
     method: "PUT",
     body: { models },
-    token: "none",
     timeoutMs: 10_000,
   });
   return modelsConfigSchema.parse(payload);

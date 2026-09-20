@@ -16,6 +16,10 @@ from app.dependencies import get_estimation_service
 from app.main import app
 from app.domain.schemas.estimation import EstimationRequest, EstimationResponse, EstimationResult
 
+# Este fichero SI va sobre la cerradura: parchea la clave esperada y manda la
+# cabecera a mano, asi que necesita la dependencia real, no el bypass del conftest.
+pytestmark = pytest.mark.real_auth
+
 
 def _canned_result() -> EstimationResult:
     return EstimationResult(

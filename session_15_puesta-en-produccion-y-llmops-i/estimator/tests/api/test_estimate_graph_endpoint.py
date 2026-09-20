@@ -20,6 +20,9 @@ from langgraph.types import Command
 from app.api import security
 from app.main import app
 
+# Va sobre la cerradura: necesita la dependencia real, no el bypass del conftest.
+pytestmark = pytest.mark.real_auth
+
 # A unique key per test isolates the slowapi bucket: the limiter is keyed on
 # X-API-Key and the estimate routes allow 10/minute, which a module with more
 # than ten requests would otherwise exhaust halfway through.

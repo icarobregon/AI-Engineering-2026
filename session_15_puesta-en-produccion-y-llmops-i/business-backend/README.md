@@ -125,6 +125,11 @@ qué proveedores, porque se cura a mano y nada lo mantiene fresco solo.
 desde un componente de cliente es un error de compilación, así que el secreto de
 servicio no puede acabar en un bundle del navegador ni por descuido.
 
+**Y el token va por defecto, no por excepción.** `callEstimator` manda la cabecera
+`X-API-Key` salvo que la llamada pida `token: "none"`, y hoy la única que lo pide
+es `/health`. Es al revés de como estaba: olvidarse del token ahora es imposible
+por omisión, mientras que antes bastaba con no acordarse de ponerlo.
+
 **Contratos parseados, no casteados.** El servicio IA devuelve el estimate como
 un `dict` sin tipar. Validarlo con zod al leerlo convierte un cambio silencioso
 de contrato en un mensaje claro en pantalla, en vez de una página en blanco tres

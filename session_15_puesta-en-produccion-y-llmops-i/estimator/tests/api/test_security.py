@@ -15,6 +15,9 @@ import app.api.security as security
 from app.generation.rag.schemas import Estimate, RetrievalResult
 from app.main import app
 
+# Va sobre la cerradura: necesita la dependencia real, no el bypass del conftest.
+pytestmark = pytest.mark.real_auth
+
 RET_KEY = "retrieval-secret"
 EST_KEY = "estimate-secret"
 

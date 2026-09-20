@@ -9,11 +9,29 @@ from app.dependencies import (
     get_openai_client,
     get_session_store,
 )
+from app.api.security import require_estimate_key
 from app.main import app
 from app.domain.schemas.estimation import EstimationResult
 from app.domain.estimation_service import EstimationService
 from app.generation.conversation.models import ProjectMetadata
 from app.generation.conversation.store import SessionStore
+
+
+@pytest.fixture(autouse=True)
+def _bypass_service_key(request):
+    """Las rutas cerradas exigen ``X-API-Key``; casi ningun test va sobre eso.
+
+    Un test de comportamiento que ademas tuviera que arrastrar la cabecera estaria
+    re-probando la cerradura en cada aserto y se romperia entero el dia que la
+    clave cambie de nombre. Por defecto se anula la dependencia. Un test que SI va
+    sobre la cerradura lleva ``@pytest.mark.real_auth`` y se queda con la real.
+    """
+    if request.node.get_closest_marker("real_auth"):
+        yield
+        return
+    app.dependency_overrides[require_estimate_key] = lambda: None
+    yield
+    app.dependency_overrides.pop(require_estimate_key, None)
 
 
 @pytest.fixture

@@ -424,3 +424,327 @@ def test_a_thread_that_died_mid_flight_is_re_run(client: TestClient, graph_state
     client.post("/v1/estimate/graph", json={**PAYLOAD, "estimation_id": "EST-7"}, headers=HEADERS)
 
     assert len(graph.calls) == 1
+
+
+# --- drafting the proposal (S15) ----------------------------------------------
+
+
+FINISHED = {
+    "estimate": {
+        "project": "RUTA",
+        "total_hours": 160.0,
+        "notes": "",
+        "components": [
+            {
+                "component_id": "c1",
+                "name": "Backend de pedidos",
+                "estimated_hours": 160.0,
+                "grounded": True,
+                "rationale": "Dos presupuestos comparables.",
+            }
+        ],
+    },
+    "status": "validated",
+    "errors": [],
+    "confidence": 0.81,
+}
+
+
+@pytest.fixture
+def fake_writer(monkeypatch):
+    """A wrapper that answers with a canned proposal, wired where the router
+    looks for it. The conductor underneath runs for real — this fixture replaces
+    the provider call, not the composition."""
+    from app.api.routers import estimate_graph
+    from app.domain.schemas.graph_estimation import CommercialProposal
+
+    proposal = CommercialProposal(
+        title="Propuesta · RUTA",
+        executive_summary="Resumen.",
+        scope=["Backend de pedidos — 160 h"],
+        assumptions=["El alcance de la pasarela está por cerrar."],
+        body_markdown="## Contexto\n\nTexto.",
+    )
+
+    class Wrapper:
+        def complete_structured(self, **kwargs):
+            return proposal, {"model": "gpt-4o"}
+
+    monkeypatch.setattr(estimate_graph, "get_llm_wrapper", lambda **_: Wrapper())
+    return proposal
+
+
+def test_the_proposal_is_drafted_from_the_finished_run(client: TestClient, fake_writer):
+    _install(FakeGraph({}, persisted=FINISHED))
+
+    response = client.post("/v1/estimate/graph/EST-42/proposal", headers=HEADERS)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["title"] == "Propuesta · RUTA"
+    assert body["scope"] == ["Backend de pedidos — 160 h"]
+    assert body["body_markdown"].startswith("## Contexto")
+
+
+def test_drafting_never_re_runs_the_graph(client: TestClient, fake_writer):
+    """The whole reason this is a verb and not a node: it costs zero routing
+    steps and can be redrafted without paying for the estimation again."""
+    graph = _install(FakeGraph({}, persisted=FINISHED))
+
+    client.post("/v1/estimate/graph/EST-42/proposal", headers=HEADERS)
+    client.post("/v1/estimate/graph/EST-42/proposal", headers=HEADERS)
+
+    assert graph.calls == []
+
+
+def test_the_response_carries_no_total_of_its_own(client: TestClient, fake_writer):
+    # The hours live in the estimate. A second copy here is a second number that
+    # can disagree with it.
+    _install(FakeGraph({}, persisted=FINISHED))
+
+    body = client.post("/v1/estimate/graph/EST-42/proposal", headers=HEADERS).json()
+
+    assert "total_hours" not in body
+    assert "total_engineer_days" not in body
+
+
+def test_a_run_still_waiting_on_a_reviewer_is_a_409(client: TestClient, fake_writer):
+    """It has an estimate — that is exactly why the check is needed. Writing a
+    client document from a figure nobody approved is the accident to prevent."""
+    _install(
+        FakeGraph(
+            {},
+            persisted=FINISHED,
+            nxt=("human_review_gate",),
+            interrupts=(FakeInterrupt(REVIEW),),
+        )
+    )
+
+    response = client.post("/v1/estimate/graph/EST-42/proposal", headers=HEADERS)
+
+    assert response.status_code == 409
+    assert "human decision" in response.json()["detail"]
+
+
+def test_a_run_with_no_estimate_is_a_409_not_a_502(client: TestClient, fake_writer):
+    _install(FakeGraph({}, persisted={"transcript": "...", "status": "routing_budget_exhausted"}))
+
+    response = client.post("/v1/estimate/graph/EST-42/proposal", headers=HEADERS)
+
+    assert response.status_code == 409
+
+
+def test_an_unknown_estimation_is_a_404(client: TestClient, fake_writer):
+    _install(FakeGraph({}, persisted={}))
+
+    assert client.post("/v1/estimate/graph/nope/proposal", headers=HEADERS).status_code == 404
+
+
+def test_a_provider_failure_becomes_a_502(client: TestClient, monkeypatch):
+    from app.api.routers import estimate_graph
+
+    class Broken:
+        def complete_structured(self, **kwargs):
+            raise RuntimeError("provider timeout")
+
+    monkeypatch.setattr(estimate_graph, "get_llm_wrapper", lambda **_: Broken())
+    _install(FakeGraph({}, persisted=FINISHED))
+
+    assert client.post("/v1/estimate/graph/EST-42/proposal", headers=HEADERS).status_code == 502
+
+
+def test_the_proposal_verb_requires_the_estimate_api_key(client: TestClient):
+    _install(FakeGraph({}, persisted=FINISHED))
+
+    assert client.post("/v1/estimate/graph/EST-42/proposal").status_code == 401
+
+
+def test_the_proposal_verb_answers_503_without_a_checkpointer(client: TestClient):
+    app.state.graph = None
+
+    assert client.post("/v1/estimate/graph/EST-42/proposal", headers=HEADERS).status_code == 503
+
+
+# --- launching without blocking (S15) -----------------------------------------
+
+
+class FakeHistorySnapshot:
+    def __init__(self, nxt: tuple, at: str, values: dict | None = None):
+        self.next = nxt
+        self.created_at = at
+        self.values = values or {}
+
+
+class DetachableGraph(FakeGraph):
+    """Adds what the async verbs touch: the history and the failure write."""
+
+    def __init__(self, *args, history: list | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.history = history or []
+        self.updates: list[dict] = []
+
+    async def aget_state_history(self, config):
+        # LangGraph yields newest first; the router reverses it.
+        for item in reversed(self.history):
+            yield item
+
+    async def aupdate_state(self, config, values, **kwargs):
+        self.updates.append(values)
+
+
+def test_starting_answers_202_without_waiting_for_the_graph(client: TestClient, graph_state):
+    """The point of the whole verb: the answer does not take as long as the run."""
+    graph = _install(DetachableGraph(graph_state))
+
+    response = client.post("/v1/estimate/graph/start", json=PAYLOAD, headers=HEADERS)
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["status"] == "running"
+    assert body["started"] is True
+    assert body["estimation_id"]
+    # TestClient drains background tasks after the response, so by now the run
+    # has happened — and it happened with the same inputs the blocking verb sends.
+    inputs, config = graph.calls[0]
+    assert set(inputs) == {"transcript", "estimation_id"}
+    assert config["configurable"]["thread_id"] == body["estimation_id"]
+
+
+def test_a_finished_run_is_not_launched_again(client: TestClient, graph_state):
+    graph = _install(DetachableGraph({}, persisted=graph_state))
+
+    response = client.post(
+        "/v1/estimate/graph/start", json={**PAYLOAD, "estimation_id": "EST-42"}, headers=HEADERS
+    )
+
+    assert response.json() == {
+        "estimation_id": "EST-42",
+        "status": "validated",
+        "started": False,
+    }
+    assert graph.calls == []
+
+
+def test_a_paused_run_is_not_launched_again(client: TestClient, graph_state):
+    graph = _install(
+        DetachableGraph(
+            graph_state,
+            persisted={"transcript": "..."},
+            nxt=("human_review_gate",),
+            interrupts=(FakeInterrupt(REVIEW),),
+        )
+    )
+
+    response = client.post(
+        "/v1/estimate/graph/start", json={**PAYLOAD, "estimation_id": "EST-9"}, headers=HEADERS
+    )
+
+    assert response.json()["status"] == "awaiting_human_review"
+    assert response.json()["started"] is False
+    assert graph.calls == []
+
+
+def test_a_crash_after_the_response_is_written_into_the_run(client: TestClient):
+    """There is no response left to fail: the client is already polling. Without
+    this the dead run keeps `next` pointing at the node that died and reads as a
+    slow one forever."""
+
+    class Broken(DetachableGraph):
+        async def ainvoke(self, inputs, config):
+            raise RuntimeError("provider down")
+
+    graph = _install(Broken({}))
+
+    response = client.post("/v1/estimate/graph/start", json=PAYLOAD, headers=HEADERS)
+
+    assert response.status_code == 202
+    assert graph.updates == [{"errors": ["run_failed: RuntimeError: provider down"]}]
+
+
+def test_a_checkpointer_that_cannot_record_the_crash_does_not_raise(client: TestClient):
+    # Most of these ARE the checkpointer dying. There is nobody above to catch it.
+    class Doomed(DetachableGraph):
+        async def ainvoke(self, inputs, config):
+            raise RuntimeError("provider down")
+
+        async def aupdate_state(self, config, values, **kwargs):
+            raise RuntimeError("checkpointer connection lost")
+
+    _install(Doomed({}))
+
+    assert client.post("/v1/estimate/graph/start", json=PAYLOAD, headers=HEADERS).status_code == 202
+
+
+# --- polling ------------------------------------------------------------------
+
+
+HISTORY = [
+    FakeHistorySnapshot(("__start__",), "2026-09-20T10:00:00+00:00"),
+    FakeHistorySnapshot(("supervisor",), "2026-09-20T10:00:01+00:00"),
+    FakeHistorySnapshot(("requirements_extractor",), "2026-09-20T10:00:03+00:00"),
+    FakeHistorySnapshot(
+        (), "2026-09-20T10:00:19+00:00", {"status": "validated", "estimate": {"total_hours": 160.0}}
+    ),
+]
+
+
+def test_progress_reports_the_timeline_with_durations(client: TestClient, graph_state):
+    _install(DetachableGraph({}, persisted=graph_state, history=HISTORY))
+
+    response = client.get("/v1/estimate/graph/EST-42/progress", headers=HEADERS)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["estimation_id"] == "EST-42"
+    assert body["status"] == "finished"
+    assert [s["node"] for s in body["steps"]] == ["supervisor", "requirements_extractor"]
+    assert body["steps"][1]["seconds"] == 16.0
+
+
+def test_progress_names_what_is_running_right_now(client: TestClient, graph_state):
+    _install(
+        DetachableGraph(
+            {},
+            persisted=graph_state,
+            nxt=("requirements_extractor",),
+            history=HISTORY[:-1],
+        )
+    )
+
+    body = client.get("/v1/estimate/graph/EST-42/progress", headers=HEADERS).json()
+
+    assert body["status"] == "running"
+    assert body["current"] == "requirements_extractor"
+
+
+def test_progress_surfaces_the_pending_review(client: TestClient, graph_state):
+    _install(
+        DetachableGraph(
+            {},
+            persisted=graph_state,
+            nxt=("human_review_gate",),
+            interrupts=(FakeInterrupt(REVIEW),),
+            history=HISTORY[:-1],
+        )
+    )
+
+    body = client.get("/v1/estimate/graph/EST-42/progress", headers=HEADERS).json()
+
+    assert body["status"] == "awaiting_human_review"
+    assert body["review_payload"]["reason"]
+
+
+def test_progress_for_an_unknown_estimation_is_a_404(client: TestClient):
+    _install(DetachableGraph({}, persisted={}))
+
+    assert client.get("/v1/estimate/graph/nope/progress", headers=HEADERS).status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [("post", "/v1/estimate/graph/start", PAYLOAD), ("get", "/v1/estimate/graph/E/progress", None)],
+)
+def test_the_async_verbs_require_the_estimate_api_key(client: TestClient, method, path, body):
+    _install(DetachableGraph({}, persisted={"status": "validated"}, history=HISTORY))
+
+    assert getattr(client, method)(path, **({"json": body} if body else {})).status_code == 401

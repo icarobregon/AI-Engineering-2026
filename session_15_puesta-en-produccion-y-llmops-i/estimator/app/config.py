@@ -315,6 +315,14 @@ class Settings(BaseSettings):
     # construction. Raising it much past 0.4 makes the trigger unreachable.
     GRAPH_HISTORICAL_BAND_TOLERANCE: float = 0.25
 
+    # --- Session 15 field (commercial proposal) ---------------------------------
+    # Prose for a client, from numbers that are already decided: a non-reasoning
+    # model is the right tool and gpt-5 at high effort would be paying reasoning
+    # tokens to write paragraphs. It reuses GRAPH_LLM_TIMEOUT rather than adding
+    # a knob — that value is a deadline, not a delay, so a generous one costs
+    # nothing on a call that finishes in seconds.
+    GRAPH_PROPOSAL_MODEL: str = "gpt-4o"
+
     @model_validator(mode="after")
     def validate_at_least_one_api_key(self) -> "Settings":
         """LiteLLM may try either provider via fallback, so we require at least one key."""

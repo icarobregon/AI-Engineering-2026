@@ -1,0 +1,43 @@
+<proyecto>{{ project }}</proyecto>
+
+<esfuerzo_total>
+{{ total_hours }} horas de ingeniería ({{ engineer_days }} jornadas de 8 horas).
+{% if adjusted_by_reviewer %}
+Un revisor ajustó este total a mano; el original estimado era {{ original_total_hours }} horas.
+{% endif %}
+</esfuerzo_total>
+
+<componentes>
+{% for c in components %}
+- {{ c.name }} — {{ c.estimated_hours }} h — {{ "respaldado por presupuestos históricos" if c.grounded else "SIN precedente histórico comparable" }}
+  {{ c.rationale }}
+{% endfor %}
+</componentes>
+
+{% if notes %}
+<notas_del_equipo>
+{{ notes }}
+</notas_del_equipo>
+{% endif %}
+
+<fiabilidad>
+Confianza de la estimación: {{ confidence }}.
+{% if concerns %}
+Reservas de la validación:
+{% for concern in concerns %}
+- {{ concern }}
+{% endfor %}
+{% else %}
+La validación no dejó reservas.
+{% endif %}
+</fiabilidad>
+
+{% if band %}
+<referencia_historica>
+Proyectos comparables de este perfil han costado entre {{ band.low }} y {{ band.high }} horas
+({{ band.references }} presupuestos de referencia, cubriendo {{ band.covered_components }} de
+{{ band.total_components }} componentes).
+</referencia_historica>
+{% endif %}
+
+Redacta la propuesta comercial siguiendo las reglas anteriores.

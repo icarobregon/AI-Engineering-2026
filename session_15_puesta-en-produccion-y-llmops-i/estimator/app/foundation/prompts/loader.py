@@ -151,3 +151,42 @@ def render_metadata_extraction_prompt(
     system = _env.get_template(f"metadata_extraction/{version}/system.j2").render(**context)
     user = _env.get_template(f"metadata_extraction/{version}/user.j2").render(**context)
     return system, user
+
+
+def render_proposal_prompt(
+    *,
+    project: str,
+    components: list[dict],
+    total_hours: float,
+    engineer_days: float,
+    notes: str,
+    confidence: float | None,
+    concerns: list[str],
+    band: dict | None,
+    original_total_hours: float | None = None,
+    version: str = "v1",
+) -> tuple[str, str]:
+    """Render the prompts that turn a finished estimate into a client proposal.
+
+    Every number the template can print is computed HERE and passed in —
+    ``engineer_days`` included. The model is asked for prose and nothing else,
+    which is the same split the graph already enforces between the tool that
+    prices a component and the model that explains it: a proposal that derives
+    its own totals is a proposal that can contradict the estimate it describes.
+    """
+    context = {
+        "project": project,
+        "components": components,
+        "total_hours": total_hours,
+        "engineer_days": engineer_days,
+        "notes": notes,
+        # "no lo sé" y "cero" son cosas distintas, y la plantilla las distingue.
+        "confidence": "desconocida" if confidence is None else f"{confidence:.2f}",
+        "concerns": concerns,
+        "band": band,
+        "adjusted_by_reviewer": original_total_hours is not None,
+        "original_total_hours": original_total_hours,
+    }
+    system = _env.get_template(f"proposal/{version}/system.j2").render(**context)
+    user = _env.get_template(f"proposal/{version}/user.j2").render(**context)
+    return system, user

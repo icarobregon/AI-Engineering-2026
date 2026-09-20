@@ -45,6 +45,10 @@ CERRADAS = [
     ("POST", "/embeddings/compare"),
     ("GET", "/embeddings/index/stats"),
     ("GET", "/v1/estimate/graph/diagram"),
+    # Los verbos de la S15: arrancar sin bloquear, sondear y redactar.
+    ("POST", "/v1/estimate/graph/start"),
+    ("GET", "/v1/estimate/graph/cualquiera/progress"),
+    ("POST", "/v1/estimate/graph/cualquiera/proposal"),
     ("POST", "/v1/estimate/agent/run"),
     ("GET", "/api/v1/config/models"),
     ("PUT", "/api/v1/config/models"),

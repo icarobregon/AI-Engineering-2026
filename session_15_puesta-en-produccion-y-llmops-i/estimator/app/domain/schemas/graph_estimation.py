@@ -71,3 +71,29 @@ class GraphEstimateResponse(BaseModel):
             "triggered the pause and the historical band to judge it against."
         ),
     )
+
+
+class CommercialProposal(BaseModel):
+    """The client-facing document written from a finished estimate (Session 15).
+
+    Every field here is rendered by the business backend, which is the whole
+    reason the list is this short. The reference implementation asks its model
+    for five fields and its client keeps two — the other three are generated,
+    paid for and thrown away on every run.
+
+    There is deliberately **no total** in this schema. The hours belong to
+    ``calculate_estimate`` and travel in the estimate itself; asking the writer
+    for them again would give the proposal its own copy of a number that can
+    then disagree with the estimate it is describing.
+    """
+
+    title: str = Field(description="Proposal title, one line, naming the project.")
+    executive_summary: str = Field(description="One paragraph: what gets built and what it takes.")
+    scope: list[str] = Field(description="What is included, one line per component.")
+    assumptions: list[str] = Field(
+        description=(
+            "Assumptions and caveats, including components with no historical "
+            "precedent and the validator's concerns."
+        )
+    )
+    body_markdown: str = Field(description="The body of the document, in simple markdown.")

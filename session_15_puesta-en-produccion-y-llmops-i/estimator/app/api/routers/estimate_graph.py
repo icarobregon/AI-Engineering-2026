@@ -19,7 +19,9 @@ import uuid
 
 import logfire
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from typing import Literal
+
 from pydantic import BaseModel, Field
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
@@ -27,7 +29,11 @@ from langgraph.types import Command
 from app.api.rate_limiting import limiter
 from app.api.security import require_estimate_key
 from app.config import get_settings
+from app.dependencies import get_llm_wrapper
+from app.domain.graph.progress import RUN_FAILED_PREFIX, build_progress
+from app.domain.proposal import ProposalNotReady, write_proposal
 from app.domain.schemas.graph_estimation import (
+    CommercialProposal,
     GraphEstimateRequest,
     GraphEstimateResponse,
     HumanDecision,
@@ -230,6 +236,191 @@ async def get_estimation_state(request: Request, estimation_id: str) -> dict:
         "next": list(snapshot.next or ()),
         "review_payload": _pending_review(snapshot),
     }
+
+
+class GraphStartResponse(BaseModel):
+    """The answer to "start this", which is no longer the answer to "what is it"."""
+
+    estimation_id: str = Field(description="The thread_id this run is checkpointed under.")
+    status: Literal[
+        "running",
+        "awaiting_human_review",
+        "validated",
+        "needs_review",
+        "routing_budget_exhausted",
+    ] = Field(description="'running' when this call launched work; otherwise what is already known.")
+    started: bool = Field(description="Whether this call actually launched a run.")
+
+
+async def _run_detached(graph, estimation_id: str, transcript: str) -> None:
+    """Run the graph outside the request that asked for it.
+
+    A crash in here has no response to fail: the client has been answered and is
+    polling. So the failure is written into the run's own ``errors`` channel,
+    where it is persisted like everything else and the progress verb can report
+    it. Without that a dead run is indistinguishable from a slow one — ``next``
+    still names the node that died — and the screen polls it forever.
+    """
+    config = _config(estimation_id)
+    try:
+        with logfire.span(
+            "estimation graph run (detached)", thread_id=estimation_id, estimation_id=estimation_id
+        ):
+            await graph.ainvoke({"transcript": transcript, "estimation_id": estimation_id}, config)
+    except Exception as exc:  # noqa: BLE001 - nothing above this to catch it
+        log.error(
+            "graph_detached_run_failed",
+            estimation_id=estimation_id,
+            error_type=type(exc).__name__,
+            error=str(exc)[:300],
+        )
+        try:
+            await graph.aupdate_state(
+                config,
+                {"errors": [f"{RUN_FAILED_PREFIX}{type(exc).__name__}: {str(exc)[:200]}"]},
+            )
+        except Exception as write_failure:  # noqa: BLE001
+            # The checkpointer is the thing that just died in most of these. Say
+            # so plainly rather than leaving a silent failure to look like a run
+            # that is simply taking its time.
+            log.error(
+                "graph_failure_not_persisted",
+                estimation_id=estimation_id,
+                error=str(write_failure)[:200],
+            )
+
+
+@router.post(
+    "/graph/start",
+    response_model=GraphStartResponse,
+    status_code=202,
+    dependencies=[Depends(require_estimate_key)],
+)
+@limiter.limit("10/minute")
+async def start_estimation(
+    request: Request, payload: GraphEstimateRequest, background: BackgroundTasks
+) -> GraphStartResponse:
+    """Launch a run and answer immediately. Poll ``/progress`` for the rest.
+
+    The sibling ``POST /graph`` holds the HTTP connection open for as long as the
+    whole multi-agent system takes, which is minutes. That shape has no room for
+    a progress feed — there is nothing to poll while the caller is blocked on the
+    answer — and it makes every client's read timeout a ceiling on how long an
+    estimation may legitimately take.
+
+    The three branches are the sibling's, and for the same reasons: a finished
+    thread is answered, a paused one is reported, and only a genuinely new one is
+    launched. Re-invoking either of the other two appends to every accumulator.
+    """
+    graph = _require_graph(request)
+    estimation_id = payload.estimation_id or str(uuid.uuid4())
+
+    try:
+        snapshot = await graph.aget_state(_config(estimation_id))
+    except Exception as exc:  # noqa: BLE001 - transport boundary
+        raise _failed(estimation_id, exc) from exc
+
+    if snapshot.values and not snapshot.next:
+        log.info("graph_start_replayed", estimation_id=estimation_id)
+        return GraphStartResponse(
+            estimation_id=estimation_id,
+            status=snapshot.values.get("status") or "needs_review",
+            started=False,
+        )
+
+    if _pending_review(snapshot):
+        log.info("graph_start_awaiting_review", estimation_id=estimation_id)
+        return GraphStartResponse(
+            estimation_id=estimation_id, status="awaiting_human_review", started=False
+        )
+
+    background.add_task(_run_detached, graph, estimation_id, payload.transcript)
+    log.info("graph_start_accepted", estimation_id=estimation_id)
+    return GraphStartResponse(estimation_id=estimation_id, status="running", started=True)
+
+
+@router.get(
+    "/graph/{estimation_id}/progress",
+    dependencies=[Depends(require_estimate_key)],
+)
+@limiter.limit("120/minute")
+async def get_estimation_progress(request: Request, estimation_id: str) -> dict:
+    """What has happened so far, node by node, with durations.
+
+    Reads the checkpoint HISTORY rather than the state: the state has no
+    timestamps at all, and the checkpointer has been stamping one per superstep
+    all along. The rate limit is the polling one — this is the verb a screen
+    calls every couple of seconds, and it must not share a budget with the verbs
+    that spend money.
+    """
+    graph = _require_graph(request)
+    config = _config(estimation_id)
+
+    snapshot = await graph.aget_state(config)
+    if not snapshot.values:
+        raise HTTPException(status_code=404, detail=f"No estimation {estimation_id!r}.")
+
+    # aget_state_history yields newest first; the timeline reads oldest first.
+    history = [item async for item in graph.aget_state_history(config)]
+    history.reverse()
+
+    return {
+        "estimation_id": estimation_id,
+        **build_progress(history, review_payload=_pending_review(snapshot)),
+    }
+
+
+
+@router.post(
+    "/graph/{estimation_id}/proposal",
+    response_model=CommercialProposal,
+    dependencies=[Depends(require_estimate_key)],
+)
+@limiter.limit("10/minute")
+async def write_commercial_proposal(request: Request, estimation_id: str) -> CommercialProposal:
+    """Draft the client-facing proposal for a run that already has an estimate.
+
+    A separate verb over the finished checkpoint, never a graph node: it reads
+    the state, writes prose and changes nothing. That is what makes it free of
+    the routing budget and retryable on its own — a proposal whose tone missed
+    can be redrafted without re-running the estimation and paying for it again.
+
+    Nothing is persisted here. Which drafts existed, which one was sent and who
+    approved it is business history, and it lives in the business backend for
+    the same reason ``human_decision`` does.
+    """
+    graph = _require_graph(request)
+    snapshot = await graph.aget_state(_config(estimation_id))
+    if not snapshot.values:
+        raise HTTPException(status_code=404, detail=f"No estimation {estimation_id!r}.")
+
+    # A run in front of a reviewer has an estimate, and writing a client document
+    # from a figure nobody has approved yet is exactly the accident this check
+    # exists to prevent.
+    if _pending_review(snapshot):
+        raise HTTPException(
+            status_code=409,
+            detail="The estimation is still waiting on a human decision.",
+        )
+
+    settings = get_settings()
+    try:
+        return await write_proposal(
+            get_llm_wrapper(timeout=settings.GRAPH_LLM_TIMEOUT),
+            model=settings.GRAPH_PROPOSAL_MODEL,
+            state=snapshot.values,
+            estimation_id=estimation_id,
+        )
+    except ProposalNotReady as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - transport boundary
+        log.error(
+            "proposal_failed",
+            estimation_id=estimation_id,
+            error_type=type(exc).__name__,
+            error=str(exc)[:300],
+        )
+        raise HTTPException(status_code=502, detail="Failed to draft the proposal.") from exc
 
 
 class GraphDiagramResponse(BaseModel):

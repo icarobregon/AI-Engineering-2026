@@ -131,28 +131,107 @@ para siempre.
 **Qué falta.** `rag/graph_estimation_runs`, y es la pieza con más partes:
 
 - **Dos puertas humanas**, no una: `resume_structure` y `resume_final`.
-- **Feed de actividad por agente**, sondeado mientras corre cada tramo.
+- **Arranque no bloqueante + feed de actividad por agente**, sondeado mientras
+  corre cada tramo.
 - **Generación de propuesta comercial** tras completarse.
 - **Descarga de la propuesta en PDF.**
 
-**Lo que ya está.** `POST /v1/estimate/graph`, su `resume` y
-`GET /v1/estimate/graph/{id}/state`.
+Es su pantalla más grande: 929 líneas propias, 936 de código compartido
+imprescindible y 297 de tests. Alrededor del **24 % del código de su aplicación**
+en una sola pantalla — y eso es sólo la mitad cliente.
 
-**Lo que no, y por qué no es sólo interfaz.** Tres cosas:
+### La corrección importante: ellos tienen DOS grafos, nosotros uno
 
-1. **Nuestro grafo tiene UNA puerta humana**, no dos. Hay un único `interrupt()`,
-   en `human_review_gate`. El asistente del profesor es el de la S13, con dos
-   paradas; el nuestro evolucionó en la S14 hacia el supervisor con enrutado
-   dinámico y una sola pausa, que es lo que la pantalla del supervisor ya explota.
-   Portar las dos puertas es **cambiar el grafo**, no cambiar la interfaz. Decidir
-   si lo queremos es lo primero.
-2. **No hay endpoint de progreso.** `GET .../state` devuelve el checkpoint, no una
-   actividad por agente. Se puede sondear y derivar el avance de `routing_trail`,
-   que es exactamente lo que ya pinta la traza de enrutado, pero es una
-   aproximación, no el feed del original.
-3. **La propuesta comercial no existe en ninguna capa.** Es una generación nueva y
-   pertenece al servicio IA, porque aquí no se estima ni se redacta: esta capa
-   valida, llama, persiste y pinta. El PDF sí es de esta capa.
+Esta sección decía antes que portar la pantalla significaba *cambiar nuestro
+grafo*. No es exacto, y la diferencia cambia la decisión. Su propio `CLAUDE.md`
+lo dice de la S14:
+
+> *It is a NEW graph that COEXISTS with S13 — `graph/build.py`, `graph/agents/`
+> and the seven `/v1/estimate/graph` endpoints are untouched*
+
+|  | Su S13 | Su S14 | Aquí |
+|---|---|---|---|
+| Endpoints | `/v1/estimate/graph` ×7 | `/v1/estimate/supervisor` ×3 | `/v1/estimate/graph` ×4 |
+| Forma | 8 nodos, fan-out Send, 2 puertas | supervisor, enrutado dinámico, 1 puerta | supervisor, enrutado dinámico, 1 puerta |
+| `thread_id` | `<id>` | `s14:<id>` | `<id>` |
+
+Comparten un solo checkpointer; de ahí el prefijo. **Ellos añadieron un grafo;
+nosotros sustituimos el nuestro.** Nuestro grafo vive en la URL de su S13 pero
+por dentro es su S14.
+
+Así que el port fiel no es tocar el supervisor: es **añadir un segundo grafo**,
+como hicieron ellos. Eso es menos arriesgado de lo que decía esta sección —no
+hay tensión con `GRAPH_MAX_ROUTING_STEPS`, no se rompe el contrato de
+`HumanDecision`, no hace falta un segundo `interrupt()` en el grafo actual— y más
+trabajo en absoluto: hay que construir los ocho nodos, el fan-out por tarea, el
+bucle de recuperación agéntica y el informe de fiabilidad.
+
+Nota de navegación, por si alguien sospecha que la pantalla es código muerto de
+la S13: **no lo es**. Está en la barra de navegación de su aplicación
+(`layouts/application.html.erb:40`, «Grafo») y la enlaza `/agents/graph_flow` con
+un botón «Probar el flujo». La que no enlaza nadie es la del supervisor (S14), y
+tampoco está muerta: su `routes.rb` explica que la puerta es condicional, así que
+`#index` es una cola de trabajo y no un asistente. Una bandeja no va en el menú.
+
+### La decisión tomada
+
+**No se porta como paridad.** Su repositorio es un museo didáctico: conserva el
+artefacto de cada sesión uno al lado del otro porque enseñar la S13 y la S14
+exige poder abrir las dos. Aquí el grafo evoluciona, y reconstruir su S13
+obligaría a arrastrar dos grafos durante el resto del máster, con dos contratos,
+dos baterías de tests y un checkpointer compartido que namespacear.
+
+Se rescatan **las dos piezas que valen por sí solas**, sin grafo nuevo:
+
+1. **El arranque no bloqueante.** Hoy `POST /v1/estimate/graph` hace
+   `await graph.ainvoke(...)` y mantiene la petición HTTP abierta los minutos que
+   dure el grafo, con una Server Action esperando al otro lado. No hay ni un
+   `astream` en todo `app/`. Eso es una limitación real del diseño actual, exista
+   o no la pantalla, y es el requisito previo de cualquier feed: hoy no hay nada
+   que sondear porque el cliente está bloqueado esperando la respuesta.
+2. **La propuesta comercial y el PDF.** Capacidad nueva, con forma de endpoint
+   suelto —`POST /v1/estimate/graph/{id}/proposal`, exactamente como lo
+   resolvieron ellos: redacta desde la estimación validada **sin re-ejecutar el
+   grafo**— y sin tocar la topología. Cuesta cero pasos de enrutado y es
+   reintentable sola. El PDF sí es de esta capa.
+
+Lo que queda explícitamente fuera, y es una decisión de producto anterior a
+escribir código: **la segunda puerta humana**. Nuestros tres disparadores
+(confianza, banda histórica, sin precedente) se calculan *después* de estimar;
+antes no existe ninguno. Habría que inventar el criterio, y «pausar siempre»
+choca con la nota de calibración de `GRAPH_CONFIDENCE_THRESHOLD` en `CLAUDE.md`:
+un umbral que manda todo a revisión destruye la señal porque el revisor empieza a
+aprobar en bloque.
+
+### Techo del feed, aunque el arranque deje de bloquear
+
+Tres límites del estado que ninguna interfaz arregla:
+
+- **No hay ni un timestamp** en el estado. Ni en `routing_trail`, ni en el
+  estimate, ni en la validación. La línea temporal real hay que sacarla del
+  checkpointer (`aget_state_history()` ya persiste un snapshot con su `created_at`
+  por superstep), que es justo lo que hace el endpoint de progreso.
+- **La traza registra despachos, no finalizaciones.** La entrada se escribe en
+  `supervisor.py::_route` *antes* de que el agente corra. Pintarla como «agente
+  terminado» miente durante todo lo que el agente tarde.
+- **Coste, tokens y latencia por agente viven sólo como atributos de span**
+  (`llm.py::stamp_llm`) y sólo se exportan con `LOGFIRE_TOKEN`. No hay forma de
+  leerlos de vuelta: no son fuente válida para una pantalla.
+
+### Lo que NO se porta de su implementación
+
+Errores suyos que no conviene heredar:
+
+- `progress` es un **GET que escribe en base de datos** (`apply_run_state!`).
+- El poller va a 1,5 s fijos, **sin backoff ni tope de intentos**.
+- `approved` y `validated` están **hardcodeados a `true`**: no hay camino de
+  rechazo en ninguna de las dos puertas.
+- El markdown de la propuesta se enseña **crudo** en pantalla y se interpreta en
+  el PDF con **tres regex** escritas a mano. Dos representaciones del mismo texto,
+  ninguna con un parser.
+- La columna `task_hours` se escribe y **no la lee ninguna vista**.
+- Las horas editadas se emparejan **por índice posicional**, no por nombre.
+- El aviso «quedan N tareas sin horas» **no bloquea** el botón de validar.
 
 ---
 

@@ -1,0 +1,72 @@
+Reunión de descubrimiento — Proyecto "MARELUZ"
+Cliente: Rosa Beiras (Gerente) y Anxo Vilar (Jefe de Lonja), Cofradía de Pescadores de Corme
+Consultor: equipo de estimación
+Fecha: reunión inicial
+
+[00:00:12] Consultor: Contadnos el proyecto entero y luego lo troceamos pieza a pieza.
+
+[00:00:30] Rosa: Somos una cofradía. Gestionamos la lonja, la primera venta y la parte
+administrativa de unas noventa embarcaciones. Hay dos mundos aquí y conviene que lo sepáis desde
+el principio: una parte es software de gestión del montón, y otra parte es maquinaria y sensores,
+que es donde no sabemos ni por dónde empezar.
+
+[00:01:20] Consultor: Perfecto, empecemos por lo de gestión.
+
+[00:01:28] Rosa: Lo primero es el acceso. Hoy entra todo el mundo con un usuario compartido, lo
+cual es un disparate. Queremos identidad por persona, con perfiles distintos para patrón,
+comprador, personal de lonja e inspector, y que el inspector solo vea lo suyo. Hay que poder dar
+de alta y de baja a un comprador en el día, y que quede registrado quién hizo qué.
+
+[00:02:55] Consultor: Entendido. ¿Qué más del lado de gestión?
+
+[00:03:02] Anxo: El back-office de la lonja. La pantalla donde el personal da de alta los lotes que
+descarga cada barco, corrige pesos, anula ventas y cierra la sesión del día. Ahora es una hoja de
+cálculo compartida y se pisan unos a otros. Queremos altas, bajas, correcciones y un histórico
+consultable.
+
+[00:04:30] Rosa: Tercera pieza: la integración con el ERP contable y con la administración. Cada
+venta tiene que acabar en una factura en nuestro ERP, y a la vez hay que enviar los partes de
+primera venta a la Xunta y a la trazabilidad sanitaria europea. Hoy eso lo teclea una persona dos
+veces, y cuando se equivoca nos llega una sanción.
+
+[00:06:10] Consultor: ¿Y la cuarta?
+
+[00:06:15] Anxo: Avisos. Los compradores quieren saber por móvil qué va a salir a subasta y a qué
+hora llega cada barco, y los patrones quieren el resultado de su venta en cuanto se cierra. Correo
+y notificación al móvil, con preferencias por persona.
+
+[00:07:40] Consultor: Hasta aquí es terreno conocido. Vamos con la otra mitad.
+
+[00:07:50] Anxo: La primera de las raras es visión artificial en la cinta de clasificación.
+Queremos una cámara sobre la cinta que reconozca la especie y el calibre de cada pieza mientras
+pasa, a velocidad de cinta, y que eso alimente el lote automáticamente. Ahora lo hace una persona
+a ojo y de eso depende el precio.
+
+[00:09:15] Consultor: ¿Existe algo parecido comprado?
+
+[00:09:22] Anxo: Hay cosas para salmón de piscifactoría, pero nosotros descargamos treinta especies
+distintas y muchas van mezcladas en la misma caja. Nadie nos ha sabido dar un precio.
+
+[00:10:05] Rosa: La segunda rara es el firmware de las básculas. Queremos fabricar nuestras propias
+básculas-clasificadoras: microcontrolador, célula de carga, pantalla, y que se actualicen solas por
+radio desde la lonja. Son unas cuarenta, y algunas van a bordo, con salitre y sin cobertura.
+
+[00:11:50] Anxo: La tercera es procesado de señal de la sonda acústica. Los barcos llevan sonda;
+queremos sacar de ahí una estimación de biomasa antes de largar el arte, para no calar en balde.
+Eso es tratar la señal en crudo, y no lo ha hecho nadie de la cofradía jamás.
+
+[00:13:20] Rosa: Y la cuarta, un gemelo digital de la lonja. Una maqueta tridimensional donde poder
+simular cómo se mueven las cajas y las cámaras frigoríficas un día de mucha descarga, para decidir
+si nos compensa ampliar el muelle antes de pedir la subvención.
+
+[00:15:00] Consultor: Queda claro que son dos proyectos con una misma piel. ¿Condicionantes?
+
+[00:15:10] Rosa: Dos. El primero es que la campaña del percebe empieza en octubre y la lonja no
+puede parar ni un día. El segundo es que no tenemos informático: lo va a mantener el administrativo
+que ya lleva la contabilidad.
+
+[00:16:30] Anxo: Y avisadnos de lo que no sepáis estimar. Preferimos un número con una advertencia
+encima que un número redondo que luego se duplique.
+
+[00:17:05] Consultor: Anotado. Os lo llevamos troceado, y lo que no tenga precedente lo vais a ver
+marcado como tal.

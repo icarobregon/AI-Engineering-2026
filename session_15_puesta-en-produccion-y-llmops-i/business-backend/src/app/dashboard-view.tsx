@@ -80,7 +80,12 @@ export function DashboardView({
         </Col>
       </Row>
 
-      <Row gutter={16}>
+      {/* El gutter va en pareja: un número suelto es SÓLO el horizontal, y estas
+          siete tarjetas envuelven en tres líneas. Sin el vertical, una tarjeta
+          con una línea de texto de más queda pegada a la de abajo, sin un píxel
+          entre medias. Los 24 son los mismos que separan esta fila de la de
+          arriba. */}
+      <Row gutter={[16, 24]}>
         <Col span={8}>
           <Card
             title="Conversación"

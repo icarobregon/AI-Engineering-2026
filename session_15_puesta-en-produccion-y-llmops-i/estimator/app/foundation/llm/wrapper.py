@@ -412,8 +412,14 @@ class LLMWrapper:
         max_tokens: int = 4000,
         max_retries: int = 6,
         reasoning_effort: str | None = None,
+        timeout: int | None = None,
     ) -> tuple[T, dict[str, Any]]:
         """Run the LLM with Instructor and return ``(model_instance, meta)``.
+
+        ``timeout`` overrides the wrapper's own deadline for this call. It exists
+        because one deadline cannot fit both shapes of call this service makes: a
+        chat-shaped completion answers in seconds, and a reasoning model at high
+        effort spends minutes thinking before it emits a token.
 
         ``meta`` includes ``model``, ``provider`` and ``latency_ms``. Instructor
         re-prompts the LLM up to ``max_retries`` times when a Pydantic validator
@@ -448,7 +454,7 @@ class LLMWrapper:
             result = self._instructor.chat.completions.create(
                 model=target_model,
                 api_key=api_key,
-                timeout=self.timeout,
+                timeout=timeout or self.timeout,
                 messages=messages,
                 response_model=response_model,
                 max_tokens=max_tokens,

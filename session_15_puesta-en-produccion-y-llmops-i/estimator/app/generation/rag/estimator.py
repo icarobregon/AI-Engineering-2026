@@ -115,6 +115,10 @@ async def _generate(
             # is exhausted by reasoning alone and truncates the JSON. See
             # Settings.GENERATION_MAX_TOKENS.
             max_tokens=settings.GENERATION_MAX_TOKENS,
+            timeout=settings.GENERATION_TIMEOUT,
+            # Tres reintentos de una generacion de seis minutos es media hora
+            # de espera para el mismo fallo. Dos intentos y fuera.
+            max_retries=2,
         )
         return estimate
     except Exception as exc:  # noqa: BLE001
@@ -143,6 +147,10 @@ async def generate_structure(structured_query: EstimationQuery) -> Estimate:
             model_override=settings.GENERATION_MODEL,
             reasoning_effort=settings.GENERATION_REASONING_EFFORT,
             max_tokens=settings.GENERATION_MAX_TOKENS,
+            timeout=settings.GENERATION_TIMEOUT,
+            # Tres reintentos de una generacion de seis minutos es media hora
+            # de espera para el mismo fallo. Dos intentos y fuera.
+            max_retries=2,
         )
         return estimate
     except Exception as exc:  # noqa: BLE001

@@ -280,6 +280,17 @@ class Settings(BaseSettings):
     # out on every attempt.
     GRAPH_LLM_TIMEOUT: int = 300
 
+    # El mismo problema que GRAPH_LLM_TIMEOUT, en la ruta RAG. Las dos etapas que
+    # corren GENERATION_MODEL con razonamiento alto —la generacion fundamentada y
+    # la estructura libre— pasan de los cinco minutos con transcripciones
+    # corrientes. Con LLM_TIMEOUT (120 s) cada intento se corta antes de que el
+    # modelo termine, Instructor reintenta, y el resultado es un fallo despues de
+    # seis minutos habiendo pagado tres generaciones que nadie llego a ver.
+    # 600 y no 900: el deadline del servicio tiene que quedar POR DEBAJO del
+    # timeout del cliente (900 s en business-backend), o el cliente se va mientras
+    # el servicio sigue gastando.
+    GENERATION_TIMEOUT: int = 600
+
     # --- Session 14 fields (multi-agent supervisor + human-in-the-loop) ---------
     # The supervisor only ever asks for a two-field decision, so it runs on the
     # cheap model and with its own short timeout: reusing GRAPH_LLM_TIMEOUT (300s,

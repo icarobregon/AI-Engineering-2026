@@ -20,6 +20,7 @@ import uuid
 import logfire
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 
@@ -229,3 +230,43 @@ async def get_estimation_state(request: Request, estimation_id: str) -> dict:
         "next": list(snapshot.next or ()),
         "review_payload": _pending_review(snapshot),
     }
+
+
+class GraphDiagramResponse(BaseModel):
+    """El grafo multi-agente, dibujado desde el grafo COMPILADO."""
+
+    mermaid: str = Field(description="Diagrama en sintaxis Mermaid, listo para renderizar.")
+    nodes: list[str] = Field(description="Nodos, sin los pseudonodos __start__ / __end__.")
+    entry_point: str = Field(description="Primer nodo real tras __start__.")
+
+
+@router.get(
+    "/graph/diagram",
+    response_model=GraphDiagramResponse,
+    dependencies=[Depends(require_estimate_key)],
+)
+async def graph_diagram(request: Request) -> GraphDiagramResponse:
+    """El diagrama del grafo, derivado de la topología real.
+
+    No es un dibujo mantenido a mano: sale del grafo ya compilado, así que no
+    puede desincronizarse del código. Desde la Sesión 14 las aristas ya no se
+    declaran —viven dentro de cada ``Command``— y LangGraph las reconstruye
+    resolviendo la anotación ``Command[Literal[...]]`` de cada nodo. Eso convierte
+    este endpoint en algo más que una ilustración: si alguien mueve un import de
+    ``Command`` o ``Literal`` a ``TYPE_CHECKING``, la anotación deja de resolver y
+    las aristas DESAPARECEN de aquí, que es la señal más temprana de un fallo que
+    por lo demás es silencioso (un ``goto`` a un nodo inexistente no levanta nada).
+    """
+    graph = _require_graph(request)
+    dibujo = graph.get_graph()
+    nodos = [n for n in dibujo.nodes if not n.startswith("__")]
+    return GraphDiagramResponse(
+        mermaid=dibujo.draw_mermaid(),
+        nodes=nodos,
+        # El punto de entrada se lee del grafo, no se escribe aquí: si algún día
+        # START deja de apuntar al supervisor, esto lo dice solo.
+        entry_point=next(
+            (e.target for e in dibujo.edges if e.source == "__start__"),
+            nodos[0] if nodos else "",
+        ),
+    )

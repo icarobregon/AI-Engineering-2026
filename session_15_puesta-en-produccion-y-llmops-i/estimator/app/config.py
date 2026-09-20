@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # --- Session 3 fields (LiteLLM wrapper, Redis cache, Streamlit transport) ---
     PRIMARY_MODEL: str = "gpt-4o-mini"
     FALLBACK_MODEL: str = "claude-haiku-4-5-20251001"
-    LLM_TIMEOUT: int = 30
+    LLM_TIMEOUT: int = 120
     LLM_RETRIES: int = 2
     # Catalogo de modelos seleccionables en caliente vIa PUT /api/v1/config/models.
     # Curado A MANO contra los catalogos que las claves alcanzan de verdad
@@ -98,7 +98,13 @@ class Settings(BaseSettings):
     MODEL_CATALOG_GENERATED_AT: str = "2026-09-20T01:14:55+02:00"
     MODEL_CATALOG_SOURCES: list[str] = ["OpenAI", "Anthropic"]
 
-    REDIS_URL: str = "redis://localhost:6379"
+    # SIN valor por defecto, y es deliberado. Un default que nombra una máquina y
+    # un puerto es el que produce «en mi máquina funciona»: hasta la S15 decía
+    # `redis://localhost:6379`, un puerto que dejó de publicarse cuando los
+    # datastores se hicieron privados, y nadie se enteró porque Compose lo pisaba.
+    # Sin default, una configuración incompleta falla al construir Settings
+    # diciendo qué falta, en vez de marcar un puerto que no existe.
+    REDIS_URL: str
     CACHE_TTL: int = 86400
 
     # --- Session 4 fields (semantic cache) ---
@@ -145,7 +151,12 @@ class Settings(BaseSettings):
     # --- Session 6 fields (data-driven AI: persistence + ingestion + PII) ---
     # Postgres connection string. pgvector/pgvector:pg16 image; the extension
     # is dormant in S06 (no CREATE EXTENSION vector) and only activates in S07.
-    DATABASE_URL: str = "postgresql+psycopg://estimator:estimator@localhost:5433/estimator"
+    #
+    # SIN valor por defecto, por lo mismo que REDIS_URL y por una razón más: el
+    # default traía usuario y contraseña escritos en código versionado, y
+    # apuntaba a `localhost:5433`, un puerto cerrado desde la S15. Tres capas
+    # decían tres cosas distintas y sólo Compose acertaba.
+    DATABASE_URL: str
     # Where the YAML catalog lives. Resolved relative to the working directory.
     CATALOG_PATH: Path = Path("data/catalog/catalog.yaml")
     # Root where ``CatalogSource.location`` entries are resolved against.
@@ -286,7 +297,7 @@ class Settings(BaseSettings):
     # ball before the strategy could.
     GRAPH_RECURSION_LIMIT: int = 40
     # The estimate node runs a reasoning model at GENERATION_REASONING_EFFORT,
-    # which spends minutes thinking before it answers. LLM_TIMEOUT (30s) is sized
+    # which spends minutes thinking before it answers. LLM_TIMEOUT (120s) is sized
     # for the chat-shaped calls the rest of the service makes and times this one
     # out on every attempt.
     GRAPH_LLM_TIMEOUT: int = 300

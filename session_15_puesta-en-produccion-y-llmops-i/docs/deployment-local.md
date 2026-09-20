@@ -201,6 +201,105 @@ Conscientes, y aquí para que quien revise no las tome por errores.
 | cuatro servicios, con BBDD vectorial aparte | tres contenedores de datos + la app | pgvector hace de relacional y de vectorial en el mismo contenedor, que el propio enunciado autoriza. El cuarto es Redis Stack, que sostiene la caché semántica de sesiones anteriores. |
 | — | `business-migrate` | Contenedor de un solo uso que aplica el esquema de Prisma y sale con 0. No es un servicio permanente; mantener el CLI de Prisma en la imagen de runtime costaba 250 MB. |
 
+## Ejecutar el servicio IA fuera de Docker
+
+Esto es otra cosa que lo de arriba: no levantar el sistema, sino correr
+`uvicorn` en la máquina contra las dependencias del Compose. Sirve para depurar
+con el depurador puesto, para iterar sin reconstruir la imagen y para lanzar los
+scripts de `scripts/` a mano.
+
+**Hoy no funciona.** La arquitectura la contempla —`docker-compose.yml`
+sobrescribe `REDIS_URL` y `DATABASE_URL` con el comentario «these override
+whatever the .env says: those values are written for running uvicorn outside
+Docker»— pero hay dos cosas rotas y una que faltaba.
+
+### Qué lo bloquea
+
+**1. Los datastores no publican puerto.** Desde la S15 sólo `business-backend`
+publica el 3000; Postgres y Redis se hicieron privados a propósito. Comprobado:
+los puertos 5433 y 6379 están cerrados en el host. Sin ellos, uvicorn en la
+máquina no alcanza ni la base ni la caché. Es el obstáculo real, y es
+consecuencia de una decisión deliberada, no de un descuido.
+
+**2. El `.env` había derivado a una topología mezclada.** `DATABASE_URL`
+apuntaba a `localhost:5433` (valor de host, correcto según la intención) pero
+`REDIS_URL` a `redis://redis:6379` (valor de contenedor). Con esa mezcla, ni la
+vía local ni nada: media configuración miraba a un sitio y media al otro.
+Corregido — las dos líneas del `.env` son ahora de host, y Compose sigue
+sobrescribiéndolas para el contenedor, que era el reparto previsto.
+
+**3. `DATABASE_URL` y `REDIS_URL` ya no tienen valor por defecto.** Antes lo
+tenían, y apuntaba a `localhost:5433` / `localhost:6379` — es decir, el default
+del código ERA la vía local, y por eso la deriva no se notaba: arrancabas fuera
+de Docker y «funcionaba» aunque el `.env` dijera otra cosa. Ahora hay que
+declararlas. Es más trabajo de configuración y menos sorpresas.
+
+### Qué haría falta
+
+Lo mínimo son dos líneas en `docker-compose.yml`, publicando **sólo en el
+loopback**:
+
+```yaml
+  estimator-postgres:
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+```
+
+El `127.0.0.1:` no es un detalle: sin él, `"5433:5432"` escucha en todas las
+interfaces y el contenedor queda alcanzable desde la red local. Con él, la
+frontera de la S15 se mantiene —el sistema sigue teniendo una sola puerta
+pública, el 3000— y lo único que cambia es que la propia máquina puede hablar
+con sus datastores.
+
+Con eso, el flujo es:
+
+```bash
+# sólo las dependencias, no el servicio IA
+docker compose up -d estimator-postgres redis
+
+cd estimator
+uv run uvicorn app.main:app --reload    # lee estimator/.env, que ya es de host
+```
+
+Las migraciones y el corpus ya están en el volumen, así que no hay que sembrar
+nada: es la misma base que usa el contenedor.
+
+### Qué cuesta mantenerla
+
+Poco, pero no cero:
+
+- **Dos líneas de `ports`**, y recordar el `127.0.0.1:`.
+- **La disciplina del reparto**: el `.env` lleva valores de HOST y Compose los
+  sobrescribe para el contenedor. Ya está así y documentado en los dos ficheros;
+  lo que hay que evitar es «arreglar» el `.env` poniéndole nombres de servicio,
+  que es exactamente la deriva que se corrigió aquí.
+- **Nada más.** No hay que duplicar ficheros de entorno ni mantener un perfil de
+  Compose aparte.
+
+### Qué NO da esta vía
+
+**El sistema mixto no funciona.** Si el servicio IA corre en el host, el BFF
+dentro de Docker no lo alcanza: su `AI_SERVICE_URL` es `http://ai-service:8000`,
+un nombre que sólo existe en la red de Compose. Haría falta apuntarlo a
+`http://host.docker.internal:8000`, que es otra configuración y otro conjunto de
+suposiciones. La vía local es para el **servicio IA aislado** —tests, scripts,
+depuración—, no para levantar medio sistema fuera y medio dentro.
+
+### Alternativa, si no se quieren publicar puertos
+
+`docker compose exec ai-service python …` para lo puntual, o un contenedor
+efímero enganchado a la red (`docker run --rm --network <red> …`). Funciona y no
+toca la frontera, pero es más ceremonia que dos líneas de `ports` y no da
+depurador.
+
+**Recomendación**: publicar en loopback. Es reversible, explícito, y no
+contradice la decisión de la S15 — la frontera es que el servicio IA y sus
+datastores no estén expuestos *a la red*, y en loopback siguen sin estarlo.
+
 ## Qué NO está aquí
 
 

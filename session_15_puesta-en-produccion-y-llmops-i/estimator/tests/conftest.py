@@ -1,20 +1,41 @@
 from __future__ import annotations
 
-import pytest
-from fastapi.testclient import TestClient
+import os
 
-from app.dependencies import (
+# ANTES de importar la app, que construye Settings al importarse.
+#
+# `DATABASE_URL` y `REDIS_URL` no tienen valor por defecto a propósito (ver
+# `app/config.py`): nombran infraestructura, y un default ahí es el que produce
+# «en mi máquina funciona». La suite no habla ni con Postgres ni con Redis de
+# verdad, pero Settings se construye igual, así que los pone ella.
+#
+# Valores FALSOS y explícitos, no los del `.env` del desarrollador. La suite no
+# era hermética y no se notaba: `litellm/__init__.py` llama a `load_dotenv()` al
+# importarse, así que el `.env` acababa en `os.environ` como efecto colateral y
+# los tests que pasan `_env_file=None` creyendo aislarse leían el fichero igual.
+os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://test:test@localhost:5432/test")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
+# Y una clave de mentira, por lo mismo: `validate_at_least_one_api_key` exige una
+# desde la S02, así que sin esto la suite nunca ha podido correr en un clon
+# recién bajado. Ninguna llamada sale de la máquina —los tests son network-free—
+# y los que van sobre la cerradura parchean `security.get_settings` aparte.
+os.environ.setdefault("OPENAI_API_KEY", "sk-test-no-sale-de-aqui")
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.dependencies import (  # noqa: E402
     get_estimation_service,
     get_llm_wrapper,
     get_openai_client,
     get_session_store,
 )
-from app.api.security import require_estimate_key, require_retrieval_key
-from app.main import app
-from app.domain.schemas.estimation import EstimationResult
-from app.domain.estimation_service import EstimationService
-from app.generation.conversation.models import ProjectMetadata
-from app.generation.conversation.store import SessionStore
+from app.api.security import require_estimate_key, require_retrieval_key  # noqa: E402
+from app.main import app  # noqa: E402
+from app.domain.schemas.estimation import EstimationResult  # noqa: E402
+from app.domain.estimation_service import EstimationService  # noqa: E402
+from app.generation.conversation.models import ProjectMetadata  # noqa: E402
+from app.generation.conversation.store import SessionStore  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

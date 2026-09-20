@@ -27,7 +27,7 @@ services:
       # Vacía es «sin configurar» en los dos lados: allí por el `:-`, aquí porque
       # el cliente trata el blanco como ausente.
       AI_SERVICE_RETRIEVAL_TOKEN: ${AI_SERVICE_RETRIEVAL_TOKEN:-}
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@estimator-postgres:5432/${POSTGRES_DB}?schema=business
+      DATABASE_URL: postgresql://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@estimator-postgres:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}?schema=business
     depends_on:
       business-migrate:
         condition: service_completed_successfully
@@ -47,7 +47,7 @@ services:
       target: builder
     command: node_modules/prisma/build/index.js migrate deploy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@estimator-postgres:5432/${POSTGRES_DB}?schema=business
+      DATABASE_URL: postgresql://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@estimator-postgres:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}?schema=business
     depends_on:
       estimator-postgres:
         condition: service_healthy
@@ -64,10 +64,10 @@ services:
       # These override whatever the .env says: those values are written for
       # running uvicorn outside Docker, where the hosts are localhost.
       REDIS_URL: redis://redis:6379
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@estimator-postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@estimator-postgres:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}
       # One shared secret per environment, set in one place.
-      ESTIMATE_API_KEY: ${AI_SERVICE_TOKEN}
-      RETRIEVAL_API_KEY: ${AI_SERVICE_RETRIEVAL_TOKEN:-${AI_SERVICE_TOKEN}}
+      ESTIMATE_API_KEY: ${AI_SERVICE_TOKEN:?set AI_SERVICE_TOKEN in .env}
+      RETRIEVAL_API_KEY: ${AI_SERVICE_RETRIEVAL_TOKEN:-${AI_SERVICE_TOKEN:?set AI_SERVICE_TOKEN in .env}}
     depends_on:
       redis:
         condition: service_healthy

@@ -16,6 +16,7 @@ Three ways to run it, differing only in what is real:
   ingested (``docker compose exec estimator python scripts/build_task_corpus.py
   --ingest``)::
 
+      # (Redis no publica el 6379 desde la S15; ver README, vía de ejecución local)
       REDIS_URL=redis://localhost:6379 uv run python scripts/run_graph_s14.py \\
           exercises/session-14/sample_transcript_edge_case.txt \\
           --out exercises/session-14/example_run_edge_case.txt

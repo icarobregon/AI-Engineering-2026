@@ -160,7 +160,8 @@ Lo que vive **fuera** del template (en código): el contrato (`EstimationRequest
 | `ANTHROPIC_API_KEY` | — | Requerido al menos uno de los dos |
 | `PRIMARY_MODEL` | `gpt-4o-mini` | Modelo principal del Router |
 | `FALLBACK_MODEL` | `claude-haiku-4-5-20251001` | Se usa si el primario falla |
-| `REDIS_URL` | `redis://localhost:6379` | Cache exact-match |
+| `REDIS_URL` | — | **Obligatoria desde la S15**: sin default, porque nombra una máquina. Compose la sobrescribe a `redis://redis:6379`; el valor del `.env` es el de host |
+| `DATABASE_URL` | — | **Obligatoria desde la S15**, por lo mismo, y porque el default traía credenciales en código versionado. Compose la sobrescribe a `estimator-postgres:5432` |
 | `CACHE_TTL` | `86400` | Segundos |
 | `APP_ENV` | `development` | Controla el renderer de structlog (JSON en `production`) |
 | `LOG_LEVEL` | `DEBUG` | Volumen de logs. **Cableado en la S15**: hasta entonces existía, estaba tipada y no filtraba nada. `DEBUG`/`INFO`/`WARNING`/`ERROR`; cualquier otro valor falla al arrancar |

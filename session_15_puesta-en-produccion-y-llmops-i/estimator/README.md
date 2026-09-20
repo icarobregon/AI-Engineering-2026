@@ -168,7 +168,7 @@ Lo que vive **fuera** del template (en código): el contrato (`EstimationRequest
 | `RETRIEVAL_API_KEY` | — | Token de `/v1/retrieval/search`, `/v1/retrieval/advanced-search` y de la `POST /search` de la S08, que lleva la misma clave que su sustituta |
 
 `/health` es la única ruta abierta, y a propósito: cerrarla mataría el healthcheck de Docker.
-| `ESTIMATOR_API_BASE_URL` | `http://localhost:8000` | Lo lee el cliente Streamlit **directamente del entorno**: no es un campo de `Settings` y el servicio nunca lo mira |
+| `ESTIMATOR_API_BASE_URL` | `http://localhost:8000` | Dónde responde el servicio, para lo que lo LLAMA. No es un campo de `Settings`: la leen del entorno `streamlit_app.py` y los scripts `query_examples.py` / `build_task_corpus.py`. Sin ella, los scripts sondean `localhost:8000` y `ai-service:8000` |
 
 `get_settings()` es un singleton cacheado con `lru_cache`: cualquier cambio en `.env` requiere reiniciar uvicorn (no basta con `--reload`). **Excepción: los modelos LLM** — ver la sección siguiente.
 

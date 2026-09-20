@@ -38,8 +38,21 @@ import sys
 from pathlib import Path
 
 import httpx
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# El `.env` del servicio, si lo hay. A nivel de módulo porque las claves se leen
+# desde varias funciones. Dos detalles que importan:
+#
+# - Se le pasa la RUTA. `load_dotenv()` a secas busca desde el directorio de
+#   trabajo, así que lanzar el script desde cualquier sitio que no fuera
+#   `estimator/` no encontraba nada y la variable salía vacía sin decirlo.
+# - NO pisa lo que ya exista en el entorno, así que dentro del contenedor sigue
+#   mandando lo que pone compose. Desde el host deja de hacer falta exportar
+#   nada: hasta ahora se mandaba una `X-API-Key` VACÍA aunque la clave estuviera
+#   en el `.env` de al lado, y el fallo era un 401 sin explicación.
+load_dotenv(ROOT / ".env")
 OUT_PATH = ROOT / "data" / "task_corpus.json"
 DOCUMENT_TYPE = "historical_task_breakdown"
 CHUNK_TYPE = "historical_task"
@@ -838,7 +851,7 @@ def generate_corpus(count: int = DEFAULT_COUNT, seed: int = DEFAULT_SEED) -> lis
 
 
 def _resolve_base_url(client: httpx.Client) -> str:
-    explicit = os.environ.get("ESTIMATOR_BASE_URL")
+    explicit = os.environ.get("ESTIMATOR_API_BASE_URL")
     for base_url in (explicit,) if explicit else CANDIDATE_BASE_URLS:
         try:
             if client.get(f"{base_url}/health").status_code == 200:
@@ -847,7 +860,7 @@ def _resolve_base_url(client: httpx.Client) -> str:
             continue
     print(
         "ERROR: no estimator API reachable. Start the stack (docker compose up -d) "
-        "or set ESTIMATOR_BASE_URL.",
+        "or set ESTIMATOR_API_BASE_URL.",
         file=sys.stderr,
     )
     raise SystemExit(1)

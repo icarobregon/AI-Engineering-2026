@@ -19,7 +19,7 @@ Usage::
     # or from the host (with the API on localhost:8000):
     uv run python scripts/query_examples.py
 
-The base URL is taken from ``ESTIMATOR_BASE_URL`` if set; otherwise the script
+The base URL is taken from ``ESTIMATOR_API_BASE_URL`` if set; otherwise the script
 probes ``http://localhost:8000`` and ``http://ai-service:8000`` (the compose
 network alias) via ``GET /health``.
 """
@@ -32,8 +32,21 @@ import sys
 from pathlib import Path
 
 import httpx
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# El `.env` del servicio, si lo hay. A nivel de módulo porque las claves se leen
+# desde varias funciones. Dos detalles que importan:
+#
+# - Se le pasa la RUTA. `load_dotenv()` a secas busca desde el directorio de
+#   trabajo, así que lanzar el script desde cualquier sitio que no fuera
+#   `estimator/` no encontraba nada y la variable salía vacía sin decirlo.
+# - NO pisa lo que ya exista en el entorno, así que dentro del contenedor sigue
+#   mandando lo que pone compose. Desde el host deja de hacer falta exportar
+#   nada: hasta ahora se mandaba una `X-API-Key` VACÍA aunque la clave estuviera
+#   en el `.env` de al lado, y el fallo era un 401 sin explicación.
+load_dotenv(ROOT / ".env")
 CORPUS_PATH = ROOT / "data" / "budgets_sample.json"
 
 CANDIDATE_BASE_URLS = ("http://localhost:8000", "http://ai-service:8000")
@@ -67,8 +80,8 @@ CONTENT_PREVIEW_CHARS = 120
 
 
 def resolve_base_url(client: httpx.Client) -> str:
-    """Honour ESTIMATOR_BASE_URL; otherwise probe the usual suspects."""
-    explicit = os.environ.get("ESTIMATOR_BASE_URL")
+    """Honour ESTIMATOR_API_BASE_URL; otherwise probe the usual suspects."""
+    explicit = os.environ.get("ESTIMATOR_API_BASE_URL")
     candidates = (explicit,) if explicit else CANDIDATE_BASE_URLS
     for base_url in candidates:
         try:
@@ -78,7 +91,7 @@ def resolve_base_url(client: httpx.Client) -> str:
             continue
     print(
         "ERROR: no estimator API reachable. Start the stack (docker compose up -d) "
-        "or set ESTIMATOR_BASE_URL.",
+        "or set ESTIMATOR_API_BASE_URL.",
         file=sys.stderr,
     )
     raise SystemExit(1)

@@ -334,37 +334,6 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
             />
           )}
 
-          {review.data.budget_matches.length > 0 && (
-            <CollapseCard
-              title="Presupuestos análogos encontrados"
-              styles={{ body: { padding: 0 } }}
-            >
-              <Table
-                rowKey={(row) => `${row.component_id}-${row.reference_budget_id}`}
-                dataSource={review.data.budget_matches}
-                pagination={false}
-                columns={[
-                  { title: "Componente", dataIndex: "component" },
-                  { title: "Referencia", dataIndex: "reference_budget_id" },
-                  {
-                    title: "Horas",
-                    dataIndex: "amount",
-                    width: 100,
-                    align: "right",
-                    render: hours,
-                  },
-                  {
-                    title: "Distancia",
-                    dataIndex: "distance",
-                    width: 110,
-                    align: "right",
-                    render: (value: number) => value.toFixed(3),
-                  },
-                ]}
-              />
-            </CollapseCard>
-          )}
-
           {review.data.concerns.length > 0 && (
             <CollapseCard title="Reservas del validador">
               <List

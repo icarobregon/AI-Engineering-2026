@@ -1,13 +1,32 @@
 # Estimator — Servicio IA de estimación de software
 
-Servicio IA en FastAPI que estima proyectos de software a partir de un formulario tipado. Es la pieza Python del programa **Master en AI Engineering**: un endpoint pensado para ser consumido por un backend de negocio (Rails, Streamlit u otro), no por un usuario final.
+Servicio IA en FastAPI que estima proyectos de software. Es la pieza Python del
+programa **Master en AI Engineering**: lo consume un backend de negocio, nunca un
+usuario final, y desde la Sesión 15 no publica puerto al host.
 
-A partir de la **Sesión 04** el contrato es deliberadamente estrecho:
-- entrada tipada (`description` + tres enums),
-- salida estructurada y validada (`EstimationResult` vía Instructor + Pydantic),
-- prompt fuera del código en templates Jinja2 versionados (`app/foundation/prompts/<use_case>/<version>/`).
+Hoy estima de **cuatro formas distintas**, y conviven a propósito porque cada una
+resuelve un problema que la anterior no:
 
-La inteligencia adicional (output estructurado, guardrails, cache semántico) se construye encima de esta base en directo.
+| Camino | Qué es | Sesiones |
+|---|---|---|
+| `POST /api/v1/estimate` | Un disparo: formulario tipado → estimación validada. Sin memoria y sin corpus. | 04 |
+| `POST /sessions/*` | Lo mismo a varios turnos, con memoria, adjuntos y el modo Actor-Critic-Boss. | 05 |
+| `POST /v1/estimate/from-transcript` y `/stages/*` | RAG: una tubería fija que recupera del histórico y cita línea a línea. | 09–11 |
+| `POST /v1/estimate/graph` y `/v1/estimate/agent/run` | Agentes que deciden: un grafo multi-agente con puerta humana, y un bucle escrito a mano. | 12–14 |
+
+Tres invariantes valen para los cuatro:
+
+- **Entrada y salida tipadas.** El contrato es Pydantic, no prosa; Instructor
+  obliga al modelo a la forma y los `computed_field` derivan lo que no se le pide.
+- **El prompt vive fuera del código**, en plantillas Jinja2 versionadas
+  (`app/foundation/prompts/<use_case>/<version>/`). Si cambiar el comportamiento
+  del modelo obliga a tocar Python, la separación está rota.
+- **Los números no los pone el modelo** donde hay con qué calcularlos. En el grafo
+  las horas salen de una herramienta determinista y al modelo sólo se le pide la
+  prosa; en el camino RAG, una cita que no resuelve se poda antes de servir.
+
+El contrato de capas —quién puede importar a quién— es normativo y vive en
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Cómo levantar
 
@@ -28,18 +47,31 @@ docker compose exec business-backend curl -sS http://ai-service:8000/health
 
 ### Sin Docker
 
+`DATABASE_URL` y `REDIS_URL` no tienen valor por defecto desde la S15, así que hay
+que dárselos. Van **delante de la orden** y no en el `.env`, que describe el
+despliegue real: una variable de entorno gana al fichero, así que la vía local es
+efímera y no deja rastro.
+
 ```bash
 cd estimator
 uv sync
+DATABASE_URL=postgresql+psycopg://estimator:estimator@localhost:5433/estimator \
+REDIS_URL=redis://localhost:6379 \
 uv run uvicorn app.main:app --reload
 ```
 
+Eso exige que Postgres y Redis sean alcanzables desde el host, que con la frontera
+de la S15 ya no lo son. El recetario por caso —depurar, tests, scripts— está en
+[`../docs/deployment-local.md`](../docs/deployment-local.md).
+
 ### Probar el endpoint
 
+Desde dentro de la red interna, que es de donde se alcanza:
+
 ```bash
-curl -X POST http://localhost:8000/api/v1/estimate \
+docker compose exec business-backend curl -sS -X POST http://ai-service:8000/api/v1/estimate \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $ESTIMATE_API_KEY" \
+  -H "X-API-Key: $AI_SERVICE_TOKEN" \
   -d '{
     "description": "A small B2B SaaS to manage employee equipment loans across teams. Role-based access, audit trail, weekly digest.",
     "project_type": "web_saas",
@@ -91,15 +123,34 @@ y desde la Sesión 15 necesita además `ESTIMATE_API_KEY`, que envía como cabec
 
 ```bash
 cd estimator
-uv run pytest
+uv run pytest        # 687 tests en 82 ficheros, ~6 s
+uv run ruff check app tests
 ```
 
-La batería corre en milisegundos sin tocar APIs externas. Cubre cuatro categorías:
+**Sin red, sin clave y sin base de datos.** `conftest.py` fija `DATABASE_URL`,
+`REDIS_URL` y una `OPENAI_API_KEY` falsa **antes** de importar la app. No es
+ceremonia: `litellm` llama a `load_dotenv()` al importarse, así que el `.env` del
+desarrollador acababa en `os.environ` como efecto colateral y los tests que pasan
+`_env_file=None` creyendo aislarse leían el fichero igual. Desde la S15 la suite
+pasa con `.env` y sin él, cosa que nunca había hecho.
 
-- `tests/test_schemas.py` — validaciones del `EstimationRequest` (longitudes, enums, campos obligatorios).
-- `tests/test_prompts.py` — render del template `v1`: `description` aparece dentro de `<project_description>`, los bloques condicionales por `output_format` y `detail_level` solo se incluyen cuando aplica, y `StrictUndefined` falla early ante variables faltantes.
-- `tests/test_estimate_endpoint.py` — endpoint con el wrapper LLM mockeado vía `app.dependency_overrides`: comprueba el contrato 200/422, que `system_prompt` y `user_message` viajan separados, y que la respuesta lleva `prompt_version="v1"`.
-- `tests/test_llm_wrapper.py` y `tests/test_cache.py` — wrapper y cache de la Sesión 03, intactos.
+Cómo está repartida:
+
+| Directorio | Qué fija |
+|---|---|
+| `tests/` (raíz) | Los contratos de la S03–S05: schemas, render de prompts, wrapper, cachés, guardrails, adjuntos y memoria. |
+| `tests/api/` | Los routers como los ve un cliente: códigos, formas JSON, auth y límites de tasa. |
+| `tests/generation/rag/` | Troceado, recuperación, fusión, reranking, citación y política de citas. |
+| `tests/generation/agentic/` | El bucle del agente, sus tools y el Actor-Critic-Boss. |
+| `tests/domain/graph/` | El grafo: el resultado y los invariantes, nunca el camino. |
+| `tests/domain/security/` | Privilegios de tool, el guard y la auditoría. |
+
+En el grafo los tests fijan **el resultado y los invariantes, jamás el orden de los
+nodos**: el camino es no determinista por diseño, así que un test que fije una
+secuencia se rompe cada vez que el supervisor decide distinto y no prueba nada. Y
+las tres herramientas de la S12 se usan de verdad —son Python determinista— porque
+falsearlas sería testear el falso; sólo se doblan el modelo y el backend de
+recuperación.
 
 ## Estructura del proyecto
 
@@ -112,14 +163,32 @@ estimator/
 │   ├── api/                           # TRANSPORTE — routers finos
 │   │   ├── estimations.py             #   POST /api/v1/estimate (exige X-API-Key)
 │   │   ├── sessions.py                #   S05 — conversación con memoria y ACB
-│   │   ├── embeddings.py              #   S07/S08 — troceado, ingest y búsqueda
-│   │   ├── config.py                  #   GET/PUT /api/v1/config/models
+│   │   ├── embeddings.py              #   S07/S08 — troceado, ingest, búsqueda y stats
+│   │   ├── search.py                  #   S08 — POST /search, la búsqueda original
+│   │   ├── ingestion.py               #   pipeline offline, por HTTP
+│   │   ├── config.py                  #   GET/PUT /api/v1/config/{models,retrieval}
 │   │   ├── security.py                #   require_estimate_key / require_retrieval_key
-│   │   └── routers/                   #   S09-S14 — estimate, stages, tasks, retrieval, graph
+│   │   ├── rate_limiting.py           #   slowapi, con una cuota por familia de ruta
+│   │   └── routers/                   #   S09-S15
+│   │       ├── estimate.py            #     /v1/estimate/from-transcript (RAG citado)
+│   │       ├── estimate_stages.py     #     /v1/estimate/stages/* (el asistente, paso a paso)
+│   │       ├── estimate_tasks.py      #     /v1/estimate/tasks/hours
+│   │       ├── retrieval.py           #     /v1/retrieval/search
+│   │       ├── retrieval_advanced.py  #     /v1/retrieval/advanced-search
+│   │       ├── agent.py               #     /v1/estimate/agent/run
+│   │       ├── estimate_graph.py      #     los siete verbos del grafo
+│   │       └── references.py          #     /v1/corpus/references (S15)
 │   ├── domain/                        # EL CONTRATO Y LOS CONDUCTORES
 │   │   ├── schemas/estimation.py      #   EstimationRequest/Result/Response, TurnObservation
+│   │   ├── schemas/graph_estimation.py#   el contrato del grafo y HumanDecision
 │   │   ├── estimation_service.py      #   conductor CAG/RAG/ACB (S04-S11)
+│   │   ├── proposal.py                #   conductor de la propuesta comercial (S15)
 │   │   ├── graph/                     #   conductor multi-agente (S13-S14)
+│   │   │   ├── build.py state.py      #     topología y estado tipado
+│   │   │   ├── supervisor.py agents.py#     el enrutado y los cinco especialistas
+│   │   │   ├── hitl.py band.py        #     la puerta humana y la banda histórica
+│   │   │   ├── progress.py            #     el feed, derivado del historial (S15)
+│   │   │   └── checkpointer.py        #     AsyncPostgresSaver sobre el mismo Postgres
 │   │   └── security/                  #   privilegios de tool, guard y auditoría
 │   ├── foundation/                    # PLOMERÍA, sin opinión de arquitectura AI
 │   │   ├── llm/wrapper.py             #   LiteLLM + Instructor + MODEL_COSTS
@@ -131,10 +200,16 @@ estimator/
 │   ├── generation/                    # LAS TRES ARQUITECTURAS
 │   │   ├── cag/                       #   cache exacta + semántica
 │   │   ├── rag/                       #   chunking, retrieval, generación citada
+│   │   │   ├── chunking/              #     ocho estrategias comparables (S07)
+│   │   │   ├── retrieval/             #     pipeline, fusión, reranker, router (S09-S10)
+│   │   │   ├── store/                 #     las tres tablas, stats y references (S08-S15)
+│   │   │   ├── validation.py          #     verificar citas / aplicar la política (S11)
+│   │   │   └── estimator.py           #     la tubería fija transcripción → estimación
 │   │   ├── agentic/                   #   Actor-Critic-Boss y el agente a mano (S12)
 │   │   └── conversation/              #   ventana, anclas, resumen, metadata
 │   └── ingestion/                     # pipeline offline que alimenta RAG
-├── tests/                             # batería sin red ni clave
+├── tests/                             # 687 tests, sin red ni clave
+├── evals/                             # golden set y el arnés de estrés
 ├── alembic/                           # migraciones del esquema del servicio IA
 ├── data/                              # corpus de muestra
 ├── scripts/                           # siembra del corpus y runners de sesión
@@ -152,6 +227,40 @@ La estructura `app/foundation/prompts/<use_case>/<version>/` no es opcional: `v1
 
 Lo que vive **fuera** del template (en código): el contrato (`EstimationRequest`), el switch de versión y el wrapper. Todo lo demás (rol del modelo, reglas, ejemplos, formatos de salida, niveles de detalle) vive dentro del `.j2`. Si para cambiar el comportamiento del modelo hay que tocar Python, la separación está rota.
 
+## El mapa de rutas
+
+Treinta y cuatro operaciones. Las agrupa la sesión que las trajo, no el prefijo,
+porque el prefijo no dice nada de para qué sirven.
+
+| Ruta | Qué hace | Clave |
+|---|---|---|
+| `GET /health` | Liveness. No llama al LLM. | **abierta** |
+| `POST /api/v1/estimate` | S04 — un disparo, formulario tipado. | estimate |
+| `POST /sessions` · `GET /sessions/{id}` | S05 — abrir sesión y leer su estado. | estimate |
+| `POST /sessions/{id}/estimate` · `/estimate-acb` | S05 — un turno, y el mismo turno en Actor-Critic-Boss. | estimate |
+| `POST /embeddings/compare` | S07 — las ocho estrategias de troceado, con su coste. | estimate |
+| `POST /embeddings/ingest` · `GET /embeddings/index/stats` | S08 — ampliar el índice y la foto del corpus. | estimate |
+| `POST /search` | S08 — la búsqueda original. Sustituida por `/v1/retrieval/search`. | retrieval |
+| `POST /api/v1/ingestion/runs` · `GET /jobs/{id}` | El pipeline offline, por HTTP. | estimate |
+| `POST /v1/retrieval/search` | S09 — k-NN con filtros de metadatos y umbral. | retrieval |
+| `POST /v1/retrieval/advanced-search` | S10 — el pipeline multi-índice entero. | retrieval |
+| `POST /v1/estimate/from-transcript` | S09–S11 — transcripción → estimación citada. | estimate |
+| `POST /v1/estimate/stages/*` | S10–S11 — las cinco etapas por separado. | estimate |
+| `POST /v1/estimate/tasks/hours` | S11 — horas por tarea desde el histórico. | estimate |
+| `POST /v1/estimate/agent/run` | El bucle de la S12, expuesto en la S15. | estimate |
+| `POST /v1/estimate/graph` · `/start` | S13–S14 — el grafo, bloqueante y (S15) en 202. | estimate |
+| `GET /v1/estimate/graph/{id}/state` · `/progress` | El checkpoint, y el feed derivado de su historial. | estimate |
+| `POST /v1/estimate/graph/{id}/resume` | La decisión humana que libera una pausa. | estimate |
+| `POST /v1/estimate/graph/{id}/proposal` | S15 — la propuesta comercial. | estimate |
+| `GET /v1/estimate/graph/diagram` | La topología, leída del grafo compilado. | estimate |
+| `POST /v1/corpus/references` | S15 — el desglose de una referencia histórica. | estimate |
+| `GET/PUT /api/v1/config/models` · `/retrieval` | Modelos y modo de búsqueda, en caliente. | estimate |
+
+**`/health` es la única abierta, y a propósito**: cerrarla mataría el healthcheck
+de Docker. `/docs`, `/redoc` y `/openapi.json` también responden sin clave, pero no
+salen del contenedor: con la frontera de la S15 sólo el backend de negocio alcanza
+este servicio.
+
 ## Variables de entorno
 
 | Variable | Default | Notas |
@@ -167,8 +276,15 @@ Lo que vive **fuera** del template (en código): el contrato (`EstimationRequest
 | `LOG_LEVEL` | `DEBUG` | Volumen de logs. **Cableado en la S15**: hasta entonces existía, estaba tipada y no filtraba nada. `DEBUG`/`INFO`/`WARNING`/`ERROR`; cualquier otro valor falla al arrancar |
 | `ESTIMATE_API_KEY` | — | **Obligatoria desde la S15.** Token (`X-API-Key`) de todas las rutas de estimación (incluida `POST /api/v1/estimate`), de `/sessions/*`, de `/embeddings/*`, de `/api/v1/config/*` y de `/api/v1/ingestion/*`. En blanco ⇒ 401 en todas. Bajo Compose la inyecta `AI_SERVICE_TOKEN` del `.env` de la raíz de la sesión |
 | `RETRIEVAL_API_KEY` | — | Token de `/v1/retrieval/search`, `/v1/retrieval/advanced-search` y de la `POST /search` de la S08, que lleva la misma clave que su sustituta |
+| `LLM_TIMEOUT` | `120` | Segundos por llamada. Los 30 de antes se quedaban cortos para un modelo de razonamiento |
+| `LLM_RETRIES` | `2` | Reintentos del wrapper antes de caer al fallback |
+| `RETRIEVAL_SEARCH_MODE` | `vector` | `vector` o `hybrid`. Default conservador: la rama léxica y la fusión se encienden a propósito. Se sobreescribe en caliente con `PUT /api/v1/config/retrieval` |
+| `RERANKER_ENABLED` | `false` | El cross-encoder cuesta, así que se pide. Mismo override en caliente |
+| `GRAPH_CONFIDENCE_THRESHOLD` | `0.7` | Por debajo, el grafo se para ante una persona |
+| `GRAPH_MAX_ROUTING_STEPS` | `8` | El techo real de despachos, persistido en el estado |
+| `GRAPH_RECURSION_LIMIT` | `40` | La red de LangGraph, por detrás del techo anterior |
+| `GRAPH_PROPOSAL_MODEL` | `gpt-4o` | Quien redacta la propuesta comercial (S15) |
 
-`/health` es la única ruta abierta, y a propósito: cerrarla mataría el healthcheck de Docker.
 | `ESTIMATOR_API_BASE_URL` | `http://localhost:8000` | Dónde responde el servicio, para lo que lo LLAMA. No es un campo de `Settings`: la leen del entorno `streamlit_app.py` y los scripts `query_examples.py` / `build_task_corpus.py`. Sin ella, los scripts sondean `localhost:8000` y `ai-service:8000` |
 
 `get_settings()` es un singleton cacheado con `lru_cache`: cualquier cambio en `.env` requiere reiniciar uvicorn (no basta con `--reload`). **Excepción: los modelos LLM** — ver la sección siguiente.
@@ -482,6 +598,177 @@ El tuning de Postgres para builds de índices vive en `docker-compose.yml` (serv
 1. Repositorio actualizado: índice halfvec activo, flags de tuning en compose, queries de monitorización en el README.
 2. Documento corto con los números observados en **vuestro** barrido de `ef_search` (tabla del script) y la decisión razonada del valor adoptado: qué recall ganáis y qué latencia pagáis frente a las alternativas.
 
+## Sesiones 9 y 10 — De la búsqueda a la recuperación
+
+La S08 dejaba una búsqueda semántica cruda. La **S09** le pone contrato: k-NN por
+distancia coseno con **filtros estructurales aplicados ANTES del ranking** —sector,
+año, tipo de chunk—, un `distance_threshold` que hace de suelo, y un *soft-fail*
+que devuelve **200 con `low_confidence=true`** en vez de error.
+
+Ese soft-fail es la decisión que gobierna el resto: recuperar basura con confianza
+es peor que no recuperar nada. Cuando nada cruza el umbral, el estimador corta a un
+presupuesto «contexto insuficiente» en lugar de fundamentarse en ruido.
+
+La **S10** añade dos capas de relevancia encima sin tocar lo anterior:
+
+- **Búsqueda híbrida.** Una rama densa y una rama léxica (Postgres FTS sobre una
+  columna `content_tsv` generada `STORED` — la recalcula Postgres, sin trigger y sin
+  deriva posible respecto al texto que indexa), fusionadas por **RRF**. Se fusiona
+  por POSICIÓN y no por puntuación porque la distancia coseno y `ts_rank_cd` viven
+  en escalas incomparables: sumarlas sería sumar peras y kilómetros.
+- **Recall-then-rerank.** Se recupera ancho y barato (50) y se reordena fino y caro
+  con un cross-encoder multilingüe hasta 5. El reranker se carga en perezoso bajo un
+  `threading.Lock` —dos reranks a la vez no disparan dos descargas— y su
+  `import sentence_transformers` vive dentro del método, para que arrancar la app o
+  correr los tests no arrastre torch.
+
+La misma sesión parte el corpus en **tres colecciones con tabla propia** —
+`budget_chunks`, `transcript_chunks`, `technical_doc_chunks`— porque sus esquemas de
+metadatos divergen, y `collections.py` es el único sitio que conoce esa divergencia:
+por eso el router, el store y el pipeline avanzado pueden ser agnósticos.
+
+`POST /v1/retrieval/advanced-search` encadena transformación de consulta →
+enrutado en cascada → filtros duros → híbrida → fusión → reranking → decaimiento
+temporal. **Cada etapa es un interruptor independiente**: el camino completo es el
+MÁXIMO, no el obligatorio, y `scripts/eval_retrieval_s10.py` mide ocho
+configuraciones nombradas que son DATOS (`StageConfig`), no ramas de código.
+
+Dos detalles que valen por sí solos. El **enrutado va en cascada de coste
+creciente** —explícito → reglas de vocabulario → clasificador LLM → todas— y
+registra su nivel y su motivo, así que se puede auditar por qué miró donde miró. Y
+el **decaimiento temporal** (`0.5 ** (antigüedad/semivida)`) es la contraparte
+BLANDA de un filtro de fecha: en vez de excluir lo viejo, multiplica su puntuación
+para que la frescura desempate sin silenciar la historia.
+
+La respuesta expone no sólo los chunks sino **cómo** se obtuvieron: el enrutado con
+su razón, la técnica, las sub-consultas y la cardinalidad por colección — un 0 ahí
+delata un vacío silencioso por filtros, que de otro modo se lee como «no hay nada».
+
+## Sesión 11 — La citación baja a la línea
+
+La citación deja de ser del presupuesto entero y pasa a ser **de cada línea**: un
+`TaskItem` lleva sus `sources` —el chunk citado y el span **verbatim** que lo
+respalda— y un `grounded` obligatorio. El orden de los campos es deliberado:
+`sources` y `grounded` se emiten **antes** que `engineer_days`, para que el modelo
+se comprometa con su evidencia antes que con la cifra, en vez de elegir un número y
+retro-ajustarle una cita.
+
+Y se separan dos cosas que se confundían:
+
+- **`verify_citations()` REPORTA.** Clasifica cada línea en *grounded* / *dangling* /
+  *insufficient* y no toca nada. El informe describe lo que produjo el MODELO, que
+  es el artefacto interesante.
+- **`enforce_citation_policy()` DECIDE.** Resuelve el documento padre, poda lo que no
+  resuelve, degrada a `grounded=False` sin horas lo que se queda sin respaldo y
+  recalcula el total. Lo que sirve el SERVICIO.
+
+Así «una estimación nunca sale de aquí con una cita que no resuelve» pasa a ser una
+propiedad del código y no una promesa del prompt. Es un chequeo **post-generación y
+no un validador de Pydantic** a propósito: un validador haría que Instructor
+reintentara en silencio dentro de `complete_structured`, que es justo lo contrario
+del requisito, que era poder REGISTRAR el resultado (`log_citation_report`,
+correlado por `request_id`).
+
+`document_id` se resuelve en el servidor desde el chunk recuperado y nunca se le
+pide al modelo: es derivable, así que pedírselo sólo añadiría una superficie más
+sobre la que alucinar.
+
+La calidad se mide, no se supone: `scripts/eval_ragas_s11.py` corre el golden set
+por la ruta real y puntúa *faithfulness*, *answer relevancy* y *context precision*.
+
+## Sesión 12 — El agente escrito a mano
+
+Donde la ruta S09–S11 es una tubería **fija** —reformular, recuperar, generar—, el
+agente **decide** cuántas búsquedas hace y en qué orden. Eso es lo que necesita una
+transcripción con componentes sin relación entre sí: buscar «app móvil de repartos»
+y «integración con el ERP» en la misma consulta no recupera ninguna de las dos.
+
+Es la **única excepción deliberada** a la regla de que todo pasa por `LLMWrapper`:
+conduce a mano `client.responses.create` / `.parse`, porque ver el bucle **es** el
+ejercicio. Llega a la recuperación por un backend **inyectado** que busca tareas y
+contesta con módulos, porque el agente estima subsistemas y no tareas.
+
+Sus tres herramientas son esquemas planos con `strict: true` — la Responses API no
+anida bajo `function` como Chat Completions — y son Python determinista, no
+llamadas a un modelo. La ruta HTTP, eso sí, **no es de la S12**: el bucle se
+ejecutaba sólo con `scripts/run_agent_s12.py`, y `POST /v1/estimate/agent/run`
+llegó en la S15 para que una consola pudiera gobernarlo.
+
+## Sesiones 13 y 14 — El grafo y la puerta humana
+
+La **S13** reexpresa la estimación como un LangGraph explícito: estado tipado
+compartido, una responsabilidad por nodo, un checkpoint tras cada superstep. La
+**S14** le quita el control de flujo a las aristas y lo mete en `Command`: hoy sólo
+existe una arista declarada, `START → supervisor`, y el camino se decide en
+ejecución.
+
+**El supervisor es híbrido, y ésa es la decisión de la sesión.** Siete reglas de
+Python resuelven las precondiciones —no puedes buscar presupuestos antes de saber
+cuáles son los componentes— y al modelo se le hace **exactamente una** pregunta,
+la única sobre la que este dominio tiene opinión: los huecos de evidencia, ¿son un
+fallo de recuperación o son reales? Pagarle a un modelo por redescubrir lo obvio en
+cada corrida no compra nada y añade un modo de fallo.
+
+**Las horas las pone la herramienta y la prosa el modelo.** `estimate_generator`
+llama a `calculate_estimate` —mediana de las referencias × 1,15 de contingencia,
+Python puro— y al modelo sólo le pide `rationale` y `notes`. Así el único fallo que
+todo este pipeline existe para evitar, que un modelo se invente un número, **no
+está disponible**. Mediana y no media porque el corpus mezcla tamaños y un análogo
+desproporcionado arrastraría la media.
+
+**La confianza se calcula, no se pregunta.** Un modelo al que se le pide puntuar su
+propia salida se pone buena nota, y la puerta humana cuelga de ese número:
+
+```
+clamp(0.5·grounded_ratio + 0.3·evidence_density + 0.2·proximity − 0.2·arithmetic_issues)
+```
+
+Ponderada y no multiplicada: un producto se hunde a cero con un solo término flojo
+y mandaría toda corrida a revisión. Y `arithmetic_issues` resta las líneas no
+fundamentadas del total de pegas, porque la herramienta emite una por componente
+sin referencia y `grounded_ratio` ya mide eso — contar la lista entera penalizaba
+DOS VECES cada componente sin presupuesto: en una corrida real puntuaba 0,36 donde
+la evidencia decía 0,66.
+
+**La puerta dispara con cualquiera de tres señales** y devuelve la lista de razones,
+no un booleano: confianza bajo umbral, estimación fuera de la banda histórica, o el
+buscador ha corrido y no ha encontrado nada. «Confianza 0,31» y «tres componentes
+sin precedente» son el mismo booleano y dos informes muy distintos.
+
+**La banda histórica se escala por cobertura**, y sin eso el disparador sería
+inalcanzable: `calculate_estimate` pone precio a cada componente desde sus propias
+referencias, así que una banda construida con esas mismas referencias contiene el
+resultado **por construcción** — un control que se cumple solo. Se suman los mínimos
+y los máximos de lo que sí se coteó y se escala por `total / con_precio`.
+
+Cuatro detalles que cuestan caro descubrir por las malas:
+
+- **El techo real es `routing_steps`, no `recursion_limit`.** LangGraph cuenta la
+  recursión POR INVOKE, así que una corrida que se pausa y se reanuda estrena
+  presupuesto en cada resume. Un contador en el checkpoint no.
+- **El nodo de la puerta no hace nada salvo interrumpir**, y su span se abre
+  DESPUÉS del `interrupt()`. Al reanudar, LangGraph re-ejecuta el cuerpo desde la
+  primera línea y descarta lo que escribió la pasada interrumpida; y como
+  `interrupt()` funciona levantando una excepción, un span que lo envolviera se
+  exportaría con `status=ERROR` — una pausa es el sistema funcionando.
+- **El checkpointer es obligatorio.** `compile(checkpointer=None)` con un
+  `interrupt()` NO levanta: la corrida se para en silencio y el fallo aflora mucho
+  después. `build_graph` lo rechaza, y si no logra abrirse el servicio arranca con
+  los verbos del grafo en 503 y el resto intacto.
+- **Una denegación del guard degrada, no mata.** Levantar abortaría el superstep sin
+  escribir `status`, y el checkpoint aparcaría el hilo en ese nodo para siempre: cada
+  reintento fallaría idéntico sin llegar nunca a la puerta humana, que existe
+  exactamente para ese caso.
+
+**Privilegio mínimo, comprobado y no descrito** (`app/domain/security/`).
+`AGENT_TOOL_GRANTS` reparte **una** herramienta a cada especialista y **cero** al
+supervisor, al extractor, a la puerta y al terminal. `verify_tool_grants` corre en
+el `lifespan` antes de abrir el checkpointer y levanta: un agente mal concedido
+falla el **despliegue**, no la petición — dejarlo degradar a un 503 lo confundiría
+con «Postgres está caído». Toda llamada pasa por `execute_guarded` → `guard_action`
+→ structlog, con los argumentos redactados a su FORMA: el cuerpo de una
+transcripción es material de cliente y no pinta nada en un agregador de logs.
+
 ## Sesión 15 — Puesta en producción
 
 El servicio deja de publicar puerto: sólo el backend de negocio lo alcanza, por la
@@ -573,4 +860,8 @@ tocar ningún fichero para depurar contra la base del Compose.
 
 ---
 
-> Este proyecto forma parte del **Master en AI Engineering** y es la base sobre la que se construye en directo el resto de la Sesión 04 (output estructurado, guardrails, cache semántico) y de la Sesión 05 (compresión avanzada de memoria con anclas, tier dinámico, patrón Actor-Critic-Boss).
+> Este proyecto forma parte del **Master en AI Engineering**. Cada sesión añade una
+> capa sobre la anterior sin romperla: la estimación de un disparo de la S04 sigue
+> respondiendo igual hoy, con un grafo multi-agente y un corpus de 1.543 tareas
+> históricas viviendo en el mismo servicio. Lo que cambia de una sesión a otra no es
+> el contrato, es de dónde sale el número.

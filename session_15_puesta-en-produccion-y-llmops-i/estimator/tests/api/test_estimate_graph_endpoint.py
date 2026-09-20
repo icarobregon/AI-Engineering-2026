@@ -748,3 +748,44 @@ def test_the_async_verbs_require_the_estimate_api_key(client: TestClient, method
     _install(DetachableGraph({}, persisted={"status": "validated"}, history=HISTORY))
 
     assert getattr(client, method)(path, **({"json": body} if body else {})).status_code == 401
+
+
+def test_the_state_endpoint_derives_the_historical_band(client: TestClient):
+    """La banda NO es un campo del estado: se calcula de components +
+    budget_matches. Se expone aquí para que una ejecución terminada pueda
+    enseñar el mismo marco de referencia que ve un revisor, y con la misma
+    función — dos implementaciones darían dos bandas para la misma ejecución."""
+    _install(
+        FakeGraph(
+            {},
+            persisted={
+                "status": "validated",
+                "components": [{"id": "c1"}, {"id": "c2"}],
+                "budget_matches": [
+                    {"component_id": "c1", "amount": 140.0},
+                    {"component_id": "c1", "amount": 180.0},
+                ],
+            },
+        )
+    )
+
+    body = client.get("/v1/estimate/graph/EST-42/state", headers=HEADERS).json()
+
+    # c1 entre 140 y 180, escalado por cobertura (1 de 2 componentes).
+    assert body["historical_band"] == {
+        "low": 280.0,
+        "high": 360.0,
+        "covered_components": 1,
+        "total_components": 2,
+        "references": 2,
+    }
+
+
+def test_a_run_with_no_matches_has_no_band_instead_of_a_zero_one(client: TestClient):
+    # Sin ninguna referencia no hay veredicto: una banda 0–0 diría que el
+    # proyecto no cuesta nada, que es lo contrario de «no lo sé».
+    _install(FakeGraph({}, persisted={"status": "validated", "components": [{"id": "c1"}]}))
+
+    body = client.get("/v1/estimate/graph/EST-42/state", headers=HEADERS).json()
+
+    assert body["historical_band"] is None

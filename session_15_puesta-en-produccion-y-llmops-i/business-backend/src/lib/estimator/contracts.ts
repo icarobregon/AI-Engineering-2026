@@ -90,6 +90,25 @@ export const budgetMatchSchema = z.object({
 export type BudgetMatch = z.infer<typeof budgetMatchSchema>;
 
 /**
+ * La banda histórica: lo que han costado los proyectos de esta forma.
+ *
+ * NO es un campo del estado — se deriva de los componentes y sus análogos, y el
+ * servicio la calcula con la misma función para el payload del revisor y para
+ * `GET /state`. Los tres contadores no son adorno: la banda está ESCALADA por
+ * cobertura, así que «5 de 8 componentes» es lo que dice cuánto del proyecto
+ * respalda de verdad. El espejo anterior se quedaba con `low` y `high` y zod
+ * descartaba el resto en silencio.
+ */
+export const historicalBandSchema = z.object({
+  low: z.number(),
+  high: z.number(),
+  covered_components: z.number().int(),
+  total_components: z.number().int(),
+  references: z.number().int(),
+});
+export type HistoricalBand = z.infer<typeof historicalBandSchema>;
+
+/**
  * What the graph hands a reviewer when it stops. This is an interface, not a
  * log line — every field here is something the person needs on screen to decide.
  */
@@ -100,7 +119,7 @@ export const reviewPayloadSchema = z.object({
   estimate: draftEstimateSchema.nullish(),
   confidence: z.number().nullish(),
   concerns: z.array(z.string()).default([]),
-  historical_band: z.object({ low: z.number(), high: z.number() }).nullish(),
+  historical_band: historicalBandSchema.nullish(),
   budget_matches: z.array(budgetMatchSchema).default([]),
 });
 export type ReviewPayload = z.infer<typeof reviewPayloadSchema>;
@@ -164,6 +183,12 @@ export const graphStateSchema = z.object({
       status: z.enum(graphStatuses).nullish(),
     })
     .loose(),
+  /**
+   * Derivada, no almacenada: por eso viaja fuera de `values`. Es la que permite
+   * enseñar el mismo marco de referencia en una ejecución terminada que el que
+   * ve un revisor cuando el sistema se para.
+   */
+  historical_band: historicalBandSchema.nullish(),
 });
 export type GraphState = z.infer<typeof graphStateSchema>;
 

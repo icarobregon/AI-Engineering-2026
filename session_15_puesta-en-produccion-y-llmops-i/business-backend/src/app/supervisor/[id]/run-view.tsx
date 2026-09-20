@@ -26,7 +26,7 @@ import {
 } from "@/lib/estimator/contracts";
 import { AWAITING_REVIEW, FAILED, statusLabel } from "@/lib/supervisor";
 import { hours, percent } from "@/lib/format";
-import type { GraphState } from "@/lib/estimator/contracts";
+import type { GraphState, HistoricalBand } from "@/lib/estimator/contracts";
 import { ProposalCard } from "./proposal-card";
 import { ReviewForm } from "./review-form";
 import { RoutingTrace } from "./routing-trace";
@@ -84,6 +84,64 @@ function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
         ]}
       />
     </Card>
+  );
+}
+
+/**
+ * Las señales que el sistema calculó sobre su propia estimación.
+ *
+ * Un solo pintor, dos orígenes: en la pausa vienen del payload del revisor y en
+ * una ejecución terminada del checkpoint. La banda NO es un campo del estado —
+ * el servicio la deriva de los componentes y sus análogos— y por eso puede
+ * faltar sin que eso signifique cero.
+ *
+ * `proposedHours` sólo se pasa en la pausa. En una ejecución terminada la
+ * cabecera de la tabla ya lleva el total, y repetirlo a doscientos píxeles es
+ * ruido, no refuerzo.
+ */
+function Senales({
+  confidence,
+  band,
+  proposedHours,
+}: {
+  confidence: number | null | undefined;
+  band: HistoricalBand | null | undefined;
+  proposedHours?: number | null;
+}) {
+  // Sin ninguna de las dos no hay nada que contar, y tres tarjetas vacías dicen
+  // menos que ninguna.
+  if (confidence == null && band == null) return null;
+
+  return (
+    <Flex gap={16} wrap>
+      <Card style={{ flex: "1 1 220px" }}>
+        <Statistic title="Confianza" value={percent(confidence)} />
+      </Card>
+      <Card style={{ flex: "1 1 220px" }}>
+        <Statistic
+          title="Banda histórica"
+          value={
+            band
+              ? `${hours(band.low).replace(" h", "")}–${hours(band.high)}`
+              : "sin datos"
+          }
+        />
+        {band && (
+          // La banda está escalada por cobertura: sin este dato, un rango
+          // construido sobre dos de ocho componentes se lee como si valiera
+          // para el proyecto entero.
+          <Typography.Text type="secondary">
+            {band.covered_components} de {band.total_components} componentes ·{" "}
+            {band.references} referencias
+          </Typography.Text>
+        )}
+      </Card>
+      {proposedHours != null && (
+        <Card style={{ flex: "1 1 220px" }}>
+          <Statistic title="Propuesta del sistema" value={hours(proposedHours)} />
+        </Card>
+      )}
+    </Flex>
   );
 }
 
@@ -184,30 +242,11 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
             description={review.data.reason}
           />
 
-          <Flex gap={16} wrap>
-            <Card style={{ flex: "1 1 220px" }}>
-              <Statistic
-                title="Confianza"
-                value={percent(review.data.confidence)}
-              />
-            </Card>
-            <Card style={{ flex: "1 1 220px" }}>
-              <Statistic
-                title="Banda histórica"
-                value={
-                  review.data.historical_band
-                    ? `${hours(review.data.historical_band.low).replace(" h", "")}–${hours(review.data.historical_band.high)}`
-                    : "sin datos"
-                }
-              />
-            </Card>
-            <Card style={{ flex: "1 1 220px" }}>
-              <Statistic
-                title="Propuesta del sistema"
-                value={review.data.estimate ? hours(review.data.estimate.total_hours) : "—"}
-              />
-            </Card>
-          </Flex>
+          <Senales
+            confidence={review.data.confidence}
+            band={review.data.historical_band}
+            proposedHours={review.data.estimate?.total_hours ?? null}
+          />
 
           <Card title="Qué disparó la parada">
             <List
@@ -271,6 +310,13 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
               }
             />
           )}
+
+          {/*
+            Las mismas señales que ve un revisor, para quien abre una ejecución
+            ya cerrada. Salen del checkpoint, que las conserva, y no de la fila:
+            la confianza de la fila puede venir de un payload antiguo.
+          */}
+          <Senales confidence={state?.values.confidence} band={state?.historical_band} />
 
           {decision.success && (
             <Card title="Decisión humana">

@@ -30,6 +30,7 @@ from app.api.rate_limiting import limiter
 from app.api.security import require_estimate_key
 from app.config import get_settings
 from app.dependencies import get_llm_wrapper
+from app.domain.graph.band import historical_band
 from app.domain.graph.progress import RUN_FAILED_PREFIX, build_progress
 from app.domain.proposal import ProposalNotReady, write_proposal
 from app.domain.schemas.graph_estimation import (
@@ -235,6 +236,17 @@ async def get_estimation_state(request: Request, estimation_id: str) -> dict:
         "values": snapshot.values,
         "next": list(snapshot.next or ()),
         "review_payload": _pending_review(snapshot),
+        # DERIVADA, no almacenada: la banda no es un campo del estado, se calcula
+        # de `components` + `budget_matches`. Va aquí, fuera de `values`, para que
+        # eso se note. Y se calcula con la MISMA función que usa la puerta humana,
+        # no con una copia: la regla de escalado por cobertura tiene una sutileza
+        # —una banda construida con las mismas referencias que fijaron el precio
+        # contiene el resultado por construcción— y dos implementaciones de eso
+        # acaban dando dos bandas distintas para la misma ejecución.
+        "historical_band": historical_band(
+            snapshot.values.get("components") or [],
+            snapshot.values.get("budget_matches") or [],
+        ),
     }
 
 

@@ -1,25 +1,36 @@
 Evidencia del entregable — Sesión 15 · las cinco comprobaciones del Paso 7
-Ejecutado el 2026-09-20 02:28:30 CEST · Docker version 29.8.0, build 88096ef
-Rama: session_15_puesta-en-produccion-y-llmops-i · commit 30790d2
+Ejecutado el 2026-09-20 23:57 CEST · Docker version 29.8.0, build 88096ef
+Rama: session_15_puesta-en-produccion-y-llmops-i · commit ac66540
+
+Regenerada tras la tanda de cambios de la sesión: aprobación por componente,
+desglose de referencias, la bandeja identificando por título, y el menú de ocho
+entradas con Ajustes convertido en la rueda de la cabecera.
 
 ########## 1. Los cuatro servicios arriba y healthy ##########
 $ docker compose ps
-SERVICE              STATUS                    PORTS
-ai-service           Up 15 minutes (healthy)   8000/tcp
-business-backend     Up 24 minutes (healthy)   0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
-estimator-postgres   Up 4 hours (healthy)      5432/tcp
-redis                Up 4 hours (healthy)      6379/tcp
+SERVICE              STATUS                  PORTS
+ai-service           Up 3 hours (healthy)    8000/tcp
+business-backend     Up 3 hours (healthy)    0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp
+estimator-postgres   Up 11 hours (healthy)   5432/tcp
+redis                Up 11 hours (healthy)   6379/tcp
 
 Sólo business-backend publica puerto al host. Los otros tres exponen el suyo
 a la red interna de Compose. (business-migrate es un one-shot que ya salió con 0.)
 
 ########## 2. El backend de negocio sirve desde el host ##########
-  GET http://localhost:3000/              -> 200
-  GET http://localhost:3000/estimations   -> 200
-  GET http://localhost:3000/chat          -> 200
-  GET http://localhost:3000/supervisor    -> 200
-  GET http://localhost:3000/lab/chunking  -> 200
-  GET http://localhost:3000/ajustes       -> 200
+Las nueve pantallas más el panel. Ajustes ya no es una entrada de menú sino la
+rueda dentada de la cabecera, pero sigue siendo una ruta y se comprueba igual.
+
+  GET http://localhost:3000/                -> 200
+  GET http://localhost:3000/estimations     -> 200
+  GET http://localhost:3000/supervisor      -> 200
+  GET http://localhost:3000/chat            -> 200
+  GET http://localhost:3000/lab/chunking    -> 200
+  GET http://localhost:3000/corpus          -> 200
+  GET http://localhost:3000/agentes         -> 200
+  GET http://localhost:3000/asistente       -> 200
+  GET http://localhost:3000/grafo           -> 200
+  GET http://localhost:3000/ajustes         -> 200
 
 ########## 3. El servicio IA NO es alcanzable desde el host ##########
 $ curl -sS --max-time 5 http://localhost:8000/health
@@ -27,65 +38,119 @@ $ curl -sS --max-time 5 http://localhost:8000/health
   -> curl termina con código 7 (7 = no se pudo conectar). No hay puerto publicado.
 
 Desde DENTRO de la red sí responde, y sólo /health es anónimo:
-  GET   /health                  sin cabecera -> 200
-  POST  /api/v1/estimate         sin cabecera -> 401
-  POST  /sessions                sin cabecera -> 401
-  POST  /embeddings/compare      sin cabecera -> 401
-  POST  /search                  sin cabecera -> 401
-  GET   /api/v1/config/models    sin cabecera -> 401
+  GET   /health                       sin cabecera -> 200
+  POST  /api/v1/estimate              sin cabecera -> 401
+  POST  /sessions                     sin cabecera -> 401
+  POST  /embeddings/compare           sin cabecera -> 401
+  POST  /search                       sin cabecera -> 401
+  GET   /api/v1/config/models         sin cabecera -> 401
+  POST  /v1/estimate/graph/start      sin cabecera -> 401
+  POST  /v1/corpus/references         sin cabecera -> 401
+  GET   /v1/estimate/graph/diagram    sin cabecera -> 401
+
+Las tres últimas son de esta sesión: el arranque no bloqueante, el desglose de
+referencias y el diagrama del grafo. Todas cerradas, como el resto.
 
 ########## 4. Una estimación recorre el flujo completo ##########
 Lanzada desde la interfaz, en http://localhost:3000/estimations/new, con la
-descripción de un portal de reservas hotelero (231 caracteres).
+descripción de un portal de reservas hotelero (297 caracteres).
 
 Resultado devuelto y pintado: 10 semanas · 28.125 € · confianza 80% · 5 fases.
-Capturas: docs/evidencia-estimacion-transaccional.png (camino transaccional)
-y docs/evidencia-estimacion-con-precedente.png (camino supervisado, S14).
+Captura: docs/evidencia-estimacion-transaccional.png
 
-El pipeline completo en los logs del servicio IA, en orden y con el mismo
-request_id — navegador → BFF (con token) → servicio IA → cachés → LLM → respuesta:
+Se documentan DOS trazas, porque el camino tiene dos finales legítimos y los dos
+son el sistema funcionando.
 
-  2026-09-20T00:29:11.850151Z [info     ] estimation_request_received    description_chars=231 detail_level=medium output_format=phases_table project_type=web_saas request_id=e9c491de-724f-44b3-befc-cd2ba57952d5
-  2026-09-20T00:29:12.864582Z [info     ] cache_miss                     key_prefix=estimation:v2:0492dcce1b request_id=e9c491de-724f-44b3-befc-cd2ba57952d5
-  2026-09-20T00:29:13.447868Z [info     ] semantic_cache_lookup          bucket=v1:web_saas:medium:phases_table:gpt-4o-mini request_id=e9c491de-724f-44b3-befc-cd2ba57952d5 similarity=0.566 threshold=0.85
-  2026-09-20T00:29:13.448027Z [info     ] semantic_cache_miss            bucket=v1:web_saas:medium:phases_table:gpt-4o-mini reason=below_threshold request_id=e9c491de-724f-44b3-befc-cd2ba57952d5
-  2026-09-20T00:29:13.456739Z [info     ] llm_structured_call_started    model=gpt-4o-mini request_id=e9c491de-724f-44b3-befc-cd2ba57952d5 response_model=EstimationResult
-  2026-09-20T00:29:17.077965Z [info     ] llm_structured_call_completed  cost_usd=0.000476 latency_ms=3619 model=gpt-4o-mini provider=openai request_id=e9c491de-724f-44b3-befc-cd2ba57952d5
-  2026-09-20T00:29:17.078152Z [info     ] estimation_generated           confidence_pct=80 cost_usd=0.000476 latency_ms=3619 model=gpt-4o-mini phases=5 prompt_version=v1 provider=openai request_id=e9c491de-724f-44b3-befc-cd2ba57952d5 total_cost_eur=28125 usage={'input_tokens': 2039, 'output_tokens': 284, 'total_tokens': 2323}
-  2026-09-20T00:29:17.083030Z [info     ] cache_stored                   key_prefix=estimation:v2:0492dcce1b request_id=e9c491de-724f-44b3-befc-cd2ba57952d5 ttl=86400
-  2026-09-20T00:29:17.253395Z [info     ] semantic_cache_stored          bucket=v1:web_saas:medium:phases_table:gpt-4o-mini request_id=e9c491de-724f-44b3-befc-cd2ba57952d5 ttl=86400
+(a) ACIERTO DE CACHÉ SEMÁNTICA — la petición no llega al modelo:
+  [2m2026-09-20T21:51:38.047326Z[0m [[32m[1minfo     [0m] [1mestimation_request_received   [0m [36mdescription_chars[0m=[35m297[0m [36mdetail_level[0m=[35mmedium[0m [36moutput_format[0m=[35mphases_table[0m [36mproject_type[0m=[35mweb_saas[0m [36mrequest_id[0m=[35m7c7e5bd0-4ecb-43c0-8988-d0ac195830c4[0m
+  [2m2026-09-20T21:51:39.232264Z[0m [[32m[1minfo     [0m] [1mcache_miss                    [0m [36mkey_prefix[0m=[35mestimation:v2:7fdb07e9aa[0m [36mrequest_id[0m=[35m7c7e5bd0-4ecb-43c0-8988-d0ac195830c4[0m
+  [2m2026-09-20T21:51:39.426652Z[0m [[32m[1minfo     [0m] [1msemantic_cache_lookup         [0m [36mbucket[0m=[35mv1:web_saas:medium:phases_table:gpt-4o-mini[0m [36mrequest_id[0m=[35m7c7e5bd0-4ecb-43c0-8988-d0ac195830c4[0m [36msimilarity[0m=[35m0.8514[0m [36mthreshold[0m=[35m0.85[0m
+  [2m2026-09-20T21:51:39.427123Z[0m [[32m[1minfo     [0m] [1msemantic_cache_hit            [0m [36mbucket[0m=[35mv1:web_saas:medium:phases_table:gpt-4o-mini[0m [36mrequest_id[0m=[35m7c7e5bd0-4ecb-43c0-8988-d0ac195830c4[0m [36msimilarity[0m=[35m0.8514[0m
+  [2m2026-09-20T21:51:39.428291Z[0m [[32m[1minfo     [0m] [1mestimation_cache_hit          [0m [36mkind[0m=[35msemantic[0m [36mrequest_id[0m=[35m7c7e5bd0-4ecb-43c0-8988-d0ac195830c4[0m
+
+  El acierto se da con similitud 0,8514 contra un umbral de 0,85: una descripción
+  distinta de un proyecto equivalente reutiliza la estimación anterior. La insignia
+  «caché» de la captura es ese hecho, visible en pantalla.
+
+(b) CAMINO COMPLETO HASTA EL MODELO — mismo request_id de punta a punta:
+  2026-09-20T21:52:12.330825Z [info     ] estimation_request_received    description_chars=359 detail_level=medium output_format=phases_table project_type=web_saas request_id=a41a858e-d23d-474e-889c-00c678e8f3a0
+  2026-09-20T21:52:13.123048Z [info     ] cache_miss                     key_prefix=estimation:v2:13ac026e15 request_id=a41a858e-d23d-474e-889c-00c678e8f3a0
+  2026-09-20T21:52:14.032119Z [info     ] semantic_cache_lookup          bucket=v1:web_saas:medium:phases_table:gpt-4o-mini request_id=a41a858e-d23d-474e-889c-00c678e8f3a0 similarity=0.3201 threshold=0.85
+  2026-09-20T21:52:14.032625Z [info     ] semantic_cache_miss            bucket=v1:web_saas:medium:phases_table:gpt-4o-mini reason=below_threshold request_id=a41a858e-d23d-474e-889c-00c678e8f3a0
+  2026-09-20T21:52:14.047273Z [info     ] llm_structured_call_started    model=gpt-4o-mini request_id=a41a858e-d23d-474e-889c-00c678e8f3a0 response_model=EstimationResult
+  2026-09-20T21:52:15.768236Z [info     ] llm_structured_call_completed  cost_usd=0.000366 latency_ms=1720 model=gpt-4o-mini provider=openai request_id=a41a858e-d23d-474e-889c-00c678e8f3a0
+  2026-09-20T21:52:15.770717Z [info     ] estimation_generated           confidence_pct=20 cost_usd=0.000366 latency_ms=1720 model=gpt-4o-mini phases=1 prompt_version=v1 provider=openai request_id=a41a858e-d23d-474e-889c-00c678e8f3a0 total_cost_eur=0 usage={'input_tokens': 2066, 'output_tokens': 94, 'total_tokens': 2160}
+  2026-09-20T21:52:15.776874Z [info     ] cache_stored                   key_prefix=estimation:v2:13ac026e15 request_id=a41a858e-d23d-474e-889c-00c678e8f3a0 ttl=86400
+  2026-09-20T21:52:15.932473Z [info     ] semantic_cache_stored          bucket=v1:web_saas:medium:phases_table:gpt-4o-mini request_id=a41a858e-d23d-474e-889c-00c678e8f3a0 ttl=86400
+
+  Cache exacta fallada, caché semántica fallada por debajo del umbral (0,3201),
+  llamada al modelo, y las dos cachés escritas al volver. 1.720 ms y 0,000366 US$.
+
+LO QUE SE APRENDIÓ REGENERANDO ESTA EVIDENCIA, y que no estaba documentado:
+
+  1. El guardrail rechaza por los DOS lados. Cinco descripciones nuevas se
+     probaron y las cinco volvieron «Out of scope»: unas por vagas y otra por
+     «quite complex with numerous functionalities». Con gpt-4o-mini y el prompt v1,
+     lo que estima bien es una descripción corta y concreta; una especificación
+     larga no mejora el resultado, lo bloquea.
+
+  2. La caché semántica también sirve NEGATIVAS. Reescribir el mismo proyecto con
+     mucho más detalle devolvió la misma negativa sin llegar al modelo (similitud
+     0,8687). Es correcto —la caché no puede saber que la segunda redacción era
+     mejor— pero significa que un «Out of scope» se pega al proyecto durante las
+     24 h del TTL.
 
 Resultado persistido por el backend de negocio en el esquema business:
-  estimaciones: 5
-  runs del supervisor: 4 (awaiting_human_review, validated)
-
+  estimaciones: 10 (6 de ellas de esta regeneración: 1 servida de caché, 5 negativas)
+  runs del supervisor: 6 — 5 validated, 1 awaiting_human_review
 ########## 5. Los datos sobreviven a un ciclo completo ##########
-ANTES:  docs=77 chunks=1603 estimaciones=5 runs=4
+ANTES:  docs=77 chunks=1603 estimaciones=10 runs=6
   $ docker compose down && docker compose up -d
-     Network session_15_puesta-en-produccion-y-llmops-i_default Removing 
-     Network session_15_puesta-en-produccion-y-llmops-i_default Removed 
-     Container session_15_puesta-en-produccion-y-llmops-i-ai-service-1 Healthy 
-     Container session_15_puesta-en-produccion-y-llmops-i-business-backend-1 Starting 
-     Container session_15_puesta-en-produccion-y-llmops-i-business-backend-1 Started 
+      Container session_15_puesta-en-produccion-y-llmops-i-redis-1 Removed 
+      Network session_15_puesta-en-produccion-y-llmops-i_default Removing 
+      Network session_15_puesta-en-produccion-y-llmops-i_default Removed 
+      Container session_15_puesta-en-produccion-y-llmops-i-ai-service-1 Healthy 
+      Container session_15_puesta-en-produccion-y-llmops-i-business-backend-1 Starting 
+      Container session_15_puesta-en-produccion-y-llmops-i-business-backend-1 Started 
   (esperando a que los healthchecks pasen)
-DESPUÉS: docs=77 chunks=1603 estimaciones=5 runs=4
+DESPUÉS: docs=77 chunks=1603 estimaciones=10 runs=6
 
   $ docker compose ps
     SERVICE              STATUS
-    ai-service           Up 26 seconds (healthy)
-    business-backend     Up 10 seconds (healthy)
-    estimator-postgres   Up 36 seconds (healthy)
-    redis                Up 36 seconds (healthy)
+    ai-service           Up 28 seconds (healthy)
+    business-backend     Up 7 seconds (healthy)
+    estimator-postgres   Up 39 seconds (healthy)
+    redis                Up 39 seconds (healthy)
 
   $ docker volume ls | grep session_15
     session_15_puesta-en-produccion-y-llmops-i_postgres_data
     session_15_puesta-en-produccion-y-llmops-i_redis_data
 
   La aplicación vuelve a servir sin ningún paso manual:
-    GET http://localhost:3000/              -> 200
-    GET http://localhost:3000/estimations   -> 200
-    GET http://localhost:3000/supervisor    -> 200
-    GET http://localhost:3000/ajustes       -> 200
+    GET http://localhost:3000/                -> 200
+    GET http://localhost:3000/estimations     -> 200
+    GET http://localhost:3000/supervisor      -> 200
+    GET http://localhost:3000/ajustes         -> 200
 
 Ni el corpus ni el histórico se pierden: ambos viven en volúmenes con nombre.
 Ojo: 'docker compose down -v' sí los borraría.
+
+########## Capturas ##########
+  evidencia-estimacion-transaccional.png   El camino de un disparo (S04), servido
+                                           de caché semántica, con su insignia.
+  evidencia-chunking-lab.png               Las tres estrategias gratuitas sobre el
+                                           mismo corpus, con su playground.
+  evidencia-estimacion-con-precedente.png  Una estimación supervisada ya validada,
+                                           con su desglose y sus señales.
+  evidencia-puerta-humana.png              La parada ante una persona: horas
+                                           editables por componente, el acceso al
+                                           desglose de referencias de cada línea, y
+                                           las dos acciones bloqueadas hasta que
+                                           haya revisor y motivo.
+  evidencia-referencias.png                El Drawer abierto: de dónde salen las
+                                           horas de un componente — contexto de
+                                           cada referencia y las tareas cuya suma
+                                           es el número que el sistema comparó.
+  evidencia-decision-humana.png            Una aprobación real, con las doce líneas
+                                           fijadas a mano y el original tachado
+                                           donde el revisor cambió el valor.

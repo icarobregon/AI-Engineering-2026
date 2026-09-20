@@ -277,6 +277,29 @@ una referencia de cliente, y el error que sale (`Element type is invalid… got:
 undefined`) no señala el sitio. Por eso cada ruta se parte en dos: un `page.tsx`
 de servidor que sólo consulta datos y un componente cliente que pinta.
 
+## Cómo se prueba
+
+```bash
+pnpm test          # una pasada
+pnpm test:watch    # en vigilancia
+```
+
+Vitest, en Node, sin navegador y sin red. Lo que se prueba es la lógica que esta
+capa tiene de verdad, no que Ant Design pinte: la taxonomía de errores, el cliente
+HTTP —que el token viaje por defecto y que cada código caiga en su clase—, el
+mapeo de respuesta a fila del supervisor, los parseadores de formulario y los
+espejos zod.
+
+Dos detalles del montaje que no son obvios. `server-only` lanza a propósito al
+importarse fuera de un React Server Component, así que en los tests se sustituye
+por un módulo vacío: la protección sigue intacta donde importa, que es el build.
+Y los parseadores viven en módulos propios (`corpus/parse.ts`, `asistente/tree.ts`)
+porque un módulo `"use server"` sólo puede exportar funciones async, así que desde
+`actions.ts` no se pueden ni exportar ni probar.
+
+Las devDependencies no llegan a la imagen: el runtime se construye desde la salida
+`standalone` de Next.
+
 ## Limitaciones conocidas
 
 - **Sin usuarios ni permisos.** Igual que la implementación de referencia. Toda la
@@ -284,7 +307,6 @@ de servidor que sólo consulta datos y un componente cliente que pinta.
   nuevo, no paridad.
 - **La cabecera es `X-API-Key`, no `X-Service-Token`.** Mismo mecanismo, otro
   nombre; renombrarla obliga a tocar el servicio IA, sus tests y su documentación.
-- **Sin tests.** El BFF no tiene batería propia todavía.
 - **Pantalla no portada:** el asistente de grafo con propuesta y PDF (S13). Es la
   única que queda, y la más cara: pide dos puertas humanas y nuestro grafo tiene
   una, así que portarla es cambiar el grafo, no la interfaz.

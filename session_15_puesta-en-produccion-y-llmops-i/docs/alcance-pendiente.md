@@ -171,10 +171,9 @@ Para que no se cuele por inercia en la sesión siguiente:
 
 ## Deuda propia, no del port
 
-- **El BFF no tiene batería de tests.** La del servicio IA tiene 591; ésta, cero.
-  Es la deuda más incómoda de la lista, porque el BFF ya tiene lógica real —la
-  taxonomía de errores, el mapeo de respuesta a fila, la recuperación del 404 de
-  sesión— y ninguna está cubierta.
+- ~~El BFF no tiene batería de tests.~~ **Resuelto**: 70 tests con Vitest sobre la
+  taxonomía de errores, el cliente HTTP, el mapeo de respuesta a fila del
+  supervisor, los parseadores de formulario, los espejos zod y el formateo.
 - **`ruff format` reformatearía 33 ficheros del servicio IA.** El proyecto valida
   con `ruff check`, que pasa limpio; el formateo nunca se aplicó en bloque.
   Hacerlo es un commit ruidoso que conviene aislar.

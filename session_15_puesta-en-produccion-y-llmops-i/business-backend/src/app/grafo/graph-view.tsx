@@ -1,9 +1,22 @@
 "use client";
 
-import { Alert, Card, Col, Collapse, Empty, Flex, Row, Space, Tag, Typography } from "antd";
+import {
+  Alert,
+  Card,
+  Col,
+  Empty,
+  Flex,
+  Input,
+  Row,
+  Space,
+  Tag,
+  theme,
+  Typography,
+} from "antd";
 
 import type { GraphDiagram } from "@/lib/estimator/contracts";
 import { graphNodes } from "@/lib/graph-nodes";
+import { CollapseCard } from "@/components/collapse-card";
 
 export function GraphView({
   diagram,
@@ -12,6 +25,8 @@ export function GraphView({
   diagram: GraphDiagram | null;
   error: string | null;
 }) {
+  const { token } = theme.useToken();
+
   return (
     <Flex vertical gap={24}>
       <Space direction="vertical" size={4}>
@@ -19,8 +34,8 @@ export function GraphView({
           Flujo multi-agente
         </Typography.Title>
         <Typography.Text type="secondary">
-          El grafo que orquesta la estimación supervisada, leído del grafo ya compilado. Es de
-          sólo lectura: esta pantalla no ejecuta nada.
+          El grafo que orquesta la estimación supervisada, leído del grafo ya
+          compilado. Es de sólo lectura: esta pantalla no ejecuta nada.
         </Typography.Text>
       </Space>
 
@@ -41,13 +56,15 @@ export function GraphView({
             message="Este dibujo no puede desincronizarse del código"
             description={
               <>
-                Sale de <Typography.Text code>graph.get_graph()</Typography.Text> sobre el grafo
-                compilado, no de una constante escrita a mano. Y desde la Sesión 14 las aristas ya
-                no se declaran: viven dentro de cada{" "}
-                <Typography.Text code>Command</Typography.Text>, y LangGraph las reconstruye
-                resolviendo la anotación de cada nodo. Si esa anotación dejara de resolver, las
-                aristas desaparecerían de aquí — que es la señal más temprana de un fallo que por
-                lo demás es mudo.
+                Sale de{" "}
+                <Typography.Text code>graph.get_graph()</Typography.Text> sobre
+                el grafo compilado, no de una constante escrita a mano. Y desde
+                la Sesión 14 las aristas ya no se declaran: viven dentro de cada{" "}
+                <Typography.Text code>Command</Typography.Text>, y LangGraph las
+                reconstruye resolviendo la anotación de cada nodo. Si esa
+                anotación dejara de resolver, las aristas desaparecerían de aquí
+                — que es la señal más temprana de un fallo que por lo demás es
+                mudo.
               </>
             }
           />
@@ -61,11 +78,15 @@ export function GraphView({
             }
           >
             <NodoDetalle nombre={diagram.entry_point} />
-            <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
-              START apunta aquí, y todo lo demás vuelve aquí. No hay topología lineal: el camino
-              se elige en tiempo de ejecución y sólo existe después, en{" "}
-              <Typography.Text code>routing_trail</Typography.Text> — que es lo que pinta la traza
-              de cada ejecución en la pantalla del supervisor.
+            <Typography.Paragraph
+              type="secondary"
+              style={{ marginTop: 12, marginBottom: 0 }}
+            >
+              START apunta aquí, y todo lo demás vuelve aquí. No hay topología
+              lineal: el camino se elige en tiempo de ejecución y sólo existe
+              después, en <Typography.Text code>routing_trail</Typography.Text>{" "}
+              — que es lo que pinta la traza de cada ejecución en la pantalla
+              del supervisor.
             </Typography.Paragraph>
           </Card>
 
@@ -81,34 +102,26 @@ export function GraphView({
               ))}
           </Row>
 
-          <Collapse
-            items={[
-              {
-                key: "mermaid",
-                label: "Origen en Mermaid",
-                children: (
-                  <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                    <Typography.Text type="secondary">
-                      Pégalo en cualquier visor de Mermaid. Se sirve tal cual en vez de dibujarlo
-                      aquí: la librería pesa 124 MB descomprimidos, que es mucho contenedor por un
-                      diagrama de siete nodos.
-                    </Typography.Text>
-                    <Typography.Paragraph
-                      copyable={{ text: diagram.mermaid }}
-                      style={{
-                        marginBottom: 0,
-                        whiteSpace: "pre-wrap",
-                        fontFamily: "var(--font-geist-mono), monospace",
-                        fontSize: 12,
-                      }}
-                    >
-                      {diagram.mermaid}
-                    </Typography.Paragraph>
-                  </Space>
-                ),
-              },
-            ]}
-          />
+          <CollapseCard title="Origen en Mermaid">
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              <Typography.Text type="secondary">
+                Pégalo en cualquier visor de Mermaid. Se sirve tal cual en vez
+                de dibujarlo aquí: la librería pesa 124 MB descomprimidos, que
+                es mucho contenedor por un diagrama de siete nodos.
+              </Typography.Text>
+              <Input.TextArea
+                readOnly
+                value={diagram.mermaid}
+                rows={18}
+                // La misma pila monoespaciada que usa `Typography` con `code`,
+                // por su token: la que había declaraba una variable que no
+                // existe, y un `var()` que no resuelve dentro de `font-family`
+                // invalida la declaración entera en vez de pasar al siguiente
+                // de la lista, así que el código salía en tipografía de texto.
+                style={{ fontFamily: token.fontFamilyCode, fontSize: 12 }}
+              />
+            </Space>
+          </CollapseCard>
         </>
       )}
     </Flex>

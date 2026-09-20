@@ -4,7 +4,17 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Flex, Form, Input, Space, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Flex,
+  Form,
+  Input,
+  Space,
+  theme,
+  Typography,
+} from "antd";
 
 import { SelectField } from "@/components/select-field";
 import { startIndexRun, type FormState } from "../actions";
@@ -18,7 +28,11 @@ import { startIndexRun, type FormState } from "../actions";
 const EJEMPLO = JSON.stringify(
   {
     budget_id: "NEW-2026-0001",
-    client_metadata: { name: "Cuenta Nueva S.L.", sector: "ecommerce", country: "ES" },
+    client_metadata: {
+      name: "Cuenta Nueva S.L.",
+      sector: "ecommerce",
+      country: "ES",
+    },
     project_summary: "Portal de reservas con motor de disponibilidad y pagos",
     main_technology: "typescript",
     year: 2026,
@@ -56,7 +70,10 @@ function SubmitButton() {
 }
 
 export function NewRunForm() {
-  const [state, action] = useActionState<FormState, FormData>(startIndexRun, { error: null });
+  const { token } = theme.useToken();
+  const [state, action] = useActionState<FormState, FormData>(startIndexRun, {
+    error: null,
+  });
 
   return (
     <Flex vertical gap={24}>
@@ -74,12 +91,14 @@ export function NewRunForm() {
       <form action={action}>
         <Card>
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
-            {state.error && <Alert type="error" showIcon message={state.error} />}
+            {state.error && (
+              <Alert type="error" showIcon message={state.error} />
+            )}
 
             <Typography.Text type="secondary">
-              Pega un presupuesto nuevo (un objeto JSON) o varios (un array de objetos). Se
-              indexan de uno en uno y verás el progreso. Un documento que el servicio ya tenga se
-              salta, no se duplica.
+              Pega un presupuesto nuevo (un objeto JSON) o varios (un array de
+              objetos). Se indexan de uno en uno y verás el progreso. Un
+              documento que el servicio ya tenga se salta, no se duplica.
             </Typography.Text>
 
             <SelectField
@@ -88,7 +107,10 @@ export function NewRunForm() {
               defaultValue="budget_component"
               width={240}
               options={[
-                { value: "budget_component", label: "Componente de presupuesto" },
+                {
+                  value: "budget_component",
+                  label: "Componente de presupuesto",
+                },
                 { value: "historical_task", label: "Tarea histórica" },
               ]}
             />
@@ -104,7 +126,13 @@ export function NewRunForm() {
                 rows={18}
                 required
                 defaultValue={EJEMPLO}
-                style={{ fontFamily: "var(--font-geist-mono), monospace", fontSize: 12 }}
+                /*
+                  Aquí no cabe la prop `code` de Typography: esto es un campo
+                  EDITABLE, no texto. Así que se pide la misma pila monoespaciada
+                  que usa `code`, por su token, en vez de la variable inexistente
+                  que dejaba el JSON en tipografía de texto corrido.
+                */
+                style={{ fontFamily: token.fontFamilyCode, fontSize: 12 }}
               />
             </Form.Item>
 

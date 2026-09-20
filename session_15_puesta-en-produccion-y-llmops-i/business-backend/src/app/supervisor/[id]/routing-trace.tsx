@@ -1,13 +1,28 @@
 "use client";
 
-import { Alert, Card, List, Space, Table, Tag, Typography } from "antd";
+import { Alert, List, Space, Table, Tag, Typography } from "antd";
 
-import { deniedActions, hopSource, type GraphState, type HopSource } from "@/lib/estimator/contracts";
+import {
+  deniedActions,
+  hopSource,
+  type GraphState,
+  type HopSource,
+} from "@/lib/estimator/contracts";
+import { CollapseCard } from "@/components/collapse-card";
 
 const sourceTag: Record<HopSource, { color: string; title: string }> = {
-  regla: { color: "blue", title: "Precondición resuelta por código, sin llamar al modelo." },
-  modelo: { color: "purple", title: "La única pregunta que el supervisor delega en el modelo." },
-  limite: { color: "red", title: "Se agotó el presupuesto de pasos. Freno de emergencia." },
+  regla: {
+    color: "blue",
+    title: "Precondición resuelta por código, sin llamar al modelo.",
+  },
+  modelo: {
+    color: "purple",
+    title: "La única pregunta que el supervisor delega en el modelo.",
+  },
+  limite: {
+    color: "red",
+    title: "Se agotó el presupuesto de pasos. Freno de emergencia.",
+  },
 };
 
 /**
@@ -25,7 +40,7 @@ export function RoutingTrace({ state }: { state: GraphState }) {
 
   return (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <Card
+      <CollapseCard
         title="Enrutado del supervisor"
         extra={
           state.values.routing_steps != null && (
@@ -38,8 +53,9 @@ export function RoutingTrace({ state }: { state: GraphState }) {
       >
         <div style={{ padding: "12px 16px 0" }}>
           <Typography.Text type="secondary">
-            Quién decidió cada salto: <Tag color="blue">regla</Tag> una precondición, resuelta en
-            código · <Tag color="purple">modelo</Tag> la única pregunta que este dominio delega ·{" "}
+            Quién decidió cada salto: <Tag color="blue">regla</Tag> una
+            precondición, resuelta en código · <Tag color="purple">modelo</Tag>{" "}
+            la única pregunta que este dominio delega ·{" "}
             <Tag color="red">límite</Tag> se agotó el presupuesto de pasos.
           </Typography.Text>
         </div>
@@ -47,7 +63,6 @@ export function RoutingTrace({ state }: { state: GraphState }) {
           rowKey={(_, index) => String(index)}
           dataSource={trail}
           pagination={false}
-          size="small"
           columns={[
             {
               title: "#",
@@ -61,7 +76,9 @@ export function RoutingTrace({ state }: { state: GraphState }) {
               title: "Agente",
               dataIndex: "next_agent",
               width: 220,
-              render: (value: string) => <Typography.Text code>{value}</Typography.Text>,
+              render: (value: string) => (
+                <Typography.Text code>{value}</Typography.Text>
+              ),
             },
             {
               title: "Origen",
@@ -70,7 +87,10 @@ export function RoutingTrace({ state }: { state: GraphState }) {
               render: (_, hop) => {
                 const source = hopSource(hop.reason);
                 return (
-                  <Tag color={sourceTag[source].color} title={sourceTag[source].title}>
+                  <Tag
+                    color={sourceTag[source].color}
+                    title={sourceTag[source].title}
+                  >
                     {source === "limite" ? "límite" : source}
                   </Tag>
                 );
@@ -79,7 +99,7 @@ export function RoutingTrace({ state }: { state: GraphState }) {
             { title: "Motivo", dataIndex: "reason" },
           ]}
         />
-      </Card>
+      </CollapseCard>
 
       {denied.length > 0 && (
         <Alert
@@ -94,8 +114,9 @@ export function RoutingTrace({ state }: { state: GraphState }) {
                 renderItem={(item) => <List.Item>{item}</List.Item>}
               />
               <Typography.Text type="secondary">
-                El servicio IA no expone una auditoría estructurada: registra las acciones en sus
-                logs y sólo el texto de la denegación llega hasta aquí.
+                El servicio IA no expone una auditoría estructurada: registra
+                las acciones en sus logs y sólo el texto de la denegación llega
+                hasta aquí.
               </Typography.Text>
             </>
           }

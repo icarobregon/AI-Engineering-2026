@@ -14,12 +14,14 @@ import {
   graphEstimateResponseSchema,
   graphStartResponseSchema,
   graphStateSchema,
+  referencesResponseSchema,
   runProgressSchema,
   type CommercialProposal,
   type GraphEstimateResponse,
   type GraphStartResponse,
   type GraphState,
   type HumanDecision,
+  type ReferencesResponse,
   type RunProgress,
 } from "./contracts";
 
@@ -101,4 +103,20 @@ export async function draftCommercialProposal(estimationId: string): Promise<Com
     { method: "POST", timeoutMs: 180_000 },
   );
   return commercialProposalSchema.parse(payload);
+}
+
+/**
+ * El desglose de las referencias que respaldan un componente.
+ *
+ * En lote porque así se piden: un componente se apoya en cinco y abrir su
+ * detalle no debería costar cinco viajes. Es una lectura del corpus, no del
+ * grafo, así que no tiene nada que ver con el estado del run y se puede pedir
+ * igual para una estimación terminada hace semanas.
+ */
+export async function resolveReferences(referenceBudgetIds: string[]): Promise<ReferencesResponse> {
+  const payload = await callEstimator<unknown>("/v1/corpus/references", {
+    method: "POST",
+    body: { references: referenceBudgetIds },
+  });
+  return referencesResponseSchema.parse(payload);
 }

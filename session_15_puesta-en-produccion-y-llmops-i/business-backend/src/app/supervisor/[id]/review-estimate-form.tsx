@@ -17,7 +17,8 @@ import {
 } from "antd";
 
 import { hours } from "@/lib/format";
-import type { DraftEstimate } from "@/lib/estimator/contracts";
+import type { BudgetMatch, DraftEstimate } from "@/lib/estimator/contracts";
+import { BotonReferencias, type ComponenteAbierto } from "./references-drawer";
 import { submitReview, type FormState } from "../actions";
 
 /**
@@ -78,7 +79,17 @@ function Botones({ faltaFirma, sinPrecio }: { faltaFirma: boolean; sinPrecio: st
   );
 }
 
-export function ReviewEstimateForm({ id, estimate }: { id: string; estimate: DraftEstimate }) {
+export function ReviewEstimateForm({
+  id,
+  estimate,
+  referencias,
+  onVerReferencias,
+}: {
+  id: string;
+  estimate: DraftEstimate;
+  referencias: Record<string, BudgetMatch[]>;
+  onVerReferencias: (componente: ComponenteAbierto) => void;
+}) {
   const [horas, setHoras] = useState<Record<string, number | null>>(() =>
     Object.fromEntries(estimate.components.map((c) => [c.component_id, c.estimated_hours])),
   );
@@ -134,6 +145,10 @@ export function ReviewEstimateForm({ id, estimate }: { id: string; estimate: Dra
                 <Space direction="vertical" size={0}>
                   <Typography.Text strong>{value}</Typography.Text>
                   <Typography.Text type="secondary">{row.rationale}</Typography.Text>
+                  <BotonReferencias
+                    matches={referencias[row.component_id]}
+                    onVer={() => onVerReferencias(row)}
+                  />
                 </Space>
               ),
             },

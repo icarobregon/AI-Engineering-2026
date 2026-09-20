@@ -9,6 +9,7 @@ import {
   humanDecisionSchema,
   reviewPayloadSchema,
   type RunProgress,
+  type ReferencesResponse,
 } from "@/lib/estimator/contracts";
 import { EstimatorError } from "@/lib/estimator/errors";
 import {
@@ -17,6 +18,7 @@ import {
   getSupervisedRunState,
   launchSupervisedEstimation,
   resumeSupervisedEstimation,
+  resolveReferences,
 } from "@/lib/estimator/graph";
 import { FAILED, responseFromState, runUpdateFrom } from "@/lib/supervisor";
 import { componentesSinPrecio, parseComponentHours } from "./review";
@@ -211,4 +213,25 @@ export async function generateProposal(
 
   revalidatePath(`/supervisor/${id}`);
   return { error: null };
+}
+
+export type ReferencesResult =
+  { data: ReferencesResponse; error: null } | { data: null; error: string };
+
+/**
+ * El desglose de las referencias que respaldan un componente.
+ *
+ * Se pide al abrir el panel y no al pintar la página: son cinco referencias por
+ * componente y una estimación tiene quince, así que resolverlas todas de entrada
+ * sería mucho trabajo para algo que casi nunca se mira. Un fallo aquí no puede
+ * tumbar la pantalla —la estimación se lee igual sin el desglose—, así que
+ * vuelve como texto y no como excepción.
+ */
+export async function fetchReferences(referenceBudgetIds: string[]): Promise<ReferencesResult> {
+  try {
+    return { data: await resolveReferences(referenceBudgetIds), error: null };
+  } catch (error) {
+    if (error instanceof EstimatorError) return { data: null, error: error.userMessage };
+    throw error;
+  }
 }

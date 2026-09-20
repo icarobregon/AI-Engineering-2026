@@ -19,6 +19,7 @@ export default async function SupervisorRunPage({ params }: { params: Promise<{ 
       status: true,
       estimate: true,
       reviewPayload: true,
+      budgetMatches: true,
       humanDecision: true,
       errors: true,
       proposal: true,

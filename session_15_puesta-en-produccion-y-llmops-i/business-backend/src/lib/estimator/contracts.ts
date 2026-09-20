@@ -99,6 +99,44 @@ export const budgetMatchSchema = z.object({
 export type BudgetMatch = z.infer<typeof budgetMatchSchema>;
 
 /**
+ * Una referencia abierta por dentro: el módulo histórico con sus tareas.
+ *
+ * `total_hours` es la suma de `tasks` y coincide con el `amount` del match que
+ * la citó — el mismo número visto por dentro. Eso es lo que convierte la
+ * pantalla en algo auditable: no enseña un dato parecido, enseña la
+ * descomposición de lo que se usó.
+ */
+export const referenceTaskSchema = z.object({
+  component_id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  tech_stack: z.string(),
+  complexity: z.string(),
+  estimated_hours: z.number(),
+});
+export type ReferenceTask = z.infer<typeof referenceTaskSchema>;
+
+export const referenceSchema = z.object({
+  reference_budget_id: z.string(),
+  budget_id: z.string(),
+  module: z.string(),
+  project: z.string(),
+  client_sector: z.string(),
+  year: z.number().nullish(),
+  main_technology: z.string(),
+  total_hours: z.number(),
+  tasks: z.array(referenceTaskSchema),
+});
+export type Reference = z.infer<typeof referenceSchema>;
+
+export const referencesResponseSchema = z.object({
+  references: z.array(referenceSchema),
+  /** Lo que el grafo citó y el corpus ya no tiene: se enseña, no se esconde. */
+  missing: z.array(z.string()).default([]),
+});
+export type ReferencesResponse = z.infer<typeof referencesResponseSchema>;
+
+/**
  * La banda histórica: lo que han costado los proyectos de esta forma.
  *
  * NO es un campo del estado — se deriva de los componentes y sus análogos, y el

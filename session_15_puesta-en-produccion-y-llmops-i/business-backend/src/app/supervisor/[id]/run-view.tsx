@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import {
@@ -16,11 +17,15 @@ import {
   Typography,
 } from "antd";
 
+import { z } from "zod";
+
 import {
+  budgetMatchSchema,
   commercialProposalSchema,
   draftEstimateSchema,
   humanDecisionSchema,
   reviewPayloadSchema,
+  type BudgetMatch,
   type DraftEstimate,
 } from "@/lib/estimator/contracts";
 import { AWAITING_REVIEW, FAILED, statusLabel } from "@/lib/supervisor";
@@ -28,11 +33,20 @@ import { hours, percent } from "@/lib/format";
 import type { GraphState, HistoricalBand } from "@/lib/estimator/contracts";
 import { CollapseCard } from "@/components/collapse-card";
 import { ProposalCard } from "./proposal-card";
+import { BotonReferencias, ReferencesDrawer, type ComponenteAbierto } from "./references-drawer";
 import { ReviewEstimateForm } from "./review-estimate-form";
 import { RoutingTrace } from "./routing-trace";
 import { RunProgressPanel } from "./run-progress";
 
-function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
+function EstimateTable({
+  estimate,
+  referencias,
+  onVerReferencias,
+}: {
+  estimate: DraftEstimate;
+  referencias: Record<string, BudgetMatch[]>;
+  onVerReferencias: (componente: ComponenteAbierto) => void;
+}) {
   return (
     <Card
       title={estimate.project || "Desglose"}
@@ -60,6 +74,10 @@ function EstimateTable({ estimate }: { estimate: DraftEstimate }) {
               <Space direction="vertical" size={0}>
                 <Typography.Text strong>{value}</Typography.Text>
                 <Typography.Text type="secondary">{row.rationale}</Typography.Text>
+                <BotonReferencias
+                  matches={referencias[row.component_id]}
+                  onVer={() => onVerReferencias(row)}
+                />
               </Space>
             ),
           },
@@ -166,6 +184,7 @@ export type RunDetail = {
   status: string | null;
   estimate: unknown;
   reviewPayload: unknown;
+  budgetMatches: unknown;
   humanDecision: unknown;
   errors: unknown;
   proposal: unknown;
@@ -183,6 +202,23 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
   // no pintarla.
   const running = run.runState === "running";
   const failed = run.runState === FAILED;
+
+  /*
+    Las referencias salen de la COLUMNA y no del payload ni del checkpoint. Es lo
+    único que existe en las dos ramas: `review_payload` sólo lo tiene un run que
+    se paró, y `state` se pierde entero cuando el servicio IA no contesta.
+  */
+  const matches = z.array(budgetMatchSchema).safeParse(run.budgetMatches);
+  const porComponente = useMemo(() => {
+    const mapa: Record<string, BudgetMatch[]> = {};
+    for (const m of matches.success ? matches.data : []) {
+      (mapa[m.component_id] ??= []).push(m);
+    }
+    return mapa;
+    // `matches` se reconstruye en cada render; lo que cambia de verdad es la fila.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run.budgetMatches]);
+  const [abierto, setAbierto] = useState<ComponenteAbierto | null>(null);
 
   /*
     El estado del run, arriba del todo: es lo primero que hay que saber al
@@ -290,7 +326,12 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
             fuera de la primera pantalla.
           */}
           {review.data.estimate && (
-            <ReviewEstimateForm id={run.id} estimate={review.data.estimate} />
+            <ReviewEstimateForm
+              id={run.id}
+              estimate={review.data.estimate}
+              referencias={porComponente}
+              onVerReferencias={setAbierto}
+            />
           )}
 
           {review.data.budget_matches.length > 0 && (
@@ -335,6 +376,13 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
         </>
       )}
 
+      <ReferencesDrawer
+        componente={abierto?.name ?? null}
+        horasEstimadas={abierto?.estimated_hours ?? null}
+        matches={abierto ? (porComponente[abierto.component_id] ?? []) : []}
+        onClose={() => setAbierto(null)}
+      />
+
       {!running && !awaiting && (
         <>
           {run.errors != null && Array.isArray(run.errors) && run.errors.length > 0 && (
@@ -359,7 +407,11 @@ export function RunView({ run, state }: { run: RunDetail; state: GraphState | nu
           <Senales confidence={state?.values.confidence} band={state?.historical_band} />
 
           {estimate.success ? (
-            <EstimateTable estimate={estimate.data} />
+            <EstimateTable
+              estimate={estimate.data}
+              referencias={porComponente}
+              onVerReferencias={setAbierto}
+            />
           ) : (
             <Alert
               type="info"

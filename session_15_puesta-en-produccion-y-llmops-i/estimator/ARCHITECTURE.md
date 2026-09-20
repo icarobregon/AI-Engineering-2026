@@ -82,7 +82,7 @@ De más-importado a menos. Cada capa **solo** puede importar de las que tiene po
 | `dependencies.py` (COMPOSITION ROOT) | cualquier cosa | (lo importan solo `api/` y los tests) |
 | `main.py` | `api`, `config` | — |
 
-**Cuatro aristas especiales, explícitas:**
+**Cinco aristas especiales, explícitas:**
 1. `agentic` **puede** importar `conversation` (lo agéntico se construye sobre el multi-turno).
    La inversa está **prohibida**.
 2. Los hermanos de `generation` se encuentran **solo** en un conductor. Si dos capas necesitan
@@ -106,6 +106,20 @@ De más-importado a menos. Cada capa **solo** puede importar de las que tiene po
    cero en silencio, porque `_estimate_cost` cae a `{"input": 0.0, "output": 0.0}`
    por defecto. Tocar uno sin el otro es el error que esta separación invita a
    cometer.
+
+5. `api/` **puede** leer una PROYECCIÓN DE SÓLO LECTURA de un store de `generation`.
+   Dos rutas lo hacen: `GET /embeddings/index/stats` llama a
+   `generation/rag/store/corpus_stats.py`, y `POST /v1/corpus/references` llama a
+   `generation/rag/store/references.py`. Queda escrita porque la tabla de arriba la
+   contradecía y el código ya la practicaba: no es una excepción nueva, es una
+   regla que faltaba por enunciar.
+
+   El criterio es el mismo que el de la cuarta y conviene leerlo igual de de
+   frente: **`api/` lee DATO, nunca conducta**. Contar chunks o resolver un
+   identificador a sus filas no es una decisión que el endpoint tome; es la
+   respuesta misma, y hacerla pasar por un conductor sería ceremonia —
+   `EstimationService` no gana nada reenviando un `SELECT`. En cuanto haya que
+   decidir algo con esos datos, la decisión baja a `domain/`.
 
 **Hay tres conductores, no uno.** `estimation_service.py` conduce el camino CAG/RAG/ACB de las
 Sesiones 4-11; `domain/graph/` conduce el sistema multi-agente de las Sesiones 13-14; `proposal.py`
@@ -173,13 +187,23 @@ POST /api/v1/estimate
 ## 8. Contratos públicos que NO se rompen
 
 - **Rutas HTTP**: `/api/v1/estimate`, `/sessions/*`, `/api/v1/ingestion/*`, `/embeddings/ingest`,
-  `/search`, `/api/v1/config/models`.
+  `/search`, `/api/v1/config/models`, los siete verbos del grafo
+  (`/v1/estimate/graph`, `/start`, `/{id}/resume`, `/{id}/state`, `/{id}/progress`,
+  `/{id}/proposal`, `/diagram`) y `POST /v1/corpus/references`.
   Cualquier cliente del servicio depende de ellas y de la forma JSON de
   `EstimationResponse` / `ACBResponse`. **Desde la S15 TODAS exigen `X-API-Key`** —
   `RETRIEVAL_API_KEY` en `/search` y en `/v1/retrieval/*`, `ESTIMATE_API_KEY` en el
-  resto—. Es un cambio de contrato, el único de esta lista: la ruta sigue ahí y la
-  forma JSON no se toca, pero un cliente que no mande cabecera recibe 401. `/health`
-  es la única que queda abierta, porque la interroga el healthcheck de Docker.
+  resto—. La ruta sigue ahí y la forma JSON no se toca, pero un cliente que no mande
+  cabecera recibe 401. `/health` es la única que queda abierta, porque la interroga
+  el healthcheck de Docker.
+- **`HumanDecision`** (`domain/schemas/graph_estimation.py`) — **el segundo cambio de
+  contrato de la S15, y éste sí rompe clientes.** Pierde la acción `adjust` y el
+  campo `adjusted_hours`, y gana `component_hours`: un mapa de `component_id` a
+  horas con el que el revisor fija cada línea, y del que se deriva el total. Un
+  cliente que siga mandando `adjust` recibe 422. Se quitó porque `HumanDecision`
+  valida lo que ENTRA por la API y nunca se usa para releer un checkpoint, así que
+  una acción que ya no se puede emitir no pinta nada en el modelo de entrada; el
+  superconjunto histórico vive donde hace falta, en el espejo de LECTURA del BFF.
 - **`EstimationResult`** (`domain/schemas/estimation.py`): `total_cost_eur` es un
   `computed_field` — se deriva de las fases, no se le pide al modelo, así que el presupuesto
   cuadra por construcción y no por reintento. El único `model_validator` que dispara re-prompt

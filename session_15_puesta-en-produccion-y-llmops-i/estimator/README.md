@@ -482,6 +482,95 @@ El tuning de Postgres para builds de índices vive en `docker-compose.yml` (serv
 1. Repositorio actualizado: índice halfvec activo, flags de tuning en compose, queries de monitorización en el README.
 2. Documento corto con los números observados en **vuestro** barrido de `ef_search` (tabla del script) y la decisión razonada del valor adoptado: qué recall ganáis y qué latencia pagáis frente a las alternativas.
 
+## Sesión 15 — Puesta en producción
+
+El servicio deja de publicar puerto: sólo el backend de negocio lo alcanza, por la
+red interna de Compose, y **todas las rutas exigen `X-API-Key`** salvo `/health`,
+que es la que interroga el healthcheck de Docker.
+
+### El grafo deja de bloquear
+
+`POST /v1/estimate/graph/start` contesta **202** y deja el grafo corriendo por
+detrás; `GET /v1/estimate/graph/{id}/progress` es lo que se sondea mientras tanto.
+Antes la petición HTTP se mantenía abierta los minutos que durase el sistema
+multiagente, lo que convertía el timeout del cliente en un techo para la
+estimación.
+
+Las duraciones por nodo salen del **historial del checkpointer**, que sella cada
+superstep, porque el estado del grafo no lleva ni una fecha. Son *finalizaciones*,
+no despachos: `routing_trail` escribe su entrada antes de que el agente corra, así
+que un feed montado sobre ella enseñaría al agente como terminado todo el rato que
+está trabajando.
+
+### La propuesta comercial
+
+`POST /v1/estimate/graph/{id}/proposal` redacta desde la estimación ya validada
+**sin re-ejecutar el grafo**. Es un verbo y no un nodo a propósito: el camino feliz
+ya gasta cinco de los ocho despachos de `GRAPH_MAX_ROUTING_STEPS`, así que un nodo
+competiría por ese presupuesto con el trabajo que produce la estimación. Sobre un
+checkpoint terminado cuesta cero pasos de enrutado y se puede volver a redactar sin
+volver a estimar.
+
+### La puerta humana, ahora por componente
+
+`HumanDecision` cambia de forma, y **es un cambio que rompe clientes**: pierde la
+acción `adjust` y el campo `adjusted_hours`, y gana `component_hours`, un mapa de
+`component_id` a horas. El revisor fija cada línea y el total se deriva de la
+suma; un total editable aparte es un número que no cuadra con sus partes, que es
+justo lo que nadie puede auditar después. Quedan dos acciones, `approve` y
+`reject`, y un `adjust` recibe 422.
+
+Lo que propuso el sistema se conserva: `original_estimated_hours` se sella sólo en
+los componentes cuyo valor cambió de verdad —sellarlos todos haría indistinguible
+«lo revisé y lo dejé igual» de «no lo toqué»— y `original_total_hours` siempre. Se
+aplica igual al aprobar y al rechazar.
+
+### `POST /v1/corpus/references` — de dónde sale cada número
+
+El grafo guarda por componente sus `budget_matches`: un identificador y un total de
+horas. Con eso el revisor ve «79 h» y no puede juzgar nada, porque no sabe de qué
+proyecto salen, de qué año ni de qué stack. Esta ruta abre ese número.
+
+```bash
+curl -s -X POST http://ai-service:8000/v1/corpus/references \
+  -H "X-API-Key: $ESTIMATE_API_KEY" -H "Content-Type: application/json" \
+  -d '{"references": ["TASK-2022-0032/Authentication & Access"]}'
+```
+
+Devuelve el módulo histórico con su contexto —proyecto, sector, año, tecnología— y
+el desglose por tareas. **Una referencia es un módulo, no una tarea suelta**: el
+identificador tiene la forma `{budget_id}/{module}` y las 79 h del ejemplo son
+16 + 27 + 36, las tres tareas de ese módulo. Comprobado sobre las 133 referencias
+distintas que citan las ejecuciones guardadas: las 133 resuelven y en las 133 la
+suma del desglose coincide con el `amount` que viajó en el match.
+
+Dos detalles del contrato:
+
+- Se piden **en lote** (`references: [...]`, máximo 50). Un componente se respalda
+  con cinco y su detalle no debería costar cinco viajes. Va en POST y no en GET por
+  eso y porque el identificador lleva dentro una barra y un ampersand, que en un
+  segmento de ruta obliga a un doble escapado sin ganancia.
+- Lo que el corpus ya no tiene sale en **`missing`**, no como error. El corpus se
+  reindexa y una estimación guardada cita lo que había entonces; «el número se
+  apoya en algo que ya no está» es precisamente lo que hay que poder enseñar, y un
+  hueco silencioso lo haría indistinguible de un fallo de red.
+
+El identificador se parte por la **primera** barra, no por todas: hay un módulo
+llamado `Frontend / UX` —115 chunks del corpus— y ningún `budget_id` lleva barras.
+
+### Configuración
+
+`DATABASE_URL` y `REDIS_URL` pasan a ser **obligatorias**, sin valor por defecto: un
+default que nombra una máquina, un puerto y unas credenciales es el que produce «en
+mi máquina funciona», y estas dos ya habían derivado a puertos que dejaron de
+publicarse. Los ~70 knobs restantes conservan el suyo a propósito — para un umbral,
+el default **es** la documentación.
+
+La vía de ejecución local sin contenedores está en
+[`../docs/deployment-local.md`](../docs/deployment-local.md), y es efímera: se
+apoya en que una variable de entorno gana al fichero `.env`, así que no hace falta
+tocar ningún fichero para depurar contra la base del Compose.
+
 ---
 
 > Este proyecto forma parte del **Master en AI Engineering** y es la base sobre la que se construye en directo el resto de la Sesión 04 (output estructurado, guardrails, cache semántico) y de la Sesión 05 (compresión avanzada de memoria con anclas, tier dinámico, patrón Actor-Critic-Boss).

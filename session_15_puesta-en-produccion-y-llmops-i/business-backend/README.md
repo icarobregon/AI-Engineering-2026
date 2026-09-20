@@ -47,26 +47,39 @@ src/
 │   │   ├── wizard.ts         #   /v1/estimate/stages/{reformulate,structure} + /tasks/hours
 │   │   ├── graph-diagram.ts  #   GET /v1/estimate/graph/diagram
 │   │   ├── agent.ts          #   POST /v1/estimate/agent/run
-│   │   ├── graph.ts          #   POST /v1/estimate/graph (+ resume)
+│   │   ├── graph.ts          #   el grafo entero: start (202), resume, state,
+│   │   │                     #   progress, proposal y /v1/corpus/references
 │   │   └── config.ts         #   GET/PUT /api/v1/config/models
 │   ├── data/                 # presupuestos de muestra que alimentan el laboratorio
 │   ├── format.ts             # euros, horas, porcentajes y dólares, en un solo sitio
+│   ├── markdown.ts           # el markdown de la propuesta, a bloques imprimibles
+│   ├── proposal-pdf.ts       # la propuesta comercial en PDF (pdfkit, WinAnsi)
+│   ├── graph-nodes.ts        # los nodos del grafo, para pintarlo sin pedírselo a Python
 │   ├── db.ts                 # cliente Prisma
 │   └── supervisor.ts         # mapeo respuesta → fila, compartido por start y resume
 └── components/
     ├── app-shell.tsx         # navegación y modelo activo en la cabecera
+    ├── collapse-card.tsx     # una Card que se pliega, sin elegir entre las dos cosas
     └── select-field.tsx      # el Select de AntD que sí llega al FormData
 ```
 
 ## Las pantallas
 
-Cinco entradas de navegación sobre las capacidades que el servicio IA fue
-acumulando de la S04 a la S14. Ninguna añade un endpoint nuevo en Python: todas
-consumen contratos que ya existían.
+Ocho entradas de navegación —más la portada y la rueda de Ajustes de la
+cabecera— sobre las capacidades que el servicio IA fue acumulando de la S04 a la
+S15. Casi todas consumen contratos que ya existían; la excepción es el desglose
+de referencias del supervisor, que sí obligó a una ruta nueva en Python
+(`POST /v1/corpus/references`).
+
+El orden está duplicado a propósito en la portada y en el menú, y en ese orden:
+primero las dos que son el producto —Estimación y Supervisor—, después las seis
+piezas con las que está hecho. Son dos sitios que hay que mover a la vez, pero un
+menú que contradice a la portada se nota más que la duplicación.
 
 **Panel** (`/`). Punto de partida con una tarjeta por capacidad y el enlace a su
-pantalla. Existe porque el sistema hace cinco cosas distintas y la navegación sola
-no dice cuál sirve para qué.
+pantalla. Dos tarjetas grandes arriba y seis abajo, que es la misma jerarquía del
+menú. Existe porque el sistema hace ocho cosas distintas y la navegación sola no
+dice cuál sirve para qué.
 
 **Estimación transaccional** (`/estimations`, S04). Un formulario, una llamada,
 un resultado persistido. Listado, alta y detalle. Es el camino corto: sin memoria,
@@ -188,9 +201,15 @@ síncrona y acepta un documento por llamada, así que el lote, su progreso y su
 resultado son estado de negocio. Es el mismo reparto que hace la aplicación de
 referencia, cuyo sondeo también consulta a su propio backend.
 
-**Supervisor y revisión humana** (`/supervisor`, S14). Bandeja de ejecuciones,
-lanzamiento de una nueva y detalle con la estimación, las señales que dispararon
-la pausa y el formulario de decisión (aprobar, ajustar, rechazar). El detalle
+**Supervisor y revisión humana** (`/supervisor`, S14–S15). Bandeja de
+ejecuciones, lanzamiento de una nueva y detalle con la estimación, las señales
+que la acompañan y la decisión humana. La bandeja identifica cada ejecución por
+su **título** —el nombre que el sistema le pone al proyecto— y no por un recorte
+de la transcripción: esos primeros noventa caracteres eran casi siempre la misma
+fórmula de acta, y con dos ejecuciones de la misma reunión salían idénticos.
+Cuando todavía no hay título —en curso, o muerta antes de estimar— cae a la
+primera línea de la transcripción, que es donde el acta pone el nombre del
+proyecto. El detalle
 incluye la **traza de enrutado**: la S14 quitó el control de flujo de las aristas
 y lo metió en `Command`, así que el camino sólo existe a posteriori, en
 `routing_trail`. La tabla lo recorre paso a paso y, sobre todo, atribuye cada
@@ -209,6 +228,35 @@ que sella cada superstep, porque el estado del grafo no lleva ni una fecha. Son
 **finalizaciones**, no despachos —`routing_trail` escribe su entrada antes de que
 el agente corra, así que un feed montado sobre ella enseña al agente como
 terminado todo el rato que está trabajando—.
+
+**La decisión es por componente, no por total.** El revisor fija las horas de
+cada línea y el total sale de la suma, que se recalcula al teclear. Un total
+editable por separado es un número puesto a ojo: no cuadra con sus partes, y eso
+es justo lo que nadie puede auditar después. Lo que propuso el sistema no se
+pierde —se sella el valor original de las líneas que de verdad cambiaron, y el
+total siempre—, y se sella igual al aprobar y al rechazar, porque un rechazo con
+las horas corregidas dice por qué se rechaza mucho mejor que un rechazo a secas.
+Sólo hay dos acciones, **aprobar** y **rechazar**, y las dos exigen revisor y
+motivo: aprobar sin firma es exactamente el caso que deja una estimación
+aprobada sin nadie detrás.
+
+**De dónde sale cada número.** Cada componente con precedente abre un **Drawer**
+con las referencias históricas que lo respaldan. Un Drawer y no una modal porque
+no es una referencia, son cinco, y cada una trae su desglose. Dentro, la
+jerarquía va de «cuánto» a «por qué me lo creo»: las horas y la proximidad en la
+cabecera; después el contexto que decide si la referencia vale —proyecto,
+sector, año, tecnología—; y debajo el desglose por tareas, cuya suma **es** el
+número que el estimador comparó. Una referencia es un módulo de un presupuesto
+histórico, no una tarea suelta: `TASK-2022-0032/Authentication & Access` son tres
+tareas de 16, 27 y 36 h que suman las 79 h del análogo. Las referencias que el
+corpus ya no tiene se enseñan, no se esconden: el corpus se reindexa, y «parte
+del respaldo ha dejado de existir» es justo lo que hay que saber antes de
+aprobar.
+
+Las referencias se guardan en la fila (`budget_matches`) y no sólo en el
+checkpoint. Viajaban al BFF dentro de `review_payload`, que existe únicamente si
+la ejecución se paró ante una persona: tres de cada cuatro estimaciones validadas
+no lo tienen, así que su trazabilidad dependía de que el servicio IA contestara.
 
 Y cuando la estimación está cerrada, la pantalla ofrece **redactar la propuesta
 comercial** (`POST /v1/estimate/graph/{id}/proposal`) y **descargarla en PDF**
@@ -319,15 +367,32 @@ pintar. El texto llega ya escrito.
 ## Cómo se prueba
 
 ```bash
-pnpm test          # una pasada
+pnpm test          # una pasada — 117 tests en 10 ficheros
 pnpm test:watch    # en vigilancia
+pnpm typecheck     # tsc --noEmit
+pnpm lint          # ESLint 9, config plana
+pnpm format:check  # Prettier, sin escribir
 ```
 
 Vitest, en Node, sin navegador y sin red. Lo que se prueba es la lógica que esta
 capa tiene de verdad, no que Ant Design pinte: la taxonomía de errores, el cliente
 HTTP —que el token viaje por defecto y que cada código caiga en su clase—, el
-mapeo de respuesta a fila del supervisor, los parseadores de formulario y los
-espejos zod.
+mapeo de respuesta a fila del supervisor, los parseadores de formulario, los
+espejos zod, el saneado y el trazado del PDF, y las precedencias con las que la
+confianza y las referencias llegan a la fila.
+
+**El linter existe desde la S15, y no existía antes.** El script `lint` era el
+`next lint` que dejó `create-next-app`: Next 16 lo eliminó, y ESLint ni siquiera
+estaba instalado, así que este proyecto nunca pasó un linter. Ahora hay
+`eslint.config.mjs` en formato plano —`eslint-config-next` lo exporta nativo desde
+la 16, sin `FlatCompat`— y ESLint fijado en la 9, que es hasta donde llegan los
+peers de sus plugins.
+
+**Prettier también se configuró aquí, y su anchura está medida, no elegida.**
+Formateando los ficheros escritos a mano con cada `printWidth` y contando cuántas
+líneas se moverían, el mínimo está en 100 y sube a los dos lados: 2229 líneas a
+80, 1164 a 90, 575 a 100, 742 a 105. El resto se queda en los valores por defecto
+de Prettier 3, también por medición.
 
 Dos detalles del montaje que no son obvios. `server-only` lanza a propósito al
 importarse fuera de un React Server Component, así que en los tests se sustituye
@@ -365,14 +430,16 @@ franja estrecha contra el borde.
   nuevo, no paridad.
 - **La cabecera es `X-API-Key`, no `X-Service-Token`.** Mismo mecanismo, otro
   nombre; renombrarla obliga a tocar el servicio IA, sus tests y su documentación.
-- **Pantalla no portada:** el asistente de grafo con propuesta y PDF (S13). Es la
-  única que queda, y la más cara: pide dos puertas humanas y nuestro grafo tiene
-  una, así que portarla es cambiar el grafo, no la interfaz.
+- **La segunda puerta humana no existe, y es una decisión de producto.** La
+  implementación de referencia pausa dos veces —antes y después de estimar—.
+  Nuestros tres disparadores (confianza, banda histórica, sin precedente) se
+  calculan *después* de estimar; antes no existe ninguno, así que habría que
+  inventar el criterio. Y «pausar siempre» destruye la señal: un revisor al que se
+  le manda todo empieza a aprobar en bloque.
 - **Una ejecución del agente no sobrevive a un reinicio.** El bucle corre en el
   proceso de Node; si se reinicia a mitad, la fila queda sin quien la mueva. El
   detalle lo detecta y lo dice, pero no lo reanuda — el bucle del agente no es
-  reanudable. El desglose pieza a pieza está
-  en [`../docs/alcance-pendiente.md`](../docs/alcance-pendiente.md).
+  reanudable.
 - **El paso de estructura es una petición de minutos sostenida por una Server
   Action.** `gpt-5` con razonamiento alto tarda tres minutos largos; medido, 172 s
   y 0,13 $. La app de referencia tiene la misma forma —síncrona, sin sondeo— y por
@@ -383,7 +450,11 @@ franja estrecha contra el borde.
   detalle lo detecta y lo dice —«sin señales»— en vez de sondear para siempre, pero
   no lo reanuda.
 - **El laboratorio no guarda los runs.** El original tiene histórico justamente
-  para no volver a pagar las estrategias caras.
+  para no volver a pagar las estrategias caras: las cuatro estrategias de pago
+  cuestan dinero y tardan minutos, y aquí se ejecutan, se pintan y al recargar se
+  pierden. Es lo único del port que queda sin hacer. Costaría una tabla en el
+  esquema `business` con la petición, el payload íntegro y la duración, más dos
+  rutas; cero cambios en Python.
 - **Desarrollo fuera de Docker.** Con la frontera cerrada, `localhost:8000` y
   `localhost:5433` ya no existen; iterar sin contenedores exige publicarlos
   temporalmente.

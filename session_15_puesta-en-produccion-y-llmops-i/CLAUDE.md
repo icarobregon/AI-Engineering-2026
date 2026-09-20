@@ -16,11 +16,16 @@ There is ONE `docker-compose.yml`, at the root of the session folder, and it def
 
 Session guides for the instructor live in `guides/` (git-ignored). `guides/session-4-live-guide.md` is the most recent.
 
-What the business frontend still does NOT port from the reference app — and what
-each missing piece would cost, split by whether it needs new Python — is in
-[`docs/alcance-pendiente.md`](docs/alcance-pendiente.md). Read it before adding a
-screen: two of the pending ones need no AI-service work at all, and one of them
-would mean changing the graph, not the UI.
+The port is complete bar one piece, and that piece is named where it belongs, in
+the frontend's own "Limitaciones conocidas": **the chunking lab does not persist
+its runs**, which is what the reference app's history exists for — the four paid
+strategies cost money and take minutes. It needs a table and two routes, and zero
+Python. The other gap is not a gap but a product decision, documented in the same
+place: **the reference app's SECOND human gate**. Our three triggers (confidence,
+historical band, no precedent) are all computed AFTER estimating; before it there
+is nothing to test, so a second gate would mean inventing the criterion — and
+"always pause" destroys the signal, because a reviewer who is sent everything
+starts approving in bulk.
 
 ## Common commands (estimator)
 
@@ -162,7 +167,7 @@ Key design points future changes should respect:
 
   **Tests pin the result and the invariants, never the path** (`tests/domain/graph/`, `tests/domain/security/`): an estimate was produced, no agent acted before its precondition, `routing_steps` stayed under the ceiling, the pause fired, the resume left `human_decision` in the state, and the gate spent nothing on the pause. The three S12 tools are used for real in those tests — they are deterministic Python and faking them would test the fake. Run it with `scripts/run_graph_s14.py` (`--memory`/`--stub`/`--decision`/`--out`), which drives BOTH legs inside one parent span: over HTTP the resume is a separate request and OpenTelemetry cannot retro-join two traces. `exercises/session-14/sample_transcript_edge_case.txt` is the transcript designed to trip the pause (computer vision, an ML forecast, embedded firmware and a 3D digital twin — none of which the historical corpus covers). **`exercises/session-15/sample_transcript_mixed.txt` trips it differently, and that difference is the point**: it mixes work the corpus knows (identity and roles, back-office, an ERP integration, notifications) with work it does not (vision on a conveyor, scale firmware, sonar signal processing), so the run pauses with a MIX of grounded and ungrounded lines instead of the degenerate all-ungrounded case. Measured on a real run: 11 components, 8 grounded, confidence **0.594**, and the pause fires on the confidence trigger ALONE — not on "no comparable budget was found". Note what makes it land there: with 73% of lines grounded, `grounded_ratio` and `evidence_density` are healthy and it is `proximity` that sinks it (mean distance ~0.56 against a `_MAX_USEFUL_DISTANCE` of 0.6), which is the corpus saying "I found something, but only just". The three ungrounded components come back at 0 h, which is exactly the state a reviewer has to resolve line by line.
 
-- **Session 15 un-blocks the graph and teaches it to write.** Two pieces rescued from the reference app's S13 wizard — the only two worth having without rebuilding its graph. (The rest of that analysis, including why porting the screen faithfully would mean ADDING a second graph rather than changing this one, is in [`docs/alcance-pendiente.md`](docs/alcance-pendiente.md) §6.)
+- **Session 15 un-blocks the graph and teaches it to write.** Two pieces rescued from the reference app's S13 wizard — the only two worth having without rebuilding its graph. Porting that wizard faithfully would mean ADDING a second graph rather than changing this one — their repository keeps both sessions' artefacts side by side because teaching S13 and S14 demands it; here the graph evolves, and carrying two contracts, two test suites and a shared checkpointer to namespace is a cost with no return.
 
   **`POST /v1/estimate/graph/start` answers 202 and runs the graph behind it.** Its sibling `POST /graph` holds the HTTP connection open for the minutes the multi-agent system takes, which leaves no room for a progress feed — there is nothing to poll while the caller is blocked on the answer — and makes every client's read timeout a ceiling on how long an estimation may legitimately take. The three branches are the sibling's, for the same reasons: a finished thread is answered, a paused one is reported, only a new one is launched. It uses FastAPI `BackgroundTasks`, so the work starts after the response is sent. **A crash in there has no response to fail**, so `_run_detached` writes `run_failed: …` into the run's own `errors` channel via `aupdate_state` (which works on a crashed thread, verified against langgraph 1.0.1, and needs no `as_node`). Without that marker a dead run is indistinguishable from a slow one — `next` still names the node that died — and a screen polls it forever.
 

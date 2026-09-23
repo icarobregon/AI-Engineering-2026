@@ -668,6 +668,28 @@ export type GraphDiagram = z.infer<typeof graphDiagramSchema>;
 export const reasoningEfforts = ["minimal", "low", "medium", "high"] as const;
 export type ReasoningEffort = (typeof reasoningEfforts)[number];
 
+/**
+ * Si el agente puede ejecutar ese modelo, que son MENOS que los del catálogo.
+ *
+ * `available_models` sirve a toda la aplicación, pero el bucle del agente llama
+ * a la Responses API de OpenAI y le manda `reasoning` en todas las vueltas. Eso
+ * deja fuera dos grupos: los modelos de Anthropic —el cliente es `AsyncOpenAI`,
+ * y esa ruta no tiene proveedor de reserva— y los de OpenAI que no razonan, o
+ * sea las familias GPT-4o y GPT-4.1, que rechazan el parámetro.
+ *
+ * Se decide por la FORMA del nombre y no con una lista escrita a mano, igual
+ * que `_provider_from_model` en el servicio y por el mismo motivo: una lista
+ * enumerada se queda atrás en cuanto sale un modelo nuevo, y lo hace callando.
+ * La forma se equivoca en el otro sentido —un futuro GPT-7 que no razonara
+ * entraría sin merecerlo—, y de ahí que la pantalla avise ADEMÁS de filtrar:
+ * el filtro quita lo que hoy se sabe roto, el aviso cubre lo que no se sabe.
+ */
+export function agentCanRun(model: string): boolean {
+  if (/^o\d/.test(model)) return true;
+  const generacion = /^gpt-(\d+)/.exec(model);
+  return generacion !== null && Number(generacion[1]) >= 5;
+}
+
 export const agentComponentSchema = z
   .object({
     name: z.string(),

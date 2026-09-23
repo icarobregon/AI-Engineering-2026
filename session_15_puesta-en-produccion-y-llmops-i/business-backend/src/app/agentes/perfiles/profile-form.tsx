@@ -19,7 +19,7 @@ import {
 } from "antd";
 
 import { usdPerMillion } from "@/lib/format";
-import { reasoningEfforts, type ModelsConfig } from "@/lib/estimator/contracts";
+import { agentCanRun, reasoningEfforts, type ModelsConfig } from "@/lib/estimator/contracts";
 import { saveProfile, type FormState } from "../actions";
 
 type Profile = {
@@ -138,6 +138,24 @@ export function ProfileForm({
               lo mismo que copiar aquí su valor de hoy: copiarlo lo congelaría.
             </Typography.Text>
 
+            {/* El desplegable enseña MENOS modelos que Ajustes, y una ausencia sin
+                explicar se lee como un fallo del catálogo. Dicho aquí, el hueco
+                tiene motivo. */}
+            <Alert
+              type="info"
+              showIcon
+              message="El desplegable sólo trae los modelos que el agente puede ejecutar."
+              description={
+                <>
+                  Su bucle usa la Responses API de OpenAI y razona en cada vuelta, así que no admite
+                  los modelos de Anthropic ni las familias GPT-4o y GPT-4.1, aunque el catálogo del
+                  servicio sí los ofrezca al resto de la aplicación. Quedan las series GPT-5 en
+                  adelante y la serie o. Un modelo que aquí no esté fallaría al lanzar, después de
+                  haber esperado.
+                </>
+              }
+            />
+
             <Space size="large" wrap align="start">
               <Form.Item label="Modelo" layout="vertical" style={{ marginBottom: 0 }}>
                 <Select
@@ -151,7 +169,9 @@ export function ProfileForm({
                   // de 0,05 a 600 US$ por millón.
                   options={[
                     opcionModelo("", "Por defecto del servicio", modelPrices),
-                    ...availableModels.map((m) => opcionModelo(m, m, modelPrices)),
+                    ...availableModels
+                      .filter(agentCanRun)
+                      .map((m) => opcionModelo(m, m, modelPrices)),
                   ]}
                 />
               </Form.Item>

@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  agentCanRun,
   agentTraceSchema,
   corpusStatsSchema,
   estimateTreeSchema,
@@ -140,5 +141,90 @@ describe("agentTraceSchema", () => {
     expect(agentTraceSchema.parse({ stop_reason: "max_iterations" }).stop_reason).toBe(
       "max_iterations",
     );
+  });
+});
+
+describe("agentCanRun", () => {
+  // El catálogo del servicio, copiado de `/api/v1/config/models` el 2026-09-23.
+  // Está entero a propósito: lo que se prueba es el reparto sobre los nombres
+  // REALES, y un puñado de ejemplos elegidos a mano no habría pescado que
+  // `claude-fable-5` empieza por claude pero termina en 5, ni que `gpt-4o` y
+  // `gpt-4.1` son las dos formas distintas que tiene la familia GPT-4.
+  const catalogo = [
+    "gpt-4o-mini",
+    "gpt-4o",
+    "gpt-4.1-nano",
+    "gpt-4.1-mini",
+    "gpt-4.1",
+    "gpt-5-nano",
+    "gpt-5-mini",
+    "gpt-5",
+    "gpt-5-pro",
+    "gpt-5.1",
+    "gpt-5.2",
+    "gpt-5.2-pro",
+    "gpt-5.4-nano",
+    "gpt-5.4-mini",
+    "gpt-5.4",
+    "gpt-5.4-pro",
+    "gpt-5.5",
+    "gpt-5.5-pro",
+    "gpt-5.6-luna",
+    "gpt-5.6-terra",
+    "gpt-5.6-sol",
+    "gpt-6-astra",
+    "o3-mini",
+    "o4-mini",
+    "o3",
+    "o1",
+    "o1-pro",
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-4-5",
+    "claude-sonnet-4-6",
+    "claude-sonnet-5",
+    "claude-opus-4-5-20251101",
+    "claude-opus-4-6",
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-opus-5",
+    "claude-fable-5",
+    "claude-fable-5-1",
+  ];
+
+  it("deja fuera Anthropic entero y sólo la familia GPT-4 de OpenAI", () => {
+    expect(catalogo.filter((m) => !agentCanRun(m))).toEqual([
+      "gpt-4o-mini",
+      "gpt-4o",
+      "gpt-4.1-nano",
+      "gpt-4.1-mini",
+      "gpt-4.1",
+      "claude-haiku-4-5-20251001",
+      "claude-sonnet-4-5",
+      "claude-sonnet-4-6",
+      "claude-sonnet-5",
+      "claude-opus-4-5-20251101",
+      "claude-opus-4-6",
+      "claude-opus-4-7",
+      "claude-opus-4-8",
+      "claude-opus-5",
+      "claude-fable-5",
+      "claude-fable-5-1",
+    ]);
+  });
+
+  it("acepta GPT-5 en adelante y la serie o", () => {
+    expect(catalogo.filter(agentCanRun)).toHaveLength(22);
+    for (const modelo of ["gpt-5", "gpt-5.6-sol", "gpt-6-astra", "o1", "o4-mini"]) {
+      expect(agentCanRun(modelo)).toBe(true);
+    }
+  });
+
+  it("decide por la forma del nombre, así que un modelo futuro no se queda fuera", () => {
+    // Lo contrario de una lista escrita a mano: `gpt-7` todavía no existe y ya
+    // entra. El riesgo va en la otra dirección —entraría aunque no razonara—, y
+    // por eso la pantalla avisa además de filtrar.
+    expect(agentCanRun("gpt-7-lo-que-sea")).toBe(true);
+    expect(agentCanRun("o9-mini")).toBe(true);
+    expect(agentCanRun("gemini-3-pro")).toBe(false);
   });
 });

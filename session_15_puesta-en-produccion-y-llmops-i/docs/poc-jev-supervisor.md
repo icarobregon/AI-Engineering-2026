@@ -1,0 +1,177 @@
+# PoC — Jev (TypeSafe) como router del supervisor
+
+**Rama:** `session_15_poc-jev-supervisor`, sacada de `session_15_…` en `dcc047a`.
+**Estado:** prueba de concepto. **No se lleva a producción y no continúa en la
+S16**, que arranca de la rama de sesión. Lo que sobreviva de aquí tendrá que
+portarse a mano, y este documento existe para que esa decisión se tome con lo
+que se aprendió y no otra vez desde cero.
+
+## Qué es Jev, y por qué no es "un modelo más"
+
+Jev es un modelo de **decisión**. No devuelve texto: devuelve una elección, su
+distribución de probabilidad y una confianza, por un endpoint propio.
+
+```
+POST {TYPESAFE_API_BASE}/v1/systemone
+{ "state": "…", "model": "jev-latest",
+  "questions": { "next_agent": { "type": "choice",
+                                 "instructions": "…",
+                                 "criteria": { "opcion_a": "…", "opcion_b": "…" } } } }
+→ { "model": "jev-1.13.0"|null,
+    "answers": { "next_agent": { "type": "choice", "choice": "…",
+                                 "probabilities": {…}, "confidence": 0.82 } },
+    "usage": { "input_tokens": 312, "output_tokens": 48 }|null }
+```
+
+De ahí sale casi todo lo demás:
+
+- **No pasa por `LLMWrapper`.** `complete_structured` es
+  `instructor.from_litellm(litellm.completion)`, una primitiva de *chat*, y no
+  hay versión de LiteLLM en la que una llamada de chat alcance este endpoint.
+  Enseñarle a `_provider_from_model` a contestar `"typesafe"` sólo habría hecho
+  que `jev-latest` *pareciera* despachable: el wrapper manda todo lo que no es
+  Anthropic con `OPENAI_API_KEY`.
+- **`model` y `usage` son opcionales** en la respuesta. Por eso el cliente
+  **omite** las claves de coste cuando faltan en vez de escribir `0.0`: un coste
+  que se lee como cero es peor que uno ausente, porque un panel lo suma.
+- **Los ids son tres**: `jev-latest`, `jev-1.13.0`, `jev-preview`. `jev-latest`
+  resuelve hoy a `jev-1.13.0`.
+- **Precio**: 0,042 US$ por millón de tokens de entrada, **sin cargo de salida**.
+  Ese `0.00` de la tabla de precios es el precio real, no una fila sin rellenar.
+
+## Transporte: por qué una llamada directa y no el proxy de LiteLLM
+
+LiteLLM soporta Jev, pero **por su proxy** (`LITELLM_PROXY_BASE_URL/typesafe`).
+Se evaluaron tres vías y ganó la directa, por este motivo:
+
+> El proxy **no borra ni una línea** de código. Un *pass-through* reenvía el
+> cuerpo idéntico, y LiteLLM no expone proveedor `typesafe` en el SDK — su
+> propio cliente interno es este mismo POST. El cliente de ~50 líneas se escribe
+> igual con proxy y sin él, mientras el contenedor añade un segundo custodio de
+> las claves del proveedor, que es justo la frase con la que abre el
+> `docker-compose.yml` de esta sesión.
+
+Dos consecuencias que van al revés de la intuición habitual sobre pasarelas, y
+que conviene no volver a discutir desde cero:
+
+- **Observabilidad.** `logfire.instrument_httpx()` ya está cableado, así que la
+  llamada directa se traza gratis **nombrando a `api.typesafe.ai`**. Un salto por
+  proxy se ve como un span a un host interno con el proveedor escondido detrás.
+- **Acoplamiento.** El pass-through no normaliza nada: con proxy seguirías
+  cargando el esquema de TypeSafe **y además** las convenciones, la master key y
+  el config schema de LiteLLM como segundo proveedor en la topología.
+
+### Alternativas descartadas
+
+| Vía | Por qué no |
+|---|---|
+| Proxy de LiteLLM (`/typesafe` pass-through) | Un sexto contenedor con su config, su key store y su modo de fallo, para una llamada. No elimina código. Rompe la frontera de red que esta sesión entrega como objetivo. |
+| Cliente interno del SDK (`litellm.router_strategy.complexity_router.jev_classifier`) | Existe y está tipado, pero es una **ruta de módulo interna**, en movimiento (backports abiertos, fix de precios sin mergear). Obligaría a saltar litellm 1.86.1 → ≥1.102.1 por debajo de Instructor, moviendo `openai`/`httpx`/`tokenizers` bajo **todas** las demás llamadas. Y sigue siendo un POST directo. |
+| OpenRouter (`POST /api/alpha/decisions`) | Id distinto (`typesafe/jev-1.13`, sin el `.0`) y endpoint marcado **alpha**. |
+
+**El salto de versión de litellm no hace falta.** El manifiesto dice `>=1.50` y
+el lock fija 1.86.1, pero por la vía directa `uv.lock` no se mueve: `httpx>=0.27`
+ya era dependencia de producción.
+
+**Migrar a una pasarela cuesta dos variables de entorno.** El cliente construye
+`f"{api_base}/v1/systemone"` y nunca un host escrito a mano, así que una
+pasarela en la S16 es `TYPESAFE_API_BASE=http://litellm-proxy:4000/typesafe` más
+cambiar el bearer. Sin tocar código. Es un requisito, no una casualidad.
+
+## Dónde entra, y qué se cambió para que entrara
+
+La única llamada a modelo del supervisor ya era una pregunta cerrada entre dos
+destinos — exactamente la forma que Jev consume. Tres cambios:
+
+1. **Un puerto en vez de un cliente.** `build_supervisor` recibe `ask_router`,
+   un callable que devuelve `(agente, motivo, meta)`, igual que ya recibía
+   `search_tool` y `validate_tool`. El grafo no aprende que existe TypeSafe.
+2. **El modelo se resuelve en cada decisión.** Antes se leía al cablear, y el
+   grafo se compila una vez por proceso: un override desde Ajustes se guardaba
+   en Redis y no cambiaba nada, en silencio, contra el contrato de "sin
+   reinicio" que anuncia el propio endpoint de configuración.
+3. **La pregunta se parte** en `instructions`, `criteria` y sesgo.
+   `compose_supervisor_prompt` la vuelve a juntar para la ruta de texto, así que
+   no hay una paráfrasis al lado del original para desincronizarse.
+
+Los 89 tests del grafo pasaron **sin tocar una aserción**, que es la
+comprobación de que las precondiciones, el presupuesto de routing y la guarda de
+`AGENT_NAMES` nunca dependieron del modelo.
+
+## Las tres trampas que costaron el diseño
+
+**1. Caer al `human_review_gate` NO significa que mire una persona.**
+Era el fallback del primer diseño y es un error. `build_human_review_gate` es
+una pausa **condicional**: si no salta ninguno de sus tres triggers devuelve
+`Command(goto="finalize")`. Medido contra el código real: con 10 componentes, 9
+respaldados, `is_coherent=False` y confianza **0.887** (umbral 0.7),
+`requires_human_review()` devuelve `[]`. Es decir, una caída de TypeSafe habría
+terminado runs en silencio, con `status="needs_review"` y un 200 —
+indistinguible de una decisión legítima, y con la UI afirmando que "decidió el
+modelo". El fallback correcto es la ruta `structured_call` que ya existe, y se
+**nombra en el motivo** para que una caída nunca se parezca a una decisión.
+
+**2. La ruta de LECTURA no estaba guardada.** `RuntimeModelConfig.effective()`
+es `get(key) or default(key)`, sin revalidar, y el PUT sólo valida al escribir.
+Un override `jev-*` puesto con la clave configurada **sobrevive a un reinicio sin
+ella**. Sin la guarda, ese nombre llegaría a `litellm.completion`.
+
+**3. El orden de despliegue falla en el sitio equivocado.** `actions.ts` manda
+todos los knobs en cada guardado y el PUT valida las claves antes de escribir,
+de una pieza. Si `modelKnobs` (cliente) se adelanta a `MODEL_KEYS` (servicio),
+el 422 **deja la pantalla entera sin poder guardar**, también los siete knobs de
+siempre. Python primero, siempre.
+
+## El motivo, que es lo que Jev no devuelve
+
+`reason` no lo lee ningún código Python — `finalize` sólo mira
+`trail[-1]["next_agent"]`. Su único consumidor es la persona que abre la tabla
+de auditoría. Un modelo de texto escribe ahí frases como:
+
+> *"Only 3 of 13 items lack historical matches while the budget search already
+> returned 36 matches overall, suggesting a retrieval/wording gap rather than
+> novel work…"*
+
+Jev no escribe nada de eso. Así que el motivo se **construye en Python** desde el
+estado (`routing_facts`) y se le pega la elección y su probabilidad:
+
+> `3 componentes, 1 referencias, confianza 0.49, 1 avisos del validador; jev-latest enrutó a human_review_gate (p=0.85)`
+
+La mitad que importa **no puede estar mal**, porque nada la generó: un modelo
+puede equivocarse contando componentes sin respaldo, `len()` no. Se pierde la
+frase de inferencia; se gana un conteo que no se alucina.
+
+## Lo que este PoC NO resuelve
+
+- **No hay circuit breaker.** LiteLLM envuelve esta misma llamada con
+  `timeout_ms=3000` y un corte de 30 s; aquí sólo hay `GRAPH_SUPERVISOR_TIMEOUT`
+  (30 s, diez veces más). Una caída degrada bien, pero reintenta en cada run.
+- **El coste vive sólo en las trazas.** No hay libro de gasto consultable, ni
+  aquí ni con una pasarela: `SupervisorRun` no tiene columna de modelo. Lo que sí
+  hay ahora es **qué router decidió cada salto**, en `routing_trail`, que es el
+  mínimo para poder comparar dos routers sobre runs guardados.
+- **No se ha llamado a la API real.** Todo está verificado contra la
+  documentación de LiteLLM y su implementación; los tests son *network-free*. La
+  primera llamada real puede desmentir un detalle del parseo.
+- **`0,00` de salida se lee como "gratis".** Es el precio correcto ("no se
+  cobra"), pero en una pantalla cuyo trabajo es decir lo que cuesta un knob, esa
+  distinción no se ve. La tarifa de entrada sí se arregló: se mostraba `0,04`
+  porque el formateador tenía dos decimales.
+- **El resto de knobs del grafo siguen congelados al arrancar**
+  (`REFORMULATION_MODEL`, `GENERATION_MODEL`, `GRAPH_PROPOSAL_MODEL`…). El del
+  supervisor es el primero en caliente, y `estimator/CLAUDE.md` afirma de los dos
+  primeros que ya lo eran — **no lo son**. Sigue siendo falso después de este
+  PoC.
+
+## Qué diría este PoC sobre llevarlo a producción
+
+Que el ahorro no es el argumento. Sobre los runs reales guardados en el
+checkpointer, la rama que llama al modelo se dispara en **3 de 6 runs**, nunca
+más de una vez por run, y cuesta ~0,00026 US$ con `gpt-5-mini` frente a
+~0,00003 con Jev: **unos 8.000 runs para ahorrar un dólar**, sobre un run que
+paga `gpt-5` a `reasoning_effort=high`. Es ~1 % del gasto de una estimación.
+
+Lo que sí deja, y vale por sí solo, es el **knob del supervisor en caliente**:
+que el modelo del router se pudiera cambiar desde Ajustes sin reiniciar era un
+defecto real, y se arregla con `gpt-5-mini` y `gpt-5` como opciones, exista Jev
+o no.

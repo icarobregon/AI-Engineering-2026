@@ -291,22 +291,33 @@ este servicio.
 
 ## Configuración de modelos en runtime
 
-Los knobs de modelo (`PRIMARY_MODEL`, `FALLBACK_MODEL`, `CRITIC_MODEL`, `METADATA_EXTRACTOR_MODEL`, `COMPRESSION_MODEL`, `PROPOSITIONAL_CHUNKER_MODEL`, `CONTEXTUAL_CHUNKER_MODEL`) se pueden **sobreescribir en caliente** sin tocar `.env` ni recrear contenedores — pensado para cambiar de modelo en mitad de un directo.
+Los knobs de modelo (`PRIMARY_MODEL`, `FALLBACK_MODEL`, `CRITIC_MODEL`, `METADATA_EXTRACTOR_MODEL`, `COMPRESSION_MODEL`, `PROPOSITIONAL_CHUNKER_MODEL`, `CONTEXTUAL_CHUNKER_MODEL`, `GRAPH_SUPERVISOR_MODEL`) se pueden **sobreescribir en caliente** sin tocar `.env` ni recrear contenedores — pensado para cambiar de modelo en mitad de un directo.
 
 ```
 GET /api/v1/config/models
   → {"models": {KEY: {"effective", "default", "overridden"}},
      "available_models": [...],
      "embedding_model": "...", "embedding_model_note": "...",
-     "catalog_generated_at": "2026-09-20T01:14:55+02:00",
-     "catalog_sources": ["OpenAI", "Anthropic"],
-     "model_prices": {MODEL: {"input": 0.15, "output": 0.60}}}   # US$ por millón de tokens
+     "catalog_generated_at": "2026-09-23T16:00:00+02:00",
+     "catalog_sources": ["OpenAI", "Anthropic", "TypeSafe"],
+     "model_prices": {MODEL: {"input": 0.15, "output": 0.60}},   # US$ por millón de tokens
+     "decision_only_knobs": ["GRAPH_SUPERVISOR_MODEL"],
+     "decision_models": ["jev-latest", "jev-1.13.0", "jev-preview"]}
 
 PUT /api/v1/config/models
   Body: {"models": {"PRIMARY_MODEL": "gpt-4o", "CRITIC_MODEL": null}}   # null = reset
   → mismo shape que el GET (snapshot fresco)
-  422 key desconocida / modelo fuera de catálogo · 400 modelo sin API key · 503 Redis caído
+  422 key desconocida / modelo fuera de catálogo / modelo de decisión en un knob de texto
+  400 modelo sin API key · 503 Redis caído
 ```
+
+`GRAPH_SUPERVISOR_MODEL` entró en caliente en el **PoC de la Sesión 15**, que es
+también lo que trae los modelos de **decisión** al catálogo: devuelven una
+elección y una probabilidad en vez de texto, por un endpoint propio, así que sólo
+son legales en los knobs que `decision_only_knobs` enumera. El resto de knobs del
+grafo (`REFORMULATION_MODEL`, `GENERATION_MODEL`, `GRAPH_PROPOSAL_MODEL`) **siguen
+congelándose al arrancar**. Todo el diseño, las alternativas descartadas y lo que
+el PoC no resuelve, en [`docs/poc-jev-supervisor.md`](../docs/poc-jev-supervisor.md).
 
 Cómo funciona (`app/foundation/llm/runtime_config.py`):
 

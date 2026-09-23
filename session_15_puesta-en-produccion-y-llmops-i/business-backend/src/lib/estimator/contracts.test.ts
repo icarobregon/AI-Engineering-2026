@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agentCanRun,
+  hopSource,
   agentTraceSchema,
   corpusStatsSchema,
   estimateTreeSchema,
@@ -226,5 +227,39 @@ describe("agentCanRun", () => {
     expect(agentCanRun("gpt-7-lo-que-sea")).toBe(true);
     expect(agentCanRun("o9-mini")).toBe(true);
     expect(agentCanRun("gemini-3-pro")).toBe(false);
+  });
+});
+
+describe("hopSource", () => {
+  // Sin test hasta la S15, y RULE_REASONS duplica seis literales de
+  // supervisor.py sin nada que los ate. Lo que se fija aquí es el reparto, que
+  // es de lo que depende la columna «Origen» de la traza de enrutado.
+  it("reconoce los motivos que escribe una regla", () => {
+    expect(hopSource("nothing read yet")).toBe("regla");
+    expect(hopSource("validation clean")).toBe("regla");
+    expect(hopSource("evidence gaps persist after re-searching")).toBe("regla");
+    expect(hopSource("unknown route 'ghost_agent'")).toBe("regla");
+  });
+
+  it("reconoce el freno de emergencia", () => {
+    expect(hopSource("routing budget exhausted at 8 steps")).toBe("limite");
+  });
+
+  it("trata el motivo sintetizado de un modelo de decisión como decisión de modelo", () => {
+    // Jev no devuelve prosa: el motivo lo compone el servicio con los conteos
+    // del estado. Empieza por un número, así que no puede colisionar con
+    // ninguno de los literales de regla — que es justamente lo que se fija.
+    const sintetizado =
+      "3 componentes, 1 referencias, confianza 0.49, 1 avisos del validador; jev-latest enrutó a human_review_gate (p=0.85)";
+
+    expect(hopSource(sintetizado)).toBe("modelo");
+  });
+
+  it("trata la degradación a router de texto como decisión de modelo", () => {
+    // Una caída del proveedor la decide igualmente un modelo, el de texto, y
+    // el motivo lo dice. Lo que NO puede es parecerse a una regla.
+    expect(
+      hopSource("jev-latest no respondió; decidió gpt-5-mini: los huecos parecen reales"),
+    ).toBe("modelo");
   });
 });

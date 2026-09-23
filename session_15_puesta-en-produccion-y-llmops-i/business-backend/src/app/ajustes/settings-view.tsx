@@ -40,6 +40,11 @@ const knobLabels: Record<ModelKnob, { label: string; description: string }> = {
     label: "Chunker contextual",
     description: "Añade contexto a cada fragmento. Es la estrategia más cara del laboratorio.",
   },
+  GRAPH_SUPERVISOR_MODEL: {
+    label: "Supervisor del grafo",
+    description:
+      "Decide el siguiente paso del sistema multiagente. Es el único knob que acepta un modelo de decisión.",
+  },
 };
 
 /**
@@ -109,6 +114,15 @@ export function SettingsView({ config }: { config: ModelsConfig }) {
     saved: false,
   });
 
+  // Los modelos de decisión no saben escribir, así que sólo se ofrecen en los
+  // knobs que el servicio declara aptos. Se filtra con SU lista, no con una
+  // regla escrita aquí: quien contesta 422 es él, y dos sitios decidiendo lo
+  // mismo por separado es como una pantalla y su endpoint acaban discrepando.
+  const optionsFor = (knob: ModelKnob) =>
+    config.decision_only_knobs.includes(knob)
+      ? config.available_models
+      : config.available_models.filter((m) => !config.decision_models.includes(m));
+
   const rows = modelKnobs
     .filter((knob) => config.models[knob])
     .map((knob) => ({ key: knob, knob, state: config.models[knob]! }));
@@ -167,7 +181,7 @@ export function SettingsView({ config }: { config: ModelsConfig }) {
                       key={`${row.knob}:${row.state.effective}:${row.state.overridden}`}
                       knob={row.knob}
                       state={row.state}
-                      options={config.available_models}
+                      options={optionsFor(row.knob)}
                       prices={config.model_prices}
                     />
                   ),

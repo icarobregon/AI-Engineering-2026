@@ -81,8 +81,15 @@ export function RoutingTrace({ state }: { state: GraphState }) {
               width: 110,
               render: (_, hop) => {
                 const source = hopSource(hop.reason);
+                // Qué modelo decidió, cuando lo decidió uno. Va en el título y
+                // no en una columna nueva: son cuatro de cada cinco saltos los
+                // que no tienen router, y una columna vacía en cuatro filas de
+                // cada cinco es ruido, no información.
+                const title = hop.router
+                  ? `${sourceTag[source].title} Decidió ${hop.router}.`
+                  : sourceTag[source].title;
                 return (
-                  <Tag color={sourceTag[source].color} title={sourceTag[source].title}>
+                  <Tag color={sourceTag[source].color} title={title}>
                     {source === "limite" ? "límite" : source}
                   </Tag>
                 );

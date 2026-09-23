@@ -40,9 +40,13 @@ const USD = new Intl.NumberFormat("es-ES", {
   maximumFractionDigits: 4,
 });
 
+// Tres decimales de máximo, no dos. Ninguna tarifa del catálogo pasaba de dos
+// hasta que entró un modelo de decisión a 0,042 US$/millón, que con dos se
+// mostraba como «0,04» — la primera entrada por debajo de ese suelo. El mínimo
+// sigue en dos, así que 2,50 se sigue viendo 2,50 y nada más cambia.
 const USD_RATE = new Intl.NumberFormat("es-ES", {
   minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
+  maximumFractionDigits: 3,
 });
 
 /** Lo que costó una llamada: céntimos de céntimo, así que cuatro decimales. */

@@ -197,6 +197,12 @@ export type GraphEstimateResponse = z.infer<typeof graphEstimateResponseSchema>;
 export const routingHopSchema = z.object({
   next_agent: z.string(),
   reason: z.string(),
+  /**
+   * Qué modelo decidió este salto, cuando lo decidió un modelo. Ausente en los
+   * saltos de regla, que son cuatro de cada cinco. Es lo único que permite
+   * preguntarle a los runs guardados si un router enruta mejor que otro.
+   */
+  router: z.string().nullish(),
 });
 export type RoutingHop = z.infer<typeof routingHopSchema>;
 
@@ -464,9 +470,16 @@ export type CompareResponse = z.infer<typeof compareResponseSchema>;
 // --- Runtime model configuration --------------------------------------------
 
 /**
- * The seven knobs the AI service exposes, in the order its own tuple declares
- * them. Fixed on purpose: the endpoint rejects any key outside this set with a
- * 422, so a typo here becomes a runtime error rather than a silent no-op.
+ * Los ocho knobs que expone el servicio IA, en el orden en que los declara su
+ * propia tupla. Fija a propósito: el endpoint rechaza con un 422 cualquier
+ * clave fuera de este conjunto, así que una errata aquí es un error en
+ * ejecución y no un no-op silencioso.
+ *
+ * El orden de despliegue importa y falla en el sitio equivocado. `actions.ts`
+ * manda TODOS los knobs en cada guardado y el PUT valida las claves antes de
+ * escribir nada, de una pieza: si esta lista se adelanta a `MODEL_KEYS` en el
+ * servicio, el 422 no afecta sólo a la fila nueva — deja la pantalla entera sin
+ * poder guardar, también los siete de siempre. Al revés sólo falta una fila.
  */
 export const modelKnobs = [
   "PRIMARY_MODEL",
@@ -476,6 +489,7 @@ export const modelKnobs = [
   "COMPRESSION_MODEL",
   "PROPOSITIONAL_CHUNKER_MODEL",
   "CONTEXTUAL_CHUNKER_MODEL",
+  "GRAPH_SUPERVISOR_MODEL",
 ] as const;
 export type ModelKnob = (typeof modelKnobs)[number];
 
@@ -499,6 +513,17 @@ export const modelsConfigSchema = z.object({
   catalog_sources: z.array(z.string()),
   /** USD por millón de tokens, por modelo del catálogo. */
   model_prices: z.record(z.string(), z.object({ input: z.number(), output: z.number() })),
+  /**
+   * La excepción del catálogo, servida como dato (S15 PoC).
+   *
+   * `available_models` es una lista plana porque casi todo sirve para casi
+   * todo. Los modelos de DECISIÓN no: devuelven una elección, no texto, así que
+   * sólo valen donde se decide algo. La regla viene del servidor —que es quien
+   * la aplica con un 422— en lugar de reimplementarse aquí, que es como una
+   * pantalla y su endpoint acaban opinando distinto.
+   */
+  decision_only_knobs: z.array(z.string()).default([]),
+  decision_models: z.array(z.string()).default([]),
 });
 export type ModelsConfig = z.infer<typeof modelsConfigSchema>;
 

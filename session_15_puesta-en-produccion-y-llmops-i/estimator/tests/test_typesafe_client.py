@@ -161,26 +161,45 @@ async def test_the_gateway_base_url_lands_on_the_same_path(monkeypatch) -> None:
     assert sent["headers"]["Authorization"] == "Bearer vck_test"
 
 
-def test_the_gateway_billed_cost_wins_over_our_estimate() -> None:
-    # Cuando delante hay una pasarela que ya ha contabilizado la llamada, ese
-    # número es el que se factura. Nuestra tabla es una estimación curada a mano.
+def test_the_gateway_rate_wins_over_our_estimate() -> None:
+    # Cuando delante hay una pasarela que ya ha contabilizado la llamada, su
+    # número manda sobre el nuestro: nuestra tabla se cura a mano.
     body = _body()
-    body["provider_metadata"] = {"gateway": {"cost": "0.00001155", "generationId": "gen_x"}}
+    body["provider_metadata"] = {
+        "gateway": {"cost": "0.00001155", "marketCost": "0.00001155", "generationId": "gen_x"}
+    }
 
     meta = _meta_from(body, "typesafe-ai/jev", body["answers"]["next_agent"])
 
     assert meta["cost_usd"] == 0.00001155
+    # Facturado y tarifa coinciden, así que no hay descuento que anotar.
+    assert "billed_usd" not in meta
 
 
-def test_an_unparseable_gateway_cost_falls_back_to_our_table() -> None:
+def test_free_credits_do_not_make_the_router_look_free() -> None:
+    # Medido contra la API real: con créditos gratis la pasarela devuelve
+    # cost="0" y marketCost="0.00001302". Coger el facturado dejaría `cost_usd`
+    # en cero — un número que un panel suma, y la comparación contra gpt-5-mini
+    # sin sentido. Manda la tarifa; el descuento se anota aparte.
     body = _body()
-    body["provider_metadata"] = {"gateway": {"cost": "gratis"}}
+    body["provider_metadata"] = {"gateway": {"cost": "0", "marketCost": "0.00001302"}}
+
+    meta = _meta_from(body, "typesafe-ai/jev", body["answers"]["next_agent"])
+
+    assert meta["cost_usd"] == 0.00001302
+    assert meta["billed_usd"] == 0.0
+
+
+def test_an_unparseable_gateway_amount_falls_back_to_our_table() -> None:
+    body = _body()
+    body["provider_metadata"] = {"gateway": {"cost": "gratis", "marketCost": "gratis"}}
 
     meta = _meta_from(body, "typesafe-ai/jev", body["answers"]["next_agent"])
 
     # Se queda la estimación propia antes que perder el coste: lo que no puede
     # pasar es que un campo raro de la pasarela deje la llamada sin precio.
     assert meta["cost_usd"] == pytest.approx(1.3e-05, rel=1e-9)
+    assert "billed_usd" not in meta
 
 
 # --- Un fallo tiene que decir POR QUE ----------------------------------------

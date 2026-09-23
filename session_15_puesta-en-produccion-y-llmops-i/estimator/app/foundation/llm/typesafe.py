@@ -194,14 +194,36 @@ def _meta_from(body: dict, asked_model: str, answer: dict) -> dict[str, Any]:
         }
         meta["cost_usd"] = _estimate_cost(asked_model, tokens_in, tokens_out)
 
-    # Si delante hay una pasarela que YA ha contabilizado la llamada, ese numero
-    # manda: es lo que se factura, no lo que nosotros calculamos con una tabla
-    # curada a mano. El AI Gateway de Vercel lo devuelve aqui.
-    cobrado = ((body.get("provider_metadata") or {}).get("gateway") or {}).get("cost")
-    if cobrado is not None:
-        try:
-            meta["cost_usd"] = float(cobrado)
-        except (TypeError, ValueError):
-            log.warning("typesafe_gateway_cost_unparseable", cost=str(cobrado)[:40])
+    # Si delante hay una pasarela que ya ha contabilizado la llamada, su numero
+    # manda sobre el nuestro: nuestra tabla se cura a mano. Pero de los dos que
+    # publica se coge `marketCost`, no `cost`, y la diferencia importa:
+    #
+    #   "cost":       "0"           <- lo FACTURADO, 0 con creditos gratis
+    #   "marketCost": "0.00001302"  <- lo que VALE la llamada
+    #
+    # `cost_usd` alimenta la comparacion entre modelos, y todos los demas de este
+    # servicio se contabilizan a tarifa, no a lo que la cuenta acabo pagando. Con
+    # el facturado, un descuento de cuenta haria parecer gratis al router y la
+    # comparacion contra gpt-5-mini no diria nada. Un cero que un panel suma es
+    # justo lo que advierte `_usage_from`.
+    gateway = (body.get("provider_metadata") or {}).get("gateway") or {}
+    tarifa = _as_float(gateway.get("marketCost"))
+    if tarifa is not None:
+        meta["cost_usd"] = tarifa
+    facturado = _as_float(gateway.get("cost"))
+    # Solo cuando difiere: es el descuento, y es un dato de la cuenta, no del modelo.
+    if facturado is not None and facturado != meta.get("cost_usd"):
+        meta["billed_usd"] = facturado
 
     return meta
+
+
+def _as_float(valor: Any) -> float | None:
+    """La pasarela manda los importes como cadena. Un campo raro no cuesta el coste."""
+    if valor is None:
+        return None
+    try:
+        return float(valor)
+    except (TypeError, ValueError):
+        log.warning("typesafe_gateway_amount_unparseable", value=str(valor)[:40])
+        return None

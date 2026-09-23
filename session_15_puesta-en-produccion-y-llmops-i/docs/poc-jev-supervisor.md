@@ -84,9 +84,22 @@ el Gateway usa su convención `proveedor/modelo`. Por eso `is_decision_model`
 compara sobre el nombre ya normalizado: quitado el prefijo, ambos empiezan por
 `jev` y una sola regla cubre las dos puertas.
 
-La pasarela además **devuelve el coste que factura** en
-`provider_metadata.gateway.cost`, y ese número gana sobre nuestra estimación:
-`MODEL_COSTS` es una tabla curada a mano y lo otro es lo que se cobra.
+La pasarela además contabiliza la llamada, y publica **dos** importes. De los
+dos se coge `marketCost`, no `cost`, y la diferencia se midió en vivo:
+
+```
+"cost":       "0"           ← lo FACTURADO: 0, porque la cuenta tiene créditos gratis
+"marketCost": "0.00001302"  ← lo que VALE la llamada
+```
+
+Coger el facturado dejaría `cost_usd` en cero, que es justo el bug que este repo
+tiene documentado dos veces: un cero es un número y un panel lo suma. Peor aún
+para este PoC en concreto — el A/B contra `gpt-5-mini` compararía 0 contra
+0,00026 y no diría nada. Manda la tarifa, y el descuento se anota aparte en
+`billed_usd`, porque es un dato de la cuenta y no del modelo.
+
+De paso: `marketCost` coincidió al céntimo con `MODEL_COSTS` (310 tokens →
+0,00001302), así que la tabla curada a mano está bien.
 
 **El salto de versión de litellm no hace falta.** El manifiesto dice `>=1.50` y
 el lock fija 1.86.1, pero por la vía directa `uv.lock` no se mueve: `httpx>=0.27`
@@ -170,9 +183,11 @@ frase de inferencia; se gana un conteo que no se alucina.
   este servicio sigue sin haberlo: `SupervisorRun` no tiene columna de modelo. Lo que sí
   hay ahora es **qué router decidió cada salto**, en `routing_trail`, que es el
   mínimo para poder comparar dos routers sobre runs guardados.
-- **No se ha llamado a la API real.** Todo está verificado contra la
-  documentación de LiteLLM y su implementación; los tests son *network-free*. La
-  primera llamada real puede desmentir un detalle del parseo.
+- ~~**No se ha llamado a la API real.**~~ **Verificado en vivo el 2026-09-23**
+  contra el AI Gateway de Vercel: el parseo, el mapeo de `usage` y la
+  contabilidad son correctos. Ver «Qué dijo la API real» más abajo. Contra
+  `api.typesafe.ai` directo sigue sin probarse (hace falta salir de su lista de
+  espera), pero el contrato es el mismo.
 - **`0,00` de salida se lee como "gratis".** Es el precio correcto ("no se
   cobra"), pero en una pantalla cuyo trabajo es decir lo que cuesta un knob, esa
   distinción no se ve. La tarifa de entrada sí se arregló: se mostraba `0,04`
@@ -182,6 +197,34 @@ frase de inferencia; se gana un conteo que no se alucina.
   supervisor es el primero en caliente, y `estimator/CLAUDE.md` afirma de los dos
   primeros que ya lo eran — **no lo son**. Sigue siendo falso después de este
   PoC.
+
+## Qué dijo la API real
+
+Dos estados reales del supervisor, contra `typesafe-ai/jev` por el AI Gateway:
+
+| Estado | Eligió | p | Confianza | Tokens |
+|---|---|---|---|---|
+| 13 componentes, 3 sin respaldo, 36 referencias | `human_review_gate` | 0,73 | 0,46 | 588 |
+| 12 componentes, 0 con respaldo, 0 referencias | `human_review_gate` | 0,80 | 0,60 | 593 |
+
+Y el motivo que acaba en la tabla de auditoría:
+
+> `12 componentes, 0 referencias, confianza 0.31, 2 avisos del validador; typesafe-ai/jev enrutó a human_review_gate (p=0.80)`
+
+Tres observaciones de la ejecución real:
+
+1. **Los tres ids funcionan** por la pasarela — `typesafe-ai/jev`, `jev` y
+   `jev-latest` —, todos resueltos a `typesafe-ai/jev` en la metadata de routing.
+2. **La entrada cuesta el doble de lo estimado.** El digest son ~300 tokens, pero
+   con las instrucciones, los criterios y la guarda de inyección la petición sale
+   por ~590. Sigue siendo 0,000023 US$.
+3. **Las probabilidades son menos extremas de lo esperado.** 0,73 y 0,80 donde un
+   caso de manual da 1,00 — el sesgo hacia el gate humano está escrito en las
+   instrucciones y se nota, pero no aplasta la señal. El caso claramente peor
+   (cero precedentes) sí sale más arriba, que es lo que se querría.
+
+Lo que NO se ha podido comprobar en vivo: que elija `budget_searcher`. Ninguno de
+los dos estados lo provocó, y forzarlo pedía un corpus que aquí no hay.
 
 ## Qué diría este PoC sobre llevarlo a producción
 

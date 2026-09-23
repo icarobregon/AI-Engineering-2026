@@ -1,0 +1,85 @@
+Reunión de descubrimiento — Proyecto "CANTERA"
+Cliente: Marta Quiroga (Directora Académica) y Diego Alonso (Responsable de Sistemas), Centro de Formación Profesional Vega del Duero
+Consultor: equipo de estimación
+Fecha: reunión inicial
+
+[00:00:10] Consultor: Contadnos el alcance y lo vamos troceando pieza a pieza.
+
+[00:00:26] Marta: Somos un centro de FP con mil ochocientos alumnos y noventa docentes. Queremos
+una plataforma de formación propia. No os vamos a pedir nada raro: es una plataforma educativa
+estándar, de las que habréis hecho unas cuantas. Lo que nos importa es que esté bien hecha y que
+las cifras sean realistas.
+
+[00:01:15] Consultor: Empecemos por el acceso.
+
+[00:01:22] Diego: Inicio de sesión único contra el directorio de identidad que ya tenemos, por
+SAML. Y encima, control de acceso por roles: alumno, docente, jefe de estudios y secretaría, con
+permisos distintos por rol comprobados en toda la aplicación. Añadid también recuperación de
+contraseña, bloqueo por intentos y segundo factor con aplicación de códigos temporales para el
+personal administrativo.
+
+[00:03:05] Consultor: Anotado. ¿Qué más?
+
+[00:03:11] Marta: La consola de administración. Altas, bajas y modificaciones de alumnos, docentes,
+grupos y asignaturas, con registro de auditoría de quién hizo cada cambio, y acciones en lote
+porque en septiembre matriculamos a cientos a la vez. Y que se puedan importar y exportar listados
+en CSV y Excel, con validación previa antes de confirmar.
+
+[00:05:00] Consultor: Vamos con la parte académica.
+
+[00:05:08] Marta: Motor de exámenes. Banco de preguntas por asignatura, exámenes con tiempo
+limitado y corrección automática de las preguntas cerradas. Y junto a eso el cuaderno de
+calificaciones, con retroalimentación por rúbrica: el docente evalúa por criterios y el alumno ve
+el desglose, no sólo la nota.
+
+[00:07:20] Consultor: ¿Avisos?
+
+[00:07:26] Diego: Sí, dos cosas. Correo y SMS transaccionales con plantillas: convocatoria de
+examen, nota publicada, falta de asistencia. Y un centro de notificaciones dentro de la propia
+aplicación, con leídas y no leídas en tiempo real.
+
+[00:09:10] Consultor: ¿Y con los sistemas que ya tenéis?
+
+[00:09:18] Diego: Hay que integrarse con el sistema de gestión académica de la Consejería. Es una
+API REST de terceros, así que necesitamos un cliente resistente, con reintentos y espera
+progresiva, porque se cae a menudo. Y además un proceso programado de extracción, transformación y
+carga que sincronice cada noche las matrículas entre su sistema y el nuestro.
+
+[00:11:40] Marta: También queremos cuadros de mando. Analítica de uso y rendimiento académico, con
+informes que se puedan configurar y que lleguen por correo cada semana a jefatura de estudios.
+
+[00:13:00] Consultor: ¿Búsqueda?
+
+[00:13:05] Diego: Buscador de contenidos sobre todo el material: apuntes, ejercicios, exámenes
+antiguos. Indexado y consulta con ordenación por relevancia, y sugerencias mientras se escribe.
+
+[00:14:30] Consultor: Hablemos de la parte visual.
+
+[00:14:36] Marta: Una aplicación web de página única: el armazón, la navegación, el sistema de
+diseño y los formularios en varios pasos con validación en cliente y en servidor. Y un panel con
+gráficos y filtros que se pueda exportar. Cumpliendo accesibilidad, que somos centro público, y en
+castellano y gallego.
+
+[00:16:40] Consultor: Infraestructura y calidad.
+
+[00:16:48] Diego: Canalización de construcción, pruebas y despliegue con entornos separados.
+Infraestructura como código para toda la huella en la nube. Y observabilidad: trazas, métricas y
+alertas, que ahora mismo nos enteramos de las caídas porque llaman los alumnos.
+
+[00:18:20] Marta: Y pruebas. Suite automatizada de las rutas críticas y pruebas de extremo a
+extremo del recorrido del alumno: matricularse, entrar a una asignatura, hacer un examen y ver la
+nota. Prueba de carga también, porque el día de publicación de notas entran todos a la vez.
+
+[00:20:05] Consultor: Perfecto. ¿Gestión del proyecto?
+
+[00:20:12] Marta: Lo habitual: talleres de descubrimiento y definición de alcance al principio,
+seguimiento y reporte durante, y al final rondas de pruebas de aceptación con nuestros docentes,
+formación y documentación de entrega.
+
+[00:21:30] Consultor: ¿Condicionantes?
+
+[00:21:36] Diego: Uno: el curso empieza en septiembre y la matrícula tiene que estar funcionando
+antes. Y dos, la tecnología: trabajamos con Django, preferimos seguir ahí.
+
+[00:22:15] Consultor: Claro. Es un alcance muy reconocible, os lo llevamos troceado con las cifras
+apoyadas en proyectos parecidos que ya hemos hecho.

@@ -1,0 +1,40 @@
+Reunión de descubrimiento — Proyecto "TORNAVOZ"
+Cliente: Hna. Inés Carvajal (Priora) y Ramiro Sesé (Maestro organero), Colegiata de Santa Eulalia de Riaza
+Consultor: equipo de estimación
+Fecha: reunión inicial
+
+[00:00:14] Consultor: Cuéntennos el encargo y lo vamos troceando pieza a pieza.
+
+[00:00:31] Hna. Inés: Tenemos un órgano ibérico de 1748, de la escuela castellana, con dos teclados manuales y contras de pedal. Lleva callado desde el sesenta y cuatro. Queremos restaurarlo para que vuelva a sonar, y querríamos una cifra realista antes de pedir la subvención a Patrimonio.
+
+[00:01:40] Consultor: Empecemos por el estado del instrumento.
+
+[00:01:48] Ramiro: Lo primero es el desmontaje completo y la catalogación. Hay unos mil doscientos tubos entre la fachada y el secreto interior: estaño y plomo los labiales, latón las lengüetas de la trompetería de batalla. Cada tubo hay que bajarlo, numerarlo, fotografiarlo y medirlo antes de tocar nada, porque el orden de colocación es parte del documento histórico.
+
+[00:03:55] Consultor: ¿Y el estado de esos tubos?
+
+[00:03:02] Ramiro: Malo. Hay corrosión de plomo en la zona baja, lo que llamamos lepra del estaño, y unos ochenta tubos están abollados o con la boca deformada. Eso es trabajo de banco: abrir, redondear con mandril, soldar con soldadura de estaño a la temperatura correcta y volver a cerrar. Y hay que reponer catorce tubos que faltan, fundiendo la aleación en mesa de fundición con la misma proporción que los originales.
+
+[00:05:30] Hna. Inés: La caja también está mal.
+
+[00:05:36] Ramiro: La caja es nogal con policromía original y pan de oro en la crestería. Hay ataque de carcoma activo en el basamento, así que toca anoxia: meter la pieza en burbuja de nitrógeno tres semanas para matar el insecto sin tratamiento químico, y después consolidar la madera degradada con resina acrílica inyectada. La policromía la tiene que ver un restaurador de bienes muebles: hay repintes del siglo diecinueve que probablemente haya que retirar, y faltas de dorado que se reintegran a base de bol y oro fino bruñido al ágata.
+
+[00:08:20] Consultor: ¿La parte que insufla el aire?
+
+[00:08:27] Ramiro: Fuelles. Son dos de cuña, de tabla de pino y piel de cordero, y la piel está criando hongo y ha perdido la flexibilidad. Hay que desencolar, retirar la piel vieja, cortar patrones nuevos en badana curtida al alumbre y encolar con cola de conejo caliente, que es lo que se usaba y lo que permite que otro lo vuelva a abrir dentro de cien años. Y los portavientos, que son conductos de madera, están descuadrados y pierden por las juntas.
+
+[00:10:45] Consultor: ¿El mecanismo?
+
+[00:10:52] Ramiro: Tracción mecánica pura, de varillas y escuadras. Hay que rectificar la alineación de toda la reducción, reponer las badanas de los tirantes, y en el secreto revisar las válvulas una por una: son ciento y pico ventillas con su muelle, y si una asienta mal el registro suena permanentemente. El secreto además está agrietado por la solera, y eso se corrige con injertos de madera a contraveta y presión de sargentos durante días.
+
+[00:13:30] Hna. Inés: Y lo que más nos preocupa.
+
+[00:13:36] Ramiro: La armonización y la afinación. Cuando todo esté montado hay que devolverle la voz. Eso es oído, no cálculo: tubo por tubo, ajustando la boca, el bisel y las orejas hasta que la escala case y el conjunto empaste. Y al final afinar en el temperamento que le corresponde, que no es el igual moderno sino un mesotónico modificado, y hay que decidir cuál con un musicólogo delante. Son semanas de trabajo de una sola persona, y sólo se puede hacer con la iglesia en silencio y a temperatura estable.
+
+[00:16:10] Consultor: ¿Condicionantes?
+
+[00:16:18] Hna. Inés: Dos. El coro está a nueve metros de altura y no hay ascensor, así que todo baja y sube por una escalera de caracol o por polea desde la nave. Y la colegiata no puede cerrarse: hay culto diario a las ocho y los sábados hay bodas.
+
+[00:17:40] Ramiro: Y añadan una cosa: cuando se abra el secreto pueden aparecer cosas que ahora no vemos. En un órgano de esta edad siempre aparecen.
+
+[00:18:15] Consultor: Anotado. Les llevamos el desglose y lo que no sepamos estimar se lo diremos.

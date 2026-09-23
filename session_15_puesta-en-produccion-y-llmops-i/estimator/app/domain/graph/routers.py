@@ -19,6 +19,7 @@ from typing import Any, Callable
 import structlog
 
 from app.domain.graph.llm import structured_call
+from app.foundation.llm.typesafe import is_decision_model
 from app.domain.graph.supervisor import SupervisorDecision, compose_supervisor_prompt
 
 log = structlog.get_logger()
@@ -93,7 +94,7 @@ def build_ask_router(
                 return agent, f"{model} no respondió; decidió {text_model_default}: {reason}", meta
             return choice, _decision_reason(facts, model, choice, meta), meta
 
-        if decision_client is None and model != text_model_default and _looks_like_decision(model):
+        if decision_client is None and model != text_model_default and is_decision_model(model):
             # A stale override outlives the key that made it legal: the store
             # resolves `get(key) or default(key)` with nothing revalidating it,
             # and the endpoint only validates at write time. Without this the
@@ -105,11 +106,6 @@ def build_ask_router(
         return await _ask_text(model, state_text, instructions, criteria, bias)
 
     return ask_router
-
-
-def _looks_like_decision(model: str) -> bool:
-    """Shape test for the no-client case, where there is no client to ask."""
-    return model.startswith("jev-")
 
 
 def _decision_reason(facts: str, model: str, choice: str, meta: dict) -> str:

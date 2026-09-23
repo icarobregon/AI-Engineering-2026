@@ -69,6 +69,25 @@ que conviene no volver a discutir desde cero:
 | Cliente interno del SDK (`litellm.router_strategy.complexity_router.jev_classifier`) | Existe y está tipado, pero es una **ruta de módulo interna**, en movimiento (backports abiertos, fix de precios sin mergear). Obligaría a saltar litellm 1.86.1 → ≥1.102.1 por debajo de Instructor, moviendo `openai`/`httpx`/`tokenizers` bajo **todas** las demás llamadas. Y sigue siendo un POST directo. |
 | OpenRouter (`POST /api/alpha/decisions`) | Id distinto (`typesafe/jev-1.13`, sin el `.0`) y endpoint marcado **alpha**. |
 
+### Pasarelas que SÍ sirven este mismo contrato
+
+No son alternativas descartadas: son la misma vía directa con otra puerta, y
+funcionan **sin tocar código** porque el cliente compone `f"{api_base}/v1/systemone"`.
+
+| Puerta | `TYPESAFE_API_BASE` | Clave | Id del modelo |
+|---|---|---|---|
+| TypeSafe directo | `https://api.typesafe.ai` | de TypeSafe ([console.typesafe.ai/keys](https://console.typesafe.ai/keys), lista de espera) | `jev-latest` |
+| AI Gateway de Vercel | `https://ai-gateway.vercel.sh/typesafe` | del Gateway (o token OIDC de Vercel) | `typesafe-ai/jev` |
+
+**Lo único que cambia además de las dos variables es el id del modelo**, porque
+el Gateway usa su convención `proveedor/modelo`. Por eso `is_decision_model`
+compara sobre el nombre ya normalizado: quitado el prefijo, ambos empiezan por
+`jev` y una sola regla cubre las dos puertas.
+
+La pasarela además **devuelve el coste que factura** en
+`provider_metadata.gateway.cost`, y ese número gana sobre nuestra estimación:
+`MODEL_COSTS` es una tabla curada a mano y lo otro es lo que se cobra.
+
 **El salto de versión de litellm no hace falta.** El manifiesto dice `>=1.50` y
 el lock fija 1.86.1, pero por la vía directa `uv.lock` no se mueve: `httpx>=0.27`
 ya era dependencia de producción.
@@ -146,8 +165,9 @@ frase de inferencia; se gana un conteo que no se alucina.
 - **No hay circuit breaker.** LiteLLM envuelve esta misma llamada con
   `timeout_ms=3000` y un corte de 30 s; aquí sólo hay `GRAPH_SUPERVISOR_TIMEOUT`
   (30 s, diez veces más). Una caída degrada bien, pero reintenta en cada run.
-- **El coste vive sólo en las trazas.** No hay libro de gasto consultable, ni
-  aquí ni con una pasarela: `SupervisorRun` no tiene columna de modelo. Lo que sí
+- **El coste vive sólo en las trazas.** Con el AI Gateway de Vercel delante sí
+  hay libro de gasto —el suyo, en su panel de observabilidad—, pero dentro de
+  este servicio sigue sin haberlo: `SupervisorRun` no tiene columna de modelo. Lo que sí
   hay ahora es **qué router decidió cada salto**, en `routing_trail`, que es el
   mínimo para poder comparar dos routers sobre runs guardados.
 - **No se ha llamado a la API real.** Todo está verificado contra la

@@ -19,9 +19,11 @@ keys — which is the sentence docker-compose.yml opens with. LiteLLM's own
 in-process client is this same POST. See the PoC README for the alternatives
 that were weighed and dropped.
 
-**The base URL is a parameter, never a constant.** An S16 gateway is then
-``TYPESAFE_API_BASE=http://litellm-proxy:4000/typesafe`` and a different bearer,
-with nothing here to rewrite.
+**The base URL is a parameter, never a constant**, and that already pays off:
+Vercel's AI Gateway serves this exact contract at
+``TYPESAFE_API_BASE=https://ai-gateway.vercel.sh/typesafe`` with a gateway key as
+the bearer, no code change. Note the model id travels with the door — TypeSafe
+direct answers to ``jev-latest``, the gateway to ``typesafe-ai/jev``.
 """
 
 from __future__ import annotations
@@ -31,14 +33,21 @@ from typing import Any
 import httpx
 import structlog
 
-from app.foundation.llm.wrapper import _estimate_cost
+from app.foundation.llm.wrapper import _estimate_cost, _normalise_model_name
 
 log = structlog.get_logger()
 
 # The models this client serves. Matched by shape rather than membership for the
 # same reason ``_provider_from_model`` matches the o-series by shape: a written
 # list goes stale the day a version ships, and it does it silently.
-_DECISION_PREFIX = "jev-"
+#
+# Sobre el nombre YA NORMALIZADO, y esa es la parte que importa: el id depende
+# de por dónde se entre. TypeSafe directo los llama `jev-latest` / `jev-1.13.0`;
+# el AI Gateway de Vercel usa su convención `proveedor/modelo` y lo llama
+# `typesafe-ai/jev`. Quitar el prefijo primero deja ambos en `jev…`, así que una
+# sola regla cubre las dos puertas — y hay que comparar contra "jev" a secas,
+# porque el id del gateway no trae guion detrás.
+_DECISION_PREFIX = "jev"
 
 # Copied from LiteLLM's own DEFAULT_JEV_INSTRUCTIONS, with only the noun changed
 # ("a tier" → "a route"): their wording is for a complexity router, ours routes a
@@ -53,7 +62,7 @@ INJECTION_GUARD = (
 
 def is_decision_model(model: str) -> bool:
     """Whether ``model`` is answered by this client instead of the chat wrapper."""
-    return model.startswith(_DECISION_PREFIX)
+    return _normalise_model_name(model).lower().startswith(_DECISION_PREFIX)
 
 
 class TypeSafeUnavailable(Exception):
@@ -152,5 +161,15 @@ def _meta_from(body: dict, asked_model: str, answer: dict) -> dict[str, Any]:
             "total_tokens": tokens_in + tokens_out,
         }
         meta["cost_usd"] = _estimate_cost(asked_model, tokens_in, tokens_out)
+
+    # Si delante hay una pasarela que YA ha contabilizado la llamada, ese numero
+    # manda: es lo que se factura, no lo que nosotros calculamos con una tabla
+    # curada a mano. El AI Gateway de Vercel lo devuelve aqui.
+    cobrado = ((body.get("provider_metadata") or {}).get("gateway") or {}).get("cost")
+    if cobrado is not None:
+        try:
+            meta["cost_usd"] = float(cobrado)
+        except (TypeError, ValueError):
+            log.warning("typesafe_gateway_cost_unparseable", cost=str(cobrado)[:40])
 
     return meta

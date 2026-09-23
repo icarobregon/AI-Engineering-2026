@@ -104,6 +104,9 @@ class Settings(BaseSettings):
         "jev-latest",
         "jev-1.13.0",
         "jev-preview",
+        # El mismo Jev por el AI Gateway de Vercel: ahi el id lleva el prefijo
+        # del proveedor. Cual sirve depende de a donde apunte TYPESAFE_API_BASE.
+        "typesafe-ai/jev",
     ]
 
     # Que knobs admiten un modelo de decision, y por tanto cuales NO.

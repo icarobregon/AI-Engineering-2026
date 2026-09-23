@@ -130,3 +130,54 @@ def _patch_post(monkeypatch, body: dict) -> dict:
 
     monkeypatch.setattr("httpx.AsyncClient.post", _post)
     return sent
+
+
+# --- La misma Jev por el AI Gateway de Vercel --------------------------------
+# Mismo contrato de petición y respuesta; cambia la puerta, el bearer y el id.
+
+
+def test_the_gateway_model_id_is_recognised_too() -> None:
+    # Directo contra TypeSafe el id es `jev-latest`; por el AI Gateway de Vercel
+    # es `typesafe-ai/jev`, con el prefijo del proveedor. Se comparan ya
+    # normalizados, así que una sola regla cubre las dos puertas.
+    assert is_decision_model("typesafe-ai/jev")
+    assert is_decision_model("jev-latest")
+    # Y el prefijo no abre la puerta a cualquier cosa con barra.
+    assert not is_decision_model("anthropic/claude-sonnet-5")
+    assert not is_decision_model("openai/gpt-5.6-sol")
+
+
+async def test_the_gateway_base_url_lands_on_the_same_path(monkeypatch) -> None:
+    client = TypeSafeClient(
+        api_key="vck_test", api_base="https://ai-gateway.vercel.sh/typesafe", timeout=5
+    )
+    sent = _patch_post(monkeypatch, _body(model="typesafe-ai/jev"))
+
+    await client.choose(state="s", model="typesafe-ai/jev", instructions="i", criteria=CRITERIA)
+
+    # Es la URL que documenta Vercel: base + /v1/systemone. El cliente la compone,
+    # nunca la lleva escrita, y por eso cambiar de puerta son dos variables.
+    assert sent["url"] == "https://ai-gateway.vercel.sh/typesafe/v1/systemone"
+    assert sent["headers"]["Authorization"] == "Bearer vck_test"
+
+
+def test_the_gateway_billed_cost_wins_over_our_estimate() -> None:
+    # Cuando delante hay una pasarela que ya ha contabilizado la llamada, ese
+    # número es el que se factura. Nuestra tabla es una estimación curada a mano.
+    body = _body()
+    body["provider_metadata"] = {"gateway": {"cost": "0.00001155", "generationId": "gen_x"}}
+
+    meta = _meta_from(body, "typesafe-ai/jev", body["answers"]["next_agent"])
+
+    assert meta["cost_usd"] == 0.00001155
+
+
+def test_an_unparseable_gateway_cost_falls_back_to_our_table() -> None:
+    body = _body()
+    body["provider_metadata"] = {"gateway": {"cost": "gratis"}}
+
+    meta = _meta_from(body, "typesafe-ai/jev", body["answers"]["next_agent"])
+
+    # Se queda la estimación propia antes que perder el coste: lo que no puede
+    # pasar es que un campo raro de la pasarela deje la llamada sin precio.
+    assert meta["cost_usd"] == pytest.approx(1.3e-05, rel=1e-9)

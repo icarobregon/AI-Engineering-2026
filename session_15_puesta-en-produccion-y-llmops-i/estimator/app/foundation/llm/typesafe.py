@@ -116,10 +116,20 @@ class TypeSafeClient:
                     headers={"Authorization": f"Bearer {self._api_key}"},
                     json=payload,
                 )
-                response.raise_for_status()
-                body = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise TypeSafeUnavailable(str(exc)[:200]) from exc
+        except httpx.HTTPError as exc:
+            raise TypeSafeUnavailable(f"{type(exc).__name__}: {str(exc)[:200]}") from exc
+
+        if response.is_error:
+            # El CUERPO, no solo el codigo. Un 403 a secas no dice nada; el
+            # cuerpo del primer 403 real que devolvio esta llamada decia
+            # "requires a valid credit card on file", que es la diferencia entre
+            # diagnosticarlo en un minuto y sospechar del id del modelo.
+            raise TypeSafeUnavailable(f"HTTP {response.status_code}: {_detail(response)}")
+
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise TypeSafeUnavailable(f"respuesta ilegible: {response.text[:200]}") from exc
 
         answer = (body.get("answers") or {}).get("next_agent") or {}
         choice = answer.get("choice")
@@ -131,6 +141,28 @@ class TypeSafeClient:
             raise TypeSafeUnavailable(f"choice outside the criteria: {choice!r}")
 
         return choice, _meta_from(body, model, answer)
+
+
+def _detail(response: httpx.Response) -> str:
+    """El mensaje que trae el error, sea cual sea la forma en que venga.
+
+    Hay tres en juego: TypeSafe documenta ``{"message", "error_type"}``, el AI
+    Gateway de Vercel contesta ``{"error": {"message", "type"}}``, y cualquier
+    intermediario puede devolver HTML. Acotado, porque va derecho a un log.
+    """
+    try:
+        body = response.json()
+    except ValueError:
+        return response.text[:200]
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict):
+            return str(error.get("message") or error)[:200]
+        if error is not None:
+            return str(error)[:200]
+        if body.get("message"):
+            return str(body["message"])[:200]
+    return str(body)[:200]
 
 
 def _meta_from(body: dict, asked_model: str, answer: dict) -> dict[str, Any]:

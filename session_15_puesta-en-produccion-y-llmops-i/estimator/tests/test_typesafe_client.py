@@ -118,8 +118,8 @@ def _patch_post(monkeypatch, body: dict) -> dict:
     sent: dict = {}
 
     class _Response:
-        def raise_for_status(self):
-            return None
+        status_code = 200
+        is_error = False
 
         def json(self):
             return body
@@ -181,3 +181,74 @@ def test_an_unparseable_gateway_cost_falls_back_to_our_table() -> None:
     # Se queda la estimación propia antes que perder el coste: lo que no puede
     # pasar es que un campo raro de la pasarela deje la llamada sin precio.
     assert meta["cost_usd"] == pytest.approx(1.3e-05, rel=1e-9)
+
+
+# --- Un fallo tiene que decir POR QUE ----------------------------------------
+
+
+def _patch_error(monkeypatch, status: int, body, text: str = ""):
+    class _Response:
+        status_code = status
+        is_error = True
+
+        def json(self):
+            if body is None:
+                raise ValueError("no json")
+            return body
+
+        @property
+        def text(self):
+            return text
+
+    async def _post(self, url, *, headers=None, json=None):
+        return _Response()
+
+    monkeypatch.setattr("httpx.AsyncClient.post", _post)
+
+
+async def test_an_http_error_carries_the_bodys_message(monkeypatch) -> None:
+    # El primer 403 real de este cliente decia solo "403 Forbidden", y el cuerpo
+    # decia "requires a valid credit card on file". Esa es la diferencia entre
+    # diagnosticarlo en un minuto y sospechar del id del modelo durante media
+    # hora, asi que el mensaje viaja en la excepcion.
+    client = TypeSafeClient(
+        api_key="k", api_base="https://ai-gateway.vercel.sh/typesafe", timeout=5
+    )
+    _patch_error(
+        monkeypatch,
+        403,
+        {
+            "error": {
+                "message": "AI Gateway requires a valid credit card on file to service requests.",
+                "type": "customer_verification_required",
+            }
+        },
+    )
+
+    with pytest.raises(TypeSafeUnavailable, match="credit card"):
+        await client.choose(state="s", model="typesafe-ai/jev", instructions="i", criteria=CRITERIA)
+
+
+async def test_typesafes_own_error_shape_is_read_too(monkeypatch) -> None:
+    # TypeSafe directo anida distinto que la pasarela de Vercel.
+    client = TypeSafeClient(api_key="k", api_base="https://api.typesafe.ai", timeout=5)
+    _patch_error(
+        monkeypatch,
+        400,
+        {
+            "message": "questions.q.type: expected one of 'noul', 'choice', 'score'",
+            "error_type": "invalid_request",
+        },
+    )
+
+    with pytest.raises(TypeSafeUnavailable, match="expected one of"):
+        await client.choose(state="s", model="jev-latest", instructions="i", criteria=CRITERIA)
+
+
+async def test_a_non_json_error_falls_back_to_the_raw_text(monkeypatch) -> None:
+    # Un intermediario puede contestar HTML; el fallo sigue teniendo que decir algo.
+    client = TypeSafeClient(api_key="k", api_base="https://api.typesafe.ai", timeout=5)
+    _patch_error(monkeypatch, 502, None, text="<html>Bad Gateway</html>")
+
+    with pytest.raises(TypeSafeUnavailable, match="Bad Gateway"):
+        await client.choose(state="s", model="jev-latest", instructions="i", criteria=CRITERIA)

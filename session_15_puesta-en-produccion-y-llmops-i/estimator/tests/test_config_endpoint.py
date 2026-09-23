@@ -13,7 +13,11 @@ from app.main import app
 
 
 def make_settings(**overrides) -> Settings:
-    defaults = {"OPENAI_API_KEY": "sk-test", "ANTHROPIC_API_KEY": "sk-ant-test"}
+    defaults = {
+        "OPENAI_API_KEY": "sk-test",
+        "ANTHROPIC_API_KEY": "sk-ant-test",
+        "TYPESAFE_API_KEY": "ts-test",
+    }
     return Settings(_env_file=None, **{**defaults, **overrides})
 
 
@@ -50,6 +54,7 @@ def test_get_returns_full_snapshot(client) -> None:
         "COMPRESSION_MODEL",
         "PROPOSITIONAL_CHUNKER_MODEL",
         "CONTEXTUAL_CHUNKER_MODEL",
+        "GRAPH_SUPERVISOR_MODEL",
     }
     assert "gpt-4o" in body["available_models"]
     assert "claude-sonnet-4-5" in body["available_models"]
@@ -127,3 +132,47 @@ def test_put_is_all_or_nothing(client, fake_store) -> None:
 
     assert response.status_code == 422
     assert fake_store.is_overridden("PRIMARY_MODEL") is False
+
+
+# --- S15 PoC: un modelo de decisión sólo vale para el knob del supervisor -----
+
+
+def test_a_decision_model_is_rejected_for_a_knob_that_needs_text(client) -> None:
+    response = client.put("/api/v1/config/models", json={"models": {"PRIMARY_MODEL": "jev-latest"}})
+
+    # 422 y no 400: lo ilegal es el emparejamiento, no que falte una clave. Con
+    # la clave de TypeSafe puesta —que en estos tests lo está— seguiría siéndolo,
+    # y un 400 mandaría al operador a configurar algo que ya tiene.
+    assert response.status_code == 422
+    assert "GRAPH_SUPERVISOR_MODEL" in response.json()["detail"]
+
+
+def test_the_supervisor_knob_is_the_one_that_takes_it(client, fake_store) -> None:
+    response = client.put(
+        "/api/v1/config/models", json={"models": {"GRAPH_SUPERVISOR_MODEL": "jev-latest"}}
+    )
+
+    assert response.status_code == 200
+    assert fake_store.effective("GRAPH_SUPERVISOR_MODEL") == "jev-latest"
+
+
+def test_the_restriction_travels_to_the_client_as_data(client) -> None:
+    # La pantalla filtra con esto en vez de reimplementar la regla, que es lo
+    # que la mantiene sincronizada con el 422 de arriba.
+    body = client.get("/api/v1/config/models").json()
+
+    assert body["decision_only_knobs"] == ["GRAPH_SUPERVISOR_MODEL"]
+    assert "jev-latest" in body["decision_models"]
+
+
+def test_decision_models_leave_the_catalog_without_a_typesafe_key() -> None:
+    settings = make_settings(TYPESAFE_API_KEY=None)
+    store = RuntimeModelConfig(fakeredis.FakeRedis(decode_responses=True), settings)
+    app.dependency_overrides[get_runtime_config] = lambda: store
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    body = TestClient(app).get("/api/v1/config/models").json()
+    app.dependency_overrides.clear()
+
+    assert "jev-latest" not in body["available_models"]
+    assert body["decision_models"] == []

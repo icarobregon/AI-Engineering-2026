@@ -14,6 +14,15 @@ class Settings(BaseSettings):
     # --- Session 2 fields ---------------------------------------------------
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
+    # TypeSafe (PoC S15). Opcional y fuera de validate_at_least_one_api_key a
+    # proposito: un despliegue que solo tuviera esta clave NO debe arrancar,
+    # porque un modelo de decision no sabe redactar una estimacion.
+    TYPESAFE_API_KEY: str | None = None
+    # Parametro y no constante: con esto, poner un gateway delante en la S16 es
+    # cambiar esta variable, sin tocar codigo. Lleva default porque nombra al
+    # proveedor, que no se mueve; un `http://litellm-proxy:4000` si nombraria
+    # infraestructura nuestra y entonces tendria que ser obligatoria.
+    TYPESAFE_API_BASE: str = "https://api.typesafe.ai"
     APP_ENV: Literal["development", "staging", "production"] = "development"
     # El volumen de los logs. Es un Literal porque llega hasta
     # `make_filtering_bound_logger` como nivel de stdlib: un valor fuera de esta
@@ -89,14 +98,30 @@ class Settings(BaseSettings):
         "claude-opus-5",
         "claude-fable-5",
         "claude-fable-5-1",
+        # TypeSafe · modelos de DECISION (PoC S15). No generan texto: devuelven
+        # una eleccion con su probabilidad, por su propio endpoint. Solo son
+        # legales en GRAPH_SUPERVISOR_MODEL — ver DECISION_ONLY_KNOBS abajo.
+        "jev-latest",
+        "jev-1.13.0",
+        "jev-preview",
     ]
+
+    # Que knobs admiten un modelo de decision, y por tanto cuales NO.
+    #
+    # AVAILABLE_MODELS es una lista global y hasta ahora bastaba: todo lo que
+    # habia dentro sabia hablar. Un modelo que solo devuelve una eleccion no
+    # sirve para redactar una estimacion ni para resumir una conversacion, asi
+    # que elegirlo en cualquier otro knob es un fallo en caliente. Vive aqui,
+    # como DATO junto al catalogo, y no como un `if` en api/: esa capa lee dato
+    # de foundation, nunca conducta (ARCHITECTURE.md §3).
+    DECISION_ONLY_KNOBS: list[str] = ["GRAPH_SUPERVISOR_MODEL"]
 
     # Procedencia del catalogo de arriba. Se cura A MANO, asi que dice cuando se
     # genero y de que catalogos: nada lo mantiene fresco solo. Si aparece un
     # proveedor nuevo o el proveedor publica modelos nuevos, esta lista no se
     # entera — hay que pedir explicitamente que se regenere.
-    MODEL_CATALOG_GENERATED_AT: str = "2026-09-20T01:14:55+02:00"
-    MODEL_CATALOG_SOURCES: list[str] = ["OpenAI", "Anthropic"]
+    MODEL_CATALOG_GENERATED_AT: str = "2026-09-23T16:00:00+02:00"
+    MODEL_CATALOG_SOURCES: list[str] = ["OpenAI", "Anthropic", "TypeSafe"]
 
     # SIN valor por defecto, y es deliberado. Un default que nombra una máquina y
     # un puerto es el que produce «en mi máquina funciona»: hasta la S15 decía

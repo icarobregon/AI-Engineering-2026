@@ -119,6 +119,13 @@ MODEL_COSTS: dict[str, dict[str, float]] = {
     # --- Anthropic · Fable ---
     "claude-fable-5": {"input": 10.00, "output": 50.00},
     "claude-fable-5-1": {"input": 10.00, "output": 50.00},
+    # --- TypeSafe · modelos de decision (S15 PoC) ---
+    # 0.0 de salida es el precio REAL, no una fila sin rellenar: Jev no cobra
+    # salida. Es la unica entrada de esta tabla donde un cero no es el sintoma
+    # que describe `_usage_from`, y por eso se dice aqui.
+    "jev-latest": {"input": 0.042, "output": 0.00},
+    "jev-1.13.0": {"input": 0.042, "output": 0.00},
+    "jev-preview": {"input": 0.042, "output": 0.00},
 }
 
 
@@ -177,6 +184,8 @@ def _provider_from_model(model: str) -> str:
         return "anthropic"
     if name.startswith("gpt") or _O_SERIES.match(name):
         return "openai"
+    if name.startswith("jev-"):
+        return "typesafe"
     return "unknown"
 
 

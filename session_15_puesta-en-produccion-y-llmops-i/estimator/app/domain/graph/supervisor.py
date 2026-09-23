@@ -35,7 +35,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from app.domain.graph.digest import agents_that_acted, build_state_digest
-from app.domain.graph.llm import stamp_llm, structured_call
+from app.domain.graph.llm import stamp_llm
 from app.domain.graph.state import EstimationState
 from app.domain.security.grants import grants
 
@@ -71,33 +71,87 @@ class SupervisorDecision(BaseModel):
     reason: str = Field(description="Why this specialist, in one sentence.")
 
 
+# The question, split into the three parts every router needs separately: the
+# framing, the options with their descriptions, and the bias between them.
+#
+# It reads as one prose block to a chat model and it used to BE one. The split
+# is what lets a decision model take the same question without a second copy of
+# it: TypeSafe's evaluate endpoint wants `instructions` and `criteria` as
+# distinct fields, and a paraphrase living next to the original is a prompt that
+# drifts. ``compose_supervisor_prompt`` puts it back together for the text path,
+# so both routers are asked the same thing by construction.
 SUPERVISOR_INSTRUCTIONS = """\
 You coordinate a software estimation pipeline. Every mechanical step has already \
 run: requirements are extracted, budgets have been searched, an estimate exists \
 and it has been validated. One judgement is left.
 
-The validator reported concerns about the evidence behind the estimate. Choose:
+The validator reported concerns about the evidence behind the estimate. Choose:\
+"""
 
-- "budget_searcher" — the gaps look like a RETRIEVAL failure. The components that \
-came back unbacked are ordinary work that a historical corpus would be expected \
-to contain, so searching again with different wording is likely to find them.
-- "human_review_gate" — the gaps look REAL. The unbacked work has no precedent in \
-this company's history, or the concerns are about coherence rather than coverage, \
-and no amount of re-searching will change that. A person should look at it.
+ROUTING_CRITERIA: dict[str, str] = {
+    "budget_searcher": (
+        "the gaps look like a RETRIEVAL failure. The components that came back "
+        "unbacked are ordinary work that a historical corpus would be expected to "
+        "contain, so searching again with different wording is likely to find them."
+    ),
+    "human_review_gate": (
+        "the gaps look REAL. The unbacked work has no precedent in this company's "
+        "history, or the concerns are about coherence rather than coverage, and no "
+        "amount of re-searching will change that. A person should look at it."
+    ),
+}
 
+# Not a criterion: it is the prior BETWEEN them, and it belongs to neither
+# option's description. A text model reads it as the last paragraph; a decision
+# model gets it in `instructions`, which is the only field TypeSafe offers that
+# is not attached to one choice.
+SUPERVISOR_BIAS = """\
 Searching again costs a full retrieval pass and delays the estimate. Prefer the \
 human gate unless you have a specific reason to believe the corpus contains what \
 was missed.
 """
 
 
+def compose_supervisor_prompt(instructions: str, criteria: dict[str, str], bias: str) -> str:
+    """The three parts as the single prose block the text router is given."""
+    options = "\n".join(f'- "{name}" — {text}' for name, text in criteria.items())
+    return f"{instructions}\n\n{options}\n\n{bias}"
+
+
+def routing_facts(state: EstimationState, validation: dict) -> str:
+    """The counts behind the decision, as a sentence, straight from the state.
+
+    A text router writes its own reason and names these numbers inside it. A
+    decision model returns a choice and a probability and no prose at all, so
+    without this its trail entry would read "JEV chose human_review_gate (0.85)"
+    — a hop whose only consumer is the person reading the audit table.
+
+    Built in code rather than asked for, which makes it the one part of the
+    reason that cannot be wrong: a model can misreport how many components came
+    back unbacked, ``len()`` cannot.
+    """
+    return (
+        f"{len(state.get('components') or [])} componentes, "
+        f"{len(state.get('budget_matches') or [])} referencias, "
+        f"confianza {state.get('confidence')}, "
+        f"{len(validation.get('concerns') or [])} avisos del validador"
+    )
+
+
 def build_supervisor(
     *,
-    llm: Any,
-    model: str,
+    ask_router: Any,
     max_routing_steps: int,
 ) -> Callable[[EstimationState], Awaitable[Command]]:
-    """Bind the router's collaborators and return the supervisor node."""
+    """Bind the router's collaborators and return the supervisor node.
+
+    ``ask_router`` is the seam, and it is a callable rather than a model client
+    on purpose — the same shape ``search_tool`` and ``validate_tool`` already
+    arrive in. This node must not learn that a vendor called TypeSafe exists,
+    nor which model string is in force: both are resolved in the composition
+    root, which is the only place allowed to know (ARCHITECTURE.md §3). What
+    comes back is ``(next_agent, reason, meta)``.
+    """
 
     def _bump(state: EstimationState, decision: dict) -> dict:
         return {
@@ -105,8 +159,18 @@ def build_supervisor(
             "routing_trail": [decision],
         }
 
-    def _route(state: EstimationState, span, agent: str, reason: str) -> Command:
+    def _route(
+        state: EstimationState, span, agent: str, reason: str, router: str | None = None
+    ) -> Command:
         decision = {"next_agent": agent, "reason": reason}
+        # Only on the hops a model decided. A rule hop carries no router, and
+        # writing None there would put a column in the trail that is empty on
+        # four rows out of five — the same reason stamp_llm skips absent values.
+        # It is also the only record of WHICH model routed: without it "does the
+        # decision model route better than the text one" is not a question the
+        # stored runs can answer.
+        if router is not None:
+            decision["router"] = router
         update = _bump(state, decision)
         if agent == "budget_searcher" and state.get("estimate") is not None:
             # Sending the searcher back out invalidates everything priced from
@@ -183,28 +247,26 @@ def build_supervisor(
                 )
 
             # --- Genuine ambiguity: here the model earns its keep.
-            parsed, meta = await structured_call(
-                llm,
-                system_prompt=SUPERVISOR_INSTRUCTIONS,
-                user_message=(
+            next_agent, reason, meta = await ask_router(
+                state_text=(
                     f"{build_state_digest(state)}\n\n"
                     f"concerns:\n" + "\n".join(f"- {c}" for c in validation.get("concerns") or [])
                 ),
-                model=model,
-                response_model=SupervisorDecision,
+                instructions=SUPERVISOR_INSTRUCTIONS,
+                criteria=ROUTING_CRITERIA,
+                bias=SUPERVISOR_BIAS,
+                facts=routing_facts(state, validation),
             )
             stamp_llm(span, meta)
 
-            if parsed.next_agent not in AGENT_NAMES:
+            if next_agent not in AGENT_NAMES:
                 # Not reachable through the Literal, but the Literal is enforced
                 # by the parser and a parser can be swapped. A bad goto does not
                 # raise in LangGraph; it ends the run with a state that looks
                 # finished. Failing into the gate is the safe direction.
-                log.error("supervisor_unknown_agent", next_agent=parsed.next_agent)
-                return _route(
-                    state, span, "human_review_gate", f"unknown route {parsed.next_agent!r}"
-                )
+                log.error("supervisor_unknown_agent", next_agent=next_agent)
+                return _route(state, span, "human_review_gate", f"unknown route {next_agent!r}")
 
-            return _route(state, span, parsed.next_agent, parsed.reason)
+            return _route(state, span, next_agent, reason, router=meta.get("model"))
 
     return supervisor

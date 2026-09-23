@@ -30,6 +30,7 @@ from app.ingestion.parsers.registry import ParserRegistry, default_registry
 from app.generation.cag.exact import EstimationCache
 from app.domain.estimation_service import EstimationService
 from app.foundation.llm.runtime_config import RuntimeModelConfig, RuntimeRetrievalConfig
+from app.foundation.llm.typesafe import TypeSafeClient
 from app.foundation.llm.wrapper import LLMWrapper
 from app.foundation.persistence.database import get_async_session_factory
 from app.generation.rag.ingest_service import RagIngestService
@@ -413,6 +414,26 @@ def get_async_openai_client() -> AsyncOpenAI | None:
     return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 
+@lru_cache
+def get_typesafe_client() -> TypeSafeClient | None:
+    """Client for TypeSafe's Jev, the S15 PoC decision model.
+
+    ``None`` when no key is configured, which is the normal case: this is the
+    only model in the catalogue that is optional, and the supervisor falls back
+    to the text router without it. Same shape as the agent loop's async client
+    above, and for the same reason — a path with no fallback provider is built
+    as absent rather than half-configured.
+    """
+    settings = get_settings()
+    if not settings.TYPESAFE_API_KEY:
+        return None
+    return TypeSafeClient(
+        api_key=settings.TYPESAFE_API_KEY,
+        api_base=settings.TYPESAFE_API_BASE,
+        timeout=settings.GRAPH_SUPERVISOR_TIMEOUT,
+    )
+
+
 def get_budget_search_backend():
     """Wire the agent's ``search_budgets`` tool to the real retrieval pipeline.
 
@@ -572,6 +593,7 @@ def get_graph_nodes(search_backend=None):
     """
     from app.domain.graph.agents import build_agents, build_finalize
     from app.domain.graph.hitl import build_human_review_gate
+    from app.domain.graph.routers import build_ask_router
     from app.domain.graph.supervisor import build_supervisor
     from app.generation.agentic.agent_tools import (
         calculate_estimate,
@@ -592,11 +614,19 @@ def get_graph_nodes(search_backend=None):
         estimate_max_tokens=settings.GENERATION_MAX_TOKENS,
     )
     agents["supervisor"] = build_supervisor(
-        # Its own wrapper: the routing decision is two fields on the cheap model,
-        # and reusing the estimate's 300s timeout would let one confused routing
-        # call block a run for five minutes without producing any work.
-        llm=get_llm_wrapper(timeout=settings.GRAPH_SUPERVISOR_TIMEOUT),
-        model=settings.GRAPH_SUPERVISOR_MODEL,
+        ask_router=build_ask_router(
+            # Its own wrapper: the routing decision is two fields on the cheap
+            # model, and reusing the estimate's 300s timeout would let one
+            # confused routing call block a run for five minutes without
+            # producing any work.
+            llm=get_llm_wrapper(timeout=settings.GRAPH_SUPERVISOR_TIMEOUT),
+            # A callable, not a value: this graph is compiled once per process,
+            # so a model read here would be the model until the next restart —
+            # and the Settings screen promises the opposite.
+            resolve_model=lambda: get_runtime_config().effective("GRAPH_SUPERVISOR_MODEL"),
+            text_model_default=settings.GRAPH_SUPERVISOR_MODEL,
+            decision_client=get_typesafe_client(),
+        ),
         max_routing_steps=settings.GRAPH_MAX_ROUTING_STEPS,
     )
     agents["human_review_gate"] = build_human_review_gate(

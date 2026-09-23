@@ -20,6 +20,11 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
 # recién bajado. Ninguna llamada sale de la máquina —los tests son network-free—
 # y los que van sobre la cerradura parchean `security.get_settings` aparte.
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-no-sale-de-aqui")
+# Idem para TypeSafe (S15 PoC). Es opcional —el servicio arranca sin ella y el
+# supervisor cae al router de texto—, pero fijarla aquí es lo que hace que la
+# suite mida lo mismo en un clon recién bajado que en la máquina de quien la
+# escribió, que es la única razón por la que este bloque existe.
+os.environ.setdefault("TYPESAFE_API_KEY", "ts-test-no-sale-de-aqui")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

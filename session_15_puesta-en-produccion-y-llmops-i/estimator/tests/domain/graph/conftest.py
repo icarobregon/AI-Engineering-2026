@@ -20,6 +20,7 @@ from app.domain.graph.schemas import (
     EstimateNarrative,
     RequirementList,
 )
+from app.domain.graph.routers import build_ask_router
 from app.domain.graph.supervisor import SupervisorDecision, build_supervisor
 from app.generation.agentic.agent_tools import (
     calculate_estimate,
@@ -177,9 +178,15 @@ def build_test_agents(fake_llm, backend, **overrides) -> dict:
         estimate_max_tokens=overrides.get("estimate_max_tokens", 16000),
     )
     max_routing_steps = overrides.get("max_routing_steps", 8)
+    supervisor_model = overrides.get("supervisor_model", "gpt-5-mini")
     agents["supervisor"] = build_supervisor(
-        llm=fake_llm,
-        model=overrides.get("supervisor_model", "gpt-5-mini"),
+        ask_router=overrides.get("ask_router")
+        or build_ask_router(
+            llm=fake_llm,
+            resolve_model=lambda: supervisor_model,
+            text_model_default=supervisor_model,
+            decision_client=overrides.get("decision_client"),
+        ),
         max_routing_steps=max_routing_steps,
     )
     agents["human_review_gate"] = build_human_review_gate(

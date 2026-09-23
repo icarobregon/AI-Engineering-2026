@@ -33,6 +33,11 @@ MODEL_KEYS: tuple[str, ...] = (
     "COMPRESSION_MODEL",
     "PROPOSITIONAL_CHUNKER_MODEL",
     "CONTEXTUAL_CHUNKER_MODEL",
+    # S15 PoC. Es el primer knob del GRAFO que se puede cambiar en caliente: los
+    # demás nodos siguen congelando su modelo al compilar. Llegó aquí porque
+    # elegir el router del supervisor desde Ajustes era el objetivo, y sin estar
+    # en esta tupla el endpoint responde 422 a su propio nombre.
+    "GRAPH_SUPERVISOR_MODEL",
 )
 
 HASH_KEY = "estimator:runtime_config"

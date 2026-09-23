@@ -24,6 +24,7 @@ from app.foundation.llm.runtime_config import (
     RuntimeModelConfig,
     RuntimeRetrievalConfig,
 )
+from app.foundation.llm.typesafe import is_decision_model
 from app.foundation.llm.wrapper import MODEL_COSTS, _provider_from_model
 
 log = structlog.get_logger()
@@ -50,6 +51,7 @@ EMBEDDING_MODEL_NOTE = "Read-only: changing it would invalidate all stored vecto
 PROVIDER_KEY_FIELDS = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
+    "typesafe": "TYPESAFE_API_KEY",
 }
 
 
@@ -90,6 +92,13 @@ def _config_payload(runtime_config: RuntimeModelConfig, settings: Settings) -> d
             for model in _available_models(settings)
             if model in MODEL_COSTS
         },
+        # La restricción por knob viaja como DATO, no duplicada en el cliente.
+        # `available_models` sigue siendo una lista plana porque casi todo el
+        # catálogo sirve para casi todo; lo que hay que decir es la excepción, y
+        # decirla aquí es lo que evita que la pantalla se invente la regla y se
+        # desincronice del 422 que la aplica de verdad.
+        "decision_only_knobs": settings.DECISION_ONLY_KNOBS,
+        "decision_models": [m for m in _available_models(settings) if is_decision_model(m)],
     }
 
 
@@ -215,6 +224,19 @@ def update_models(
             continue  # reset is always valid
         if value not in settings.AVAILABLE_MODELS:
             raise HTTPException(status_code=422, detail=f"Model '{value}' is not in the catalog")
+        if is_decision_model(value) and key not in settings.DECISION_ONLY_KNOBS:
+            # Antes que el check de clave, y no despues, a proposito: puesto
+            # despues, un jev-* en PRIMARY_MODEL sin clave de TypeSafe contesta
+            # "requires TYPESAFE_API_KEY, which is not configured" — le dice al
+            # operador que configure una clave cuando lo que no es legal es el
+            # emparejamiento, y con la clave puesta seguiria sin serlo.
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Model '{value}' only returns a decision, not text: it is valid for "
+                    f"{', '.join(settings.DECISION_ONLY_KNOBS)}, not for '{key}'"
+                ),
+            )
         if value not in available:
             key_field = PROVIDER_KEY_FIELDS.get(_provider_from_model(value), "API key")
             raise HTTPException(

@@ -1,0 +1,75 @@
+Reunión de descubrimiento — Proyecto "ALTAIR"
+Cliente: Elena Sarmiento (Directora) y Bruno Tejedor (Jefe Técnico), Observatorio de Sierra Bermeja
+Consultor: equipo de estimación
+Fecha: reunión inicial
+
+[00:00:15] Consultor: Contadnos el proyecto entero y luego lo troceamos pieza a pieza.
+
+[00:00:34] Elena: Somos un observatorio público. Tenemos dos telescopios, un equipo de once
+astrónomos y unas veinte mil visitas escolares al año. Y os aviso desde el principio: aquí hay dos
+proyectos metidos en uno. Una parte es software de gestión corriente, y otra parte es control de
+instrumentación, que es donde no sabemos ni lo que estamos pidiendo.
+
+[00:01:25] Consultor: Empecemos por la parte de gestión.
+
+[00:01:31] Elena: Lo primero es el acceso. Hoy compartimos una cuenta entre todos, que es un
+desastre. Queremos identidad por persona, con perfiles separados para astrónomo, técnico de
+instrumentación, personal de divulgación e investigador visitante, y que el visitante sólo vea sus
+propias noches asignadas. Hay que poder dar de alta y de baja a un investigador en el día, y que
+quede constancia de quién hizo qué.
+
+[00:03:05] Consultor: Entendido. ¿Qué más del lado de gestión?
+
+[00:03:12] Bruno: El back-office de asignación de tiempo de observación. La pantalla donde se dan
+de alta las propuestas, se reparten las noches entre proyectos, se corrigen las asignaciones cuando
+el tiempo lo estropea y se cierra la campaña del semestre. Hoy es una hoja de cálculo compartida y
+nos pisamos unos a otros. Queremos altas, bajas, correcciones y un histórico consultable.
+
+[00:04:40] Elena: Tercera pieza: la integración con el ERP contable y con el Ministerio. Cada hora
+de telescopio consumida por un proyecto con financiación tiene que acabar imputada en nuestro ERP,
+y a la vez hay que enviar la justificación de uso a la agencia estatal de investigación. Hoy eso lo
+teclea una persona dos veces y cuando se equivoca nos retienen el pago.
+
+[00:06:20] Consultor: ¿Y la cuarta?
+
+[00:06:26] Bruno: Avisos. Los astrónomos quieren saber por móvil si su noche se cancela por
+meteorología, y los colegios quieren confirmación de la visita y aviso si hay cambio. Correo y
+notificación al móvil, con preferencias por persona.
+
+[00:07:50] Consultor: Hasta aquí es terreno conocido. Vamos con la otra mitad.
+
+[00:08:02] Bruno: La primera de las raras es la óptica adaptativa. Queremos cerrar el lazo de
+corrección del espejo deformable en tiempo real: leer el sensor de frente de onda y mover los
+actuadores a un kilohercio, compensando la turbulencia atmosférica. Ahora mismo el telescopio
+grande trabaja sin eso y perdemos la mitad de la resolución.
+
+[00:09:40] Consultor: ¿Existe algo parecido comprado?
+
+[00:09:48] Bruno: Hay sistemas comerciales para telescopios de ocho metros, pero el nuestro es de
+uno veinte y con una montura de los años ochenta. Nadie nos ha sabido dar un precio.
+
+[00:10:30] Elena: La segunda rara es el firmware de la montura. Queremos sustituir la electrónica
+de control: motores paso a paso, encoders absolutos, finales de carrera, y que se actualice sola
+por red desde la sala de control. Son dos monturas y una de ellas está a la intemperie a dos mil
+metros.
+
+[00:12:10] Bruno: La tercera es el procesado de la señal del espectrógrafo. Sacamos imágenes en
+crudo del CCD y queremos extraer el espectro, calibrarlo en longitud de onda y medir corrimientos
+al rojo automáticamente. Eso es tratamiento de señal de verdad, y aquí nadie lo ha programado
+jamás.
+
+[00:13:45] Elena: Y la cuarta, un planetario digital para la cúpula de divulgación. Proyección
+sobre superficie esférica con varios proyectores solapados, corrección de la deformación y un
+recorrido narrado que el divulgador pueda montar él mismo sin saber programar.
+
+[00:15:20] Consultor: Queda claro que son dos proyectos con una misma piel. ¿Condicionantes?
+
+[00:15:30] Elena: Dos. El primero es que la campaña de observación de invierno empieza en noviembre
+y el telescopio no puede parar ni una noche despejada. El segundo es que no tenemos informático: lo
+va a mantener el técnico que ya lleva la instrumentación.
+
+[00:16:45] Bruno: Y avisadnos de lo que no sepáis estimar. Preferimos un número con una advertencia
+encima que un número redondo que luego se triplique.
+
+[00:17:20] Consultor: Anotado. Os lo llevamos troceado, y lo que no tenga precedente lo vais a ver
+marcado como tal.

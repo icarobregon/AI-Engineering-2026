@@ -176,6 +176,21 @@ def test_the_liveness_probe_stays_out_of_the_ledger() -> None:
     assert _events_for("/health", call_next=call_next) == []
 
 
+def test_the_panel_does_not_count_itself() -> None:
+    """La lectura del propio panel tampoco entra.
+
+    Una pantalla abierta con refresco periodico acabaria siendo la ruta mas
+    transitada del sistema, y como cuesta milisegundos y cero tokens, hundiria
+    la latencia media y el coste medio de todo lo demas. Observar no puede
+    cambiar lo observado.
+    """
+
+    async def call_next(request):
+        return _FakeResponse(200)
+
+    assert _events_for("/v1/metrics/summary", call_next=call_next) == []
+
+
 def test_a_request_that_blew_up_is_still_accounted_for() -> None:
     """``BaseHTTPMiddleware`` does not catch: the exception goes past it.
 

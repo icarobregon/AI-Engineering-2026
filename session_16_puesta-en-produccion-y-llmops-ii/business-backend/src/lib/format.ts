@@ -48,6 +48,23 @@ const USD_RATE = new Intl.NumberFormat("es-ES", {
 /** Lo que costó una llamada: céntimos de céntimo, así que cuatro decimales. */
 export const usd = (value: number) => USD.format(value);
 
+/**
+ * Coste por petición, que cruza cinco órdenes de magnitud.
+ *
+ * Una búsqueda embebe ocho tokens y cuesta 0,00000016 $; una estimación con el
+ * modelo grande cuesta céntimos. Con los cuatro decimales fijos de `usd` la
+ * primera se imprime como US$0,0000, que es exactamente el cero que el servicio
+ * se ha pasado la Sesión 16 quitando de en medio. Aquí la escala manda: cuatro
+ * decimales cuando hay céntimos, notación científica cuando lo que hay es
+ * calderilla de calderilla, y un guión cuando no hay dato.
+ */
+export const usdCost = (value: number | null | undefined) => {
+  if (value == null) return "—";
+  if (value === 0) return "US$0";
+  if (value < 0.0001) return `US$${value.toExponential(1)}`;
+  return usd(value);
+};
+
 /** Tarifa por millón de tokens: entrada / salida, con una sola marca de divisa. */
 export const usdPerMillion = (input: number, output: number) =>
   `${USD_RATE.format(input)} / ${USD_RATE.format(output)} US$`;

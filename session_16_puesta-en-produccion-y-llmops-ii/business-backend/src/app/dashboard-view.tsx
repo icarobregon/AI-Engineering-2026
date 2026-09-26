@@ -257,6 +257,28 @@ export function DashboardView({
             </Space>
           </Card>
         </Col>
+        <Col span={8}>
+          <Card
+            title="Observabilidad"
+            extra={<Typography.Text type="secondary">Sesión 16</Typography.Text>}
+            style={{ height: "100%", display: "flex", flexDirection: "column" }}
+            styles={{ body: { flex: 1, display: "flex" } }}
+          >
+            <Space
+              direction="vertical"
+              size="middle"
+              style={{ width: "100%", height: "100%", justifyContent: "space-between" }}
+            >
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                Latencia, coste por petición y tasa de error del tráfico real. Lo que el sistema
+                hace cuando nadie lo está evaluando.
+              </Typography.Paragraph>
+              <Link href="/observabilidad">
+                <Button>Abrir</Button>
+              </Link>
+            </Space>
+          </Card>
+        </Col>
       </Row>
     </Flex>
   );

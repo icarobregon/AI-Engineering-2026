@@ -34,6 +34,7 @@ const items = [
   { key: "/agentes", label: <Link href="/agentes">Agentes</Link> },
   { key: "/asistente", label: <Link href="/asistente">Asistente</Link> },
   { key: "/grafo", label: <Link href="/grafo">Grafo</Link> },
+  { key: "/observabilidad", label: <Link href="/observabilidad">Observabilidad</Link> },
 ];
 
 const AJUSTES = "/ajustes";

@@ -14,6 +14,7 @@ import {
   agentCanRun,
   agentTraceSchema,
   corpusStatsSchema,
+  metricsSummarySchema,
   estimateTreeSchema,
   reformulationSchema,
   taskHoursResultSchema,
@@ -226,5 +227,89 @@ describe("agentCanRun", () => {
     expect(agentCanRun("gpt-7-lo-que-sea")).toBe(true);
     expect(agentCanRun("o9-mini")).toBe(true);
     expect(agentCanRun("gemini-3-pro")).toBe(false);
+  });
+});
+
+
+describe("metricsSummarySchema", () => {
+  it("acepta el resumen tal y como lo emite GET /v1/metrics/summary", () => {
+    // Copiado de una respuesta real del servicio, no inventado.
+    const real = {
+      window: "1h",
+      since: "2026-09-26T15:08:00+00:00",
+      requests: 5,
+      errors: 1,
+      error_rate: 0.2,
+      mean_latency_ms: 375.3,
+      p95_latency_ms: 738.2,
+      mean_cost_usd: 2e-8,
+      total_cost_usd: 1.2e-7,
+      prompt_tokens: 14,
+      completion_tokens: 0,
+      llm_calls: 2,
+      calls_without_usage: 0,
+      by_route: [
+        {
+          route: "/v1/retrieval/search",
+          requests: 5,
+          error_rate: 0.2,
+          mean_latency_ms: 375.3,
+          p95_latency_ms: 738.2,
+          total_cost_usd: 1.2e-7,
+        },
+      ],
+      series: [
+        {
+          bucket: "2026-09-26T16:07:00+00:00",
+          requests: 3,
+          errors: 1,
+          error_rate: 0.3333,
+          mean_latency_ms: 375.3,
+          p95_latency_ms: 738.2,
+          cost_usd: 1.2e-7,
+        },
+      ],
+      recent: [
+        {
+          recorded_at: "2026-09-26T16:08:46.499071+00:00",
+          request_id: "c92775da-be18-42df-9fb2-0e66cb43a6fd",
+          route: "/v1/retrieval/search",
+          method: "POST",
+          status: "200",
+          latency_ms: 694.4,
+          total_tokens: 6,
+          estimated_cost: 1.2e-7,
+          llm_calls: 1,
+        },
+      ],
+    };
+
+    expect(metricsSummarySchema.parse(real)).toEqual(real);
+  });
+
+  it("admite una ventana sin tráfico, donde los agregados no existen", () => {
+    // `avg` y `percentile_cont` sobre cero filas devuelven NULL, no cero. Un
+    // espejo que exigiera número aquí dejaría la pantalla en blanco justo
+    // cuando lo correcto es decir «ninguna petición en esta ventana».
+    const vacio = {
+      window: "1h",
+      since: "2026-09-26T15:08:00+00:00",
+      requests: 0,
+      errors: 0,
+      error_rate: null,
+      mean_latency_ms: null,
+      p95_latency_ms: null,
+      mean_cost_usd: null,
+      total_cost_usd: 0,
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      llm_calls: 0,
+      calls_without_usage: 0,
+      by_route: [],
+      series: [],
+      recent: [],
+    };
+
+    expect(metricsSummarySchema.parse(vacio).requests).toBe(0);
   });
 });

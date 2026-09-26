@@ -8,5 +8,16 @@ hot-path queries (mapping lookup) are point reads keyed by a composite index.
 
 from app.foundation.persistence.repositories.jobs import JobsRepository
 from app.foundation.persistence.repositories.mappings import MappingsRepository
+from app.foundation.persistence.repositories.metrics import (
+    MetricsSummary,
+    RequestMetricsRepository,
+    persist_request_metrics,
+)
 
-__all__ = ["JobsRepository", "MappingsRepository"]
+__all__ = [
+    "JobsRepository",
+    "MappingsRepository",
+    "MetricsSummary",
+    "RequestMetricsRepository",
+    "persist_request_metrics",
+]

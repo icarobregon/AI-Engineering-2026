@@ -32,6 +32,7 @@ from app.api.security import require_estimate_key
 from app.config import get_settings
 from app.dependencies import get_llm_wrapper
 from app.foundation.observability import begin_request, emit_request_metrics
+from app.foundation.persistence.repositories.metrics import persist_request_metrics
 from app.domain.graph.band import historical_band
 from app.domain.graph.progress import RUN_FAILED_PREFIX, build_progress
 from app.domain.proposal import ProposalNotReady, write_proposal
@@ -312,7 +313,7 @@ async def _run_detached(graph, estimation_id: str, transcript: str) -> None:
                 error=str(write_failure)[:200],
             )
     finally:
-        emit_request_metrics(
+        payload = emit_request_metrics(
             request_id=estimation_id,
             route="/v1/estimate/graph/start (background)",
             method="BACKGROUND",
@@ -320,6 +321,8 @@ async def _run_detached(graph, estimation_id: str, transcript: str) -> None:
             started=started,
             token=token,
         )
+        if payload is not None:
+            await persist_request_metrics(payload)
 
 
 @router.post(

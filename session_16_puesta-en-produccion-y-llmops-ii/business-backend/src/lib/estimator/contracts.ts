@@ -794,3 +794,65 @@ export const commercialProposalSchema = z.object({
   body_markdown: z.string(),
 });
 export type CommercialProposal = z.infer<typeof commercialProposalSchema>;
+
+/**
+ * Sesión 16 — `GET /v1/metrics/summary`: las constantes vitales del tráfico real.
+ *
+ * Los agregados vienen calculados del servicio y no se recomponen aquí. La p95
+ * de una ventana no se puede derivar de las p95 de sus trozos, así que un panel
+ * que recibiera filas sueltas y las promediara estaría enseñando otra cosa con
+ * el mismo nombre.
+ */
+const routeMetricsSchema = z.object({
+  route: z.string(),
+  requests: z.number(),
+  error_rate: z.number().nullable(),
+  mean_latency_ms: z.number().nullable(),
+  p95_latency_ms: z.number().nullable(),
+  total_cost_usd: z.number(),
+});
+
+const metricsBucketSchema = z.object({
+  bucket: z.string(),
+  requests: z.number(),
+  errors: z.number(),
+  error_rate: z.number().nullable(),
+  mean_latency_ms: z.number().nullable(),
+  p95_latency_ms: z.number().nullable(),
+  cost_usd: z.number(),
+});
+
+const recentRequestSchema = z.object({
+  recorded_at: z.string(),
+  request_id: z.string(),
+  route: z.string(),
+  method: z.string(),
+  status: z.string(),
+  latency_ms: z.number().nullable(),
+  total_tokens: z.number(),
+  estimated_cost: z.number(),
+  llm_calls: z.number(),
+});
+
+export const metricsSummarySchema = z.object({
+  window: z.string(),
+  since: z.string(),
+  requests: z.number(),
+  errors: z.number(),
+  error_rate: z.number().nullable(),
+  mean_latency_ms: z.number().nullable(),
+  p95_latency_ms: z.number().nullable(),
+  mean_cost_usd: z.number().nullable(),
+  total_cost_usd: z.number(),
+  prompt_tokens: z.number(),
+  completion_tokens: z.number(),
+  llm_calls: z.number(),
+  // Llamadas cuyo proveedor no informó de tokens. No son gratis: son
+  // desconocidas, y el panel tiene que poder decirlo en vez de sumar cero.
+  calls_without_usage: z.number(),
+  by_route: z.array(routeMetricsSchema).default([]),
+  series: z.array(metricsBucketSchema).default([]),
+  recent: z.array(recentRequestSchema).default([]),
+});
+export type MetricsSummary = z.infer<typeof metricsSummarySchema>;
+export type MetricsWindow = "1h" | "24h" | "7d";

@@ -173,7 +173,12 @@ def estimate_cost(model: str, tokens_in: int, tokens_out: int) -> float:
 def _estimate_cost(model: str, tokens_in: int, tokens_out: int) -> float:
     base = _normalise_model_name(model)
     costs = MODEL_COSTS.get(base) or MODEL_COSTS.get(model) or {"input": 0.0, "output": 0.0}
-    return round((tokens_in * costs["input"] + tokens_out * costs["output"]) / 1_000_000, 6)
+    # Ocho decimales desde la S16, y no seis. Con seis, TODA llamada por debajo
+    # de medio millonesimo de dolar se guardaba como 0.0: los ocho tokens que
+    # embebe una recuperacion cuestan 0,00000016 $ y el panel de coste por
+    # peticion los daba por gratis. Es el cero que este mismo fichero lleva
+    # advirtiendo desde la S15 que no hay que escribir.
+    return round((tokens_in * costs["input"] + tokens_out * costs["output"]) / 1_000_000, 8)
 
 
 _O_SERIES = re.compile(r"^o\d")

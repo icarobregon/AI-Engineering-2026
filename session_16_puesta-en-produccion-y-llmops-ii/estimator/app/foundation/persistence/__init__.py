@@ -11,12 +11,18 @@ from app.foundation.persistence.database import (
     create_engine_from_settings,
     get_session,
 )
-from app.foundation.persistence.models import Base, IngestionJobRow, PseudonymMappingRow
+from app.foundation.persistence.models import (
+    Base,
+    IngestionJobRow,
+    PseudonymMappingRow,
+    RequestMetricRow,
+)
 
 __all__ = [
     "Base",
     "IngestionJobRow",
     "PseudonymMappingRow",
+    "RequestMetricRow",
     "SessionLocal",
     "create_engine_from_settings",
     "get_session",

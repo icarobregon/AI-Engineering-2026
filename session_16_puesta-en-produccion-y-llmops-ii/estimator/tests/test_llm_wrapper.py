@@ -48,6 +48,20 @@ def test_estimate_cost_uses_pricing_table() -> None:
     assert cost == pytest.approx(0.75)
 
 
+def test_a_tiny_call_is_not_priced_as_free() -> None:
+    """Los ocho tokens que embebe una recuperación cuestan 0,00000016 $.
+
+    Con el redondeo a seis decimales que tuvo hasta la Sesión 16, eso se
+    guardaba como 0.0, y el panel de coste por petición daba por gratis la
+    mitad del tráfico del servicio. El propio fichero lo lleva advirtiendo
+    desde la S15: un cero es peor que un hueco, porque es un número y alguien
+    se lo cree.
+    """
+    cost = _estimate_cost("text-embedding-3-small", 8, 0)
+    assert cost > 0
+    assert cost == pytest.approx(1.6e-7)
+
+
 def test_complete_returns_normalised_dict_and_caches(wrapper: LLMWrapper) -> None:
     fake = _fake_completion(model="gpt-4o-mini", content="hello world")
     with patch.object(wrapper.router, "completion", return_value=fake) as mocked:

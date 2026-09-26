@@ -139,10 +139,16 @@ def record_failed_call(
         metrics.add_wasted(tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=cost_usd)
 
 
-# Las sondas no entran en el libro de cuentas. Compose llama a /health cada 15
-# segundos: contarla haria que «la latencia p95 del servicio» fuese en realidad
-# la p95 de un latido, y que la mediana del coste por peticion fuese cero.
-UNMETERED_ROUTES = frozenset({"/health", "/docs", "/redoc", "/openapi.json"})
+# Ni las sondas ni el propio panel entran en el libro de cuentas. Compose llama
+# a /health cada quince segundos: contarla haria que «la latencia p95 del
+# servicio» fuese en realidad la p95 de un latido, y que la mediana del coste
+# por peticion fuese cero. Y el resumen de metricas se mide a si mismo: una
+# pantalla abierta con refresco periodico acaba siendo la ruta mas transitada
+# del sistema y hunde la media de latencia de todo lo demas. Observar no puede
+# cambiar lo observado.
+UNMETERED_ROUTES = frozenset(
+    {"/health", "/docs", "/redoc", "/openapi.json", "/v1/metrics/summary"}
+)
 
 _request_log = structlog.get_logger("ai-service.requests")
 
@@ -155,7 +161,7 @@ def emit_request_metrics(
     status: int | str,
     started: float,
     token: contextvars.Token,
-) -> None:
+) -> dict[str, Any] | None:
     """Cierra el acumulador y emite EL evento por peticion.
 
     Uno solo y con todo dentro. Sin el hay que correlacionar N eventos de llamada
@@ -170,13 +176,18 @@ def emit_request_metrics(
     """
     metrics = end_request(token)
     if route in UNMETERED_ROUTES:
-        return
-    _request_log.info(
-        "request_completed",
-        request_id=request_id,
-        route=route,
-        method=method,
-        status=status,
-        latency_ms=round((time.perf_counter() - started) * 1000, 1),
+        return None
+    payload = {
+        "request_id": request_id,
+        "route": route,
+        "method": method,
+        "status": status,
+        "latency_ms": round((time.perf_counter() - started) * 1000, 1),
         **metrics.as_dict(),
-    )
+    }
+    _request_log.info("request_completed", **payload)
+    # Se DEVUELVE en vez de guardarse aqui: este paquete no toca disco ni base
+    # de datos. Quien lo llama —el middleware y la ejecucion desacoplada del
+    # grafo— decide que hacer con ello, y la capa de persistencia se queda
+    # donde vive el resto de la persistencia.
+    return payload

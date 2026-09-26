@@ -11,6 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
 from app.foundation.observability import begin_request, emit_request_metrics
+from app.foundation.persistence.repositories.metrics import persist_request_metrics
 from app.api.embeddings import router as embeddings_router
 from app.api.search import router as search_router
 from app.api import config as config_api
@@ -21,6 +22,7 @@ from app.api.routers.estimate_stages import router as estimate_stages_router
 from app.api.routers.estimate_tasks import router as estimate_tasks_router
 from app.api.routers.agent import router as agent_router
 from app.api.routers.estimate_graph import router as estimate_graph_router
+from app.api.routers.metrics import router as metrics_router
 from app.api.routers.retrieval import router as retrieval_router
 from app.api.routers.references import router as references_router
 from app.api.routers.retrieval_advanced import router as retrieval_advanced_router
@@ -175,7 +177,7 @@ async def request_id_middleware(request: Request, call_next):
         # La ruta con su plantilla (`/v1/estimate/graph/{estimation_id}/state`) y
         # no la concreta: agrupada por id no se puede agregar nada.
         route = getattr(request.scope.get("route"), "path_format", request.url.path)
-        emit_request_metrics(
+        payload = emit_request_metrics(
             request_id=request_id,
             route=route,
             method=request.method,
@@ -183,6 +185,12 @@ async def request_id_middleware(request: Request, call_next):
             started=started,
             token=token,
         )
+        if payload is not None:
+            # Un insert de un puñado de campos sobre una peticion que ya ha
+            # terminado. Nunca levanta: la funcion se traga cualquier fallo y lo
+            # deja dicho en el log, porque un panel que tumba al servicio que
+            # observa es peor que no tener panel.
+            await persist_request_metrics(payload)
         structlog.contextvars.unbind_contextvars("request_id")
 
 
@@ -208,6 +216,10 @@ app.include_router(estimate_graph_router)
 # El desglose de las referencias que cita el grafo: abre el numero que el
 # revisor tiene que validar. Va detras del grafo porque solo existe para el.
 app.include_router(references_router)
+
+# Sesión 16 — las constantes vitales del tráfico real: latencia, coste y errores.
+# Va aquí y no arriba porque sólo existe desde que el middleware lleva la cuenta.
+app.include_router(metrics_router)
 
 # Sesión 12 — el agente escrito a mano, que hasta ahora sólo corría por script.
 # Exponerlo es lo que permite que una consola de perfiles gobierne algo real.

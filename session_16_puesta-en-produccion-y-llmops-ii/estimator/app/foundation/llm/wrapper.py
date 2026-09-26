@@ -32,6 +32,7 @@ from litellm import Router
 from pydantic import BaseModel
 
 from app.foundation.llm.runtime_config import RuntimeModelConfig
+from app.foundation.observability import record_failed_call, record_llm_call
 from app.generation.cag.exact import EstimationCache
 
 log = structlog.get_logger()
@@ -119,6 +120,14 @@ MODEL_COSTS: dict[str, dict[str, float]] = {
     # --- Anthropic · Fable ---
     "claude-fable-5": {"input": 10.00, "output": 50.00},
     "claude-fable-5-1": {"input": 10.00, "output": 50.00},
+    # --- OpenAI · embeddings (Sesión 16) ---
+    # No son seleccionables en Ajustes —`model_prices` se construye desde la
+    # lista del selector, no desde esta tabla—, pero cada recuperacion paga una
+    # llamada de embedding y el panel de coste por peticion tiene que verla. Sin
+    # fila aqui se facturaria a cero, que es la mentira que este fichero lleva
+    # advirtiendo desde la S15. Sin salida: un embedding no genera tokens.
+    "text-embedding-3-small": {"input": 0.02, "output": 0.00},
+    "text-embedding-3-large": {"input": 0.13, "output": 0.00},
 }
 
 
@@ -148,6 +157,17 @@ def _usage_from(result: Any, target_model: str) -> dict[str, Any]:
         },
         "cost_usd": _estimate_cost(model, input_tokens, output_tokens),
     }
+
+
+def estimate_cost(model: str, tokens_in: int, tokens_out: int) -> float:
+    """La tabla de precios, para quien no pasa por el wrapper.
+
+    Existe por los dos caminos que llaman al proveedor por su cuenta: el agente
+    de la S12, que conduce la Responses API a mano porque ver el bucle ES el
+    ejercicio, y el embebedor. Los dos necesitan poner precio a lo que gastan sin
+    duplicar la tabla, que es como se acaba con dos precios para el mismo modelo.
+    """
+    return _estimate_cost(model, tokens_in, tokens_out)
 
 
 def _estimate_cost(model: str, tokens_in: int, tokens_out: int) -> float:
@@ -377,10 +397,23 @@ class LLMWrapper:
             )
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
+            failure = _failure_fields(exc)
+            # Un fallo tras N reintentos de Instructor ya ha pagado N llamadas.
+            # Sin esta linea, la peticion mas cara del dia es la que informa de
+            # coste cero, que es justo la que hay que ver.
+            record_failed_call(
+                tokens_in=failure.get("wasted_tokens_in"),
+                tokens_out=failure.get("wasted_tokens_out"),
+                cost_usd=_estimate_cost(
+                    target_model,
+                    failure.get("wasted_tokens_in") or 0,
+                    failure.get("wasted_tokens_out") or 0,
+                ),
+            )
             log.error(
                 "llm_structured_chat_failed",
                 latency_ms=latency_ms,
-                **_failure_fields(exc),
+                **failure,
             )
             raise
 
@@ -393,6 +426,15 @@ class LLMWrapper:
             # conversational turn reported 0 tokens and $0.
             **_usage_from(result, target_model),
         }
+        # El unico sitio por el que pasa TODA la llamada al modelo en produccion.
+        # `usage` vacio significa que el proveedor no informo, no que fuera
+        # gratis: el acumulador lo cuenta aparte.
+        usage = meta.get("usage") or {}
+        record_llm_call(
+            tokens_in=usage.get("input_tokens"),
+            tokens_out=usage.get("output_tokens"),
+            cost_usd=meta.get("cost_usd"),
+        )
         log.info(
             "llm_structured_chat_completed",
             model=meta["model"],
@@ -463,10 +505,23 @@ class LLMWrapper:
             )
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
+            failure = _failure_fields(exc)
+            # Un fallo tras N reintentos de Instructor ya ha pagado N llamadas.
+            # Sin esta linea, la peticion mas cara del dia es la que informa de
+            # coste cero, que es justo la que hay que ver.
+            record_failed_call(
+                tokens_in=failure.get("wasted_tokens_in"),
+                tokens_out=failure.get("wasted_tokens_out"),
+                cost_usd=_estimate_cost(
+                    target_model,
+                    failure.get("wasted_tokens_in") or 0,
+                    failure.get("wasted_tokens_out") or 0,
+                ),
+            )
             log.error(
                 "llm_structured_call_failed",
                 latency_ms=latency_ms,
-                **_failure_fields(exc),
+                **failure,
             )
             raise
 
@@ -482,6 +537,15 @@ class LLMWrapper:
             # estimate cost" into a query instead of an estimate.
             **_usage_from(result, target_model),
         }
+        # El unico sitio por el que pasa TODA la llamada al modelo en produccion.
+        # `usage` vacio significa que el proveedor no informo, no que fuera
+        # gratis: el acumulador lo cuenta aparte.
+        usage = meta.get("usage") or {}
+        record_llm_call(
+            tokens_in=usage.get("input_tokens"),
+            tokens_out=usage.get("output_tokens"),
+            cost_usd=meta.get("cost_usd"),
+        )
         log.info(
             "llm_structured_call_completed",
             model=meta["model"],

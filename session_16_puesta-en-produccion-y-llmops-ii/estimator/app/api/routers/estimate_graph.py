@@ -15,6 +15,7 @@ started.
 
 from __future__ import annotations
 
+import time
 import uuid
 
 import logfire
@@ -30,6 +31,7 @@ from app.api.rate_limiting import limiter
 from app.api.security import require_estimate_key
 from app.config import get_settings
 from app.dependencies import get_llm_wrapper
+from app.foundation.observability import begin_request, emit_request_metrics
 from app.domain.graph.band import historical_band
 from app.domain.graph.progress import RUN_FAILED_PREFIX, build_progress
 from app.domain.proposal import ProposalNotReady, write_proposal
@@ -274,12 +276,21 @@ async def _run_detached(graph, estimation_id: str, transcript: str) -> None:
     still names the node that died — and the screen polls it forever.
     """
     config = _config(estimation_id)
+    # Su propio libro de cuentas, y no el de la peticion que lo lanzo. Starlette
+    # ejecuta las BackgroundTasks DESPUES de enviar la respuesta: cuando este
+    # cuerpo empieza, el middleware ya cerro y emitio lo suyo, asi que todo el
+    # gasto del grafo -que es casi todo el gasto del sistema- caeria fuera del
+    # registro y el 202 apareceria en el panel costando cero.
+    token = begin_request()
+    started = time.perf_counter()
+    status = "completed"
     try:
         with logfire.span(
             "estimation graph run (detached)", thread_id=estimation_id, estimation_id=estimation_id
         ):
             await graph.ainvoke({"transcript": transcript, "estimation_id": estimation_id}, config)
     except Exception as exc:  # noqa: BLE001 - nothing above this to catch it
+        status = "failed"
         log.error(
             "graph_detached_run_failed",
             estimation_id=estimation_id,
@@ -300,6 +311,15 @@ async def _run_detached(graph, estimation_id: str, transcript: str) -> None:
                 estimation_id=estimation_id,
                 error=str(write_failure)[:200],
             )
+    finally:
+        emit_request_metrics(
+            request_id=estimation_id,
+            route="/v1/estimate/graph/start (background)",
+            method="BACKGROUND",
+            status=status,
+            started=started,
+            token=token,
+        )
 
 
 @router.post(

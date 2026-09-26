@@ -39,6 +39,8 @@ from typing import Any
 
 import structlog
 
+from app.foundation.llm.wrapper import estimate_cost
+from app.foundation.observability import record_llm_call
 from app.generation.agentic.agent_schemas import AgentEstimate, AgentStep, AgentTrace
 from app.generation.agentic.agent_tools import TOOLS, BudgetSearchBackend, dispatch_tool
 
@@ -124,6 +126,34 @@ def _function_calls(output: list[Any]) -> list[Any]:
     return [item for item in output if getattr(item, "type", None) == "function_call"]
 
 
+
+def _record_usage(response: Any, model: str) -> None:
+    """Apunta lo que ha costado una vuelta del agente.
+
+    Punto ciego hasta la S16, y el peor de los tres. La Responses API llama a sus
+    campos ``input_tokens``/``output_tokens`` —no prompt/completion— y las tres
+    llamadas de este bucle descartaban el ``usage`` que ya venia en la respuesta.
+    Con ``store=True`` + ``previous_response_id`` el proveedor re-factura la
+    conversacion entera en cada vuelta, asi que esta es con diferencia la ruta
+    mas cara del servicio (por eso su limite es 10/hora y no 10/minuto) y sin
+    esto aparecia en el panel costando 0,00 $ al lado de rutas que si dicen
+    dinero.
+
+    Leer el precio de la tabla del wrapper NO es hacer pasar la llamada por el
+    wrapper: el bucle a mano sigue siendo el ejercicio. Lo que se comparte es el
+    precio, porque dos tablas de precios acaban dando dos costes para el mismo
+    modelo.
+    """
+    usage = getattr(response, "usage", None)
+    tokens_in = getattr(usage, "input_tokens", None) if usage else None
+    tokens_out = getattr(usage, "output_tokens", None) if usage else None
+    record_llm_call(
+        tokens_in=tokens_in,
+        tokens_out=tokens_out,
+        cost_usd=estimate_cost(model, tokens_in or 0, tokens_out or 0),
+    )
+
+
 async def run_estimation_agent(
     transcript: str,
     *,
@@ -145,6 +175,7 @@ async def run_estimation_agent(
         reasoning=reasoning,
         store=True,
     )
+    _record_usage(response, model)
 
     step_number = 0
     # Tool outputs still owed to the model if the iteration budget runs out; they
@@ -225,6 +256,7 @@ async def run_estimation_agent(
             reasoning=reasoning,
             store=True,
         )
+        _record_usage(response, model)
 
     final = await client.responses.parse(
         model=model,
@@ -235,6 +267,7 @@ async def run_estimation_agent(
         text_format=AgentEstimate,
         store=True,
     )
+    _record_usage(final, model)
     estimate = final.output_parsed
     if estimate is None:
         # ParsedResponse.output_parsed is Optional: it is None when the closing

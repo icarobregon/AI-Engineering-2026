@@ -12,6 +12,8 @@ import time
 import structlog
 from openai import OpenAI, RateLimitError
 
+from app.foundation.llm.wrapper import estimate_cost
+from app.foundation.observability import record_llm_call
 from app.generation.rag.schemas import Chunk, EmbeddedChunk
 
 log = structlog.get_logger()
@@ -89,6 +91,16 @@ class OpenAIEmbedder:
                 if self._dimensions is not None:
                     kwargs["dimensions"] = self._dimensions
                 response = self._client.embeddings.create(**kwargs)
+                # Punto ciego hasta la S16: cada recuperacion embebe su consulta
+                # y el `usage` que la respuesta ya traia se tiraba, asi que el
+                # coste de recuperar no existia en ninguna cuenta.
+                usage = getattr(response, "usage", None)
+                tokens = getattr(usage, "prompt_tokens", None) if usage else None
+                record_llm_call(
+                    tokens_in=tokens,
+                    tokens_out=0 if tokens is not None else None,
+                    cost_usd=estimate_cost(self._model, tokens or 0, 0),
+                )
                 return [item.embedding for item in response.data]
             except RateLimitError as exc:
                 last_error = exc

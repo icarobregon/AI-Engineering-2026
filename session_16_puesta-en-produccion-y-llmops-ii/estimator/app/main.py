@@ -1,4 +1,5 @@
 import logging
+import time
 from contextlib import asynccontextmanager
 
 import structlog
@@ -9,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
+from app.foundation.observability import begin_request, emit_request_metrics
 from app.api.embeddings import router as embeddings_router
 from app.api.search import router as search_router
 from app.api import config as config_api
@@ -149,17 +151,39 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
-    """Assign a correlation id per request, bind it for structlog, and echo it
-    back on the ``X-Request-ID`` response header so failures are debuggable."""
+    """Assign a correlation id per request, bind it for structlog, echo it back
+    on the ``X-Request-ID`` response header, and close the request's cost ledger.
+
+    El estado por defecto es 500 y no 200 a proposito: ``BaseHTTPMiddleware`` no
+    captura excepciones —se le escapan hacia ``ServerErrorMiddleware``, donde ya
+    no hay respuesta que leer—, asi que leer el estado solo del objeto
+    ``response`` dejaria fuera del registro exactamente las peticiones que peor
+    terminaron.
+    """
     request_id = request.headers.get("X-Request-ID") or str(uuid4())
     request.state.request_id = request_id
     structlog.contextvars.bind_contextvars(request_id=request_id)
+    token = begin_request()
+    started = time.perf_counter()
+    status: int | str = 500
     try:
         response = await call_next(request)
+        status = response.status_code
+        response.headers["X-Request-ID"] = request_id
+        return response
     finally:
+        # La ruta con su plantilla (`/v1/estimate/graph/{estimation_id}/state`) y
+        # no la concreta: agrupada por id no se puede agregar nada.
+        route = getattr(request.scope.get("route"), "path_format", request.url.path)
+        emit_request_metrics(
+            request_id=request_id,
+            route=route,
+            method=request.method,
+            status=status,
+            started=started,
+            token=token,
+        )
         structlog.contextvars.unbind_contextvars("request_id")
-    response.headers["X-Request-ID"] = request_id
-    return response
 
 
 app.include_router(estimations.router)

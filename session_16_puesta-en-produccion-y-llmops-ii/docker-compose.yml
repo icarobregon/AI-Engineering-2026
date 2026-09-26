@@ -6,9 +6,13 @@
 # invoice and let anyone bypass the layer that decides who may ask for an
 # estimate. The datastores are private for the same reason.
 #
-# Run it from THIS directory, always. Compose derives the project name — and
-# therefore the volume names — from where you launch it, so starting the same
-# services from a subdirectory would silently create a second, empty corpus.
+# The project name is PINNED below, and that is the second decision. Compose
+# otherwise derives it — and therefore the volume names — from the directory you
+# launch from, so both launching from a subdirectory and renaming the session
+# folder (which this repo does once per session) point the stack at fresh, empty
+# volumes: the corpus and the business history look like they vanished, with no
+# error anywhere. Pinned, the data follows the system instead of the path.
+name: estimator
 
 services:
   # --- Public ---------------------------------------------------------------

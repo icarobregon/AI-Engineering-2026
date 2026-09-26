@@ -10,7 +10,7 @@ Cuatro contenedores, un comando, y una única puerta al exterior.
 ## Puesta en marcha
 
 ```bash
-cd session_15_puesta-en-produccion-y-llmops-i
+cd session_16_puesta-en-produccion-y-llmops-ii
 
 cp .env.example .env                        # secreto de servicio + credenciales de Postgres
 cp estimator/.env.example estimator/.env    # claves del proveedor de LLM y ajustes del servicio IA
@@ -37,9 +37,15 @@ docker compose build
 docker compose up
 ```
 
-**Arranca siempre desde este directorio.** Compose deriva el nombre del proyecto
-—y con él los nombres de los volúmenes— del sitio desde el que se lanza. Hacerlo
-desde una subcarpeta crearía un segundo corpus vacío sin avisar.
+**El nombre del proyecto está fijado, y conviene saber por qué.** Compose lo
+deriva —y con él los de la red y los volúmenes— del directorio desde el que se
+lanza, así que renombrar la carpeta de la sesión, cosa que este repositorio hace
+una vez por sesión, apuntaba el sistema a volúmenes nuevos y vacíos: el corpus y
+el histórico parecían haberse esfumado, sin un error en ninguna parte. Con
+`name: estimator` en `docker-compose.yml` el dato sigue al sistema y no a la
+ruta, y la red y los volúmenes se llaman `estimator_default`,
+`estimator_postgres_data` y `estimator_redis_data` se lance desde donde se
+lance.
 
 ## Las cinco comprobaciones
 
@@ -278,7 +284,7 @@ Si prefieres no dejar ni ese fichero, el equivalente sin ficheros es un par de
 reenviadores efímeros enganchados a la red de Compose:
 
 ```bash
-RED=session_15_puesta-en-produccion-y-llmops-i_default
+RED=estimator_default
 docker run --rm -d --name fwd-pg    --network $RED -p 127.0.0.1:5433:5432 \
   alpine/socat tcp-listen:5432,fork,reuseaddr tcp-connect:estimator-postgres:5432
 docker run --rm -d --name fwd-redis --network $RED -p 127.0.0.1:6379:6379 \

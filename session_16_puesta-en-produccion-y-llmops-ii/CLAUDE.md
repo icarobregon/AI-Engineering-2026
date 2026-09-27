@@ -182,7 +182,29 @@ Key design points future changes should respect:
 
   **The MONITOR is the per-request cost ledger.** `app/foundation/observability/metrics.py` holds a `RequestMetrics` accumulator in a contextvar, fed by `LLMWrapper` where the price was already computed and then dropped. **It is a MUTABLE object and never a rebound counter**: most of the pipeline runs its blocking work through `asyncio.to_thread`, which executes in a COPY of the context, so a rebind inside the thread is invisible to the caller and would silently lose the cost of exactly the calls that cost money. The middleware in `main.py` emits one `request_completed` event per request and `persist_request_metrics` writes one row to `request_metrics` (migration `0005`), best-effort and swallowing every failure — a panel that takes down the service it watches is worse than no panel. `GET /v1/metrics/summary` aggregates a window in SQL (`percentile_cont` for the p95) and `business-backend/src/app/observabilidad/` renders it. **Three blind spots were closed and two zeros were lies.** The S12 agent drives the raw Responses API by hand (that stays: seeing the loop IS the exercise) and discarded the `usage` of its three calls — with `store=True` the provider re-bills the whole conversation each turn, so the most expensive route in the service reported $0.00; the embedder threw away the `usage` its response already carried; and graph runs launched by `/graph/start` execute in a BackgroundTask, i.e. AFTER the middleware has closed, so nearly all the system's spend fell outside the ledger. The zeros: embedding models had no row in `MODEL_COSTS` (a model without a row bills at zero), and `_estimate_cost` rounded to six decimals, which flattens every sub-half-millionth-of-a-dollar call — that is, all of them — to `0.0`. Both fixed; the rounding is now eight decimals. **`/health` and the panel's own reads are excluded from the ledger**: Compose polls the first every fifteen seconds and a refreshing dashboard would become the busiest route in the system, so counting either makes "the service's p95" the p95 of a heartbeat. The default status in the middleware is 500 and the event is emitted from a `finally`, because `BaseHTTPMiddleware` does not catch exceptions and reading the status off the response alone omits exactly the requests that failed hardest.
 
-  **What the first run measured, and it is not flattering.** Four of seven cases completed before the provider ran out of credit: 232 h, 152 h, 232 h and 80 h against expectations of 680, 900, 580 and 750 — while the small case (140 h expected) came back at 584. The raw figures are 29, 19, 29, 10 and 73 engineer-days: the system compresses projects of 470-1200 historical hours AND one of 140 into a band of ten to seventy days, so **the answer barely depends on the scope**. The candidate cause is in `prompt_builder.py`, which asks for `engineer_days` while every `<source>` states `Estimated hours: 120` and one of its own lines calls that hours figure "its engineer-days" — nowhere does the prompt say a day is eight hours. Left unfixed on purpose: one prompt line is exactly the change an A/B against the golden set is for. The outage also proved a second thing: `FALLBACK_MODEL` is configured and Anthropic was answering normally, but `complete_structured` bypasses the Router by design (S03: its round-robin routed non-deterministically), so the estimation path has no fallback and went down with its primary. Documented, not patched — changing the critical path without being able to measure the result afterwards is what this session teaches you not to do. Full write-up in `docs/evaluation.md`.
+  **What the measurements said, and they are not flattering.** Three full runs,
+seven cases each. The RAG path scored `within_range_rate` **0%** against the
+graph's **33%**, with a mean absolute error of 553 h against 514 h and a mean
+latency of 123 s against 92 s — the graph is better on every axis. The reason is
+the Session 13 decision that the numbers belong to `calculate_estimate` and only
+the prose to the model: where the model picks the figure it undershoots by 2-8x
+(29, 15, 21, 24, 75 and 95 engineer-days for projects whose analogues run 60-150
+days), and where Python computes it the misses are 1.35-2.2x. **The answer barely
+depends on the scope**, which is what `case-007` exists to catch and did in all
+three runs. The abstention case passes on both paths — on the RAG side through
+the retrieval soft-fail (zero citations, 14 s, nothing crossed the 0.6 distance
+threshold), so it validates the THRESHOLD rather than the model's judgement, and
+on the graph side by escalating to a human. Zero fabricated sources anywhere.
+  **The A/B moved one metric up and another down.** Declaring the unit in the
+prompt (`e2de5f0`) took accuracy from 0% to 17% and latency from 123 s to 94 s
+while the mean error got WORSE (553 → 583 h), and `case-007` went from answering
+760 h to refusing to answer at all. `compare_reports.py` reports no regression —
+no case that passed now fails — and that verdict is true and incomplete, which is
+exactly the trade-off this session says to make with the numbers in front of you.
+The same input, unchanged, produced 584 h, then 760 h, then an abstention: judging
+this system by one run is judging a die by one throw. Full write-up, including
+what running out of provider credit taught us about the missing fallback on the
+estimation path, in `docs/evaluation.md`.
 
 ## Configuration
 

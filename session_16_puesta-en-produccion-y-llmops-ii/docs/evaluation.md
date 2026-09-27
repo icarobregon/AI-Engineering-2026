@@ -205,89 +205,138 @@ Logfire desde la S13— dice **dónde**.
 
 ---
 
-## Hallazgos de la primera ejecución (26/09/2026)
+## Hallazgos (26-27/09/2026)
 
-Línea base parcial, commit `7b05811`, ruta RAG, `gpt-5-mini` + `gpt-5` a esfuerzo
-alto. Informe en `evals/production/reports/eval-rag-20260926T162538.json`; el de
-un solo caso, lanzado antes como prueba del arnés, es
-`eval-rag-20260926T161508.json`.
+Tres ejecuciones completas, siete casos cada una. Los informes están en
+`evals/production/reports/`; la captura del panel, en
+[`evidencia-panel-observabilidad.png`](evidencia-panel-observabilidad.png).
 
-```
-within_range_rate          0%
-mean_absolute_error_hours  553,5 h
-mean_latency_ms            93.360 ms      p95  190.197 ms
-error_rate                 43%
-hallucination_rate         0%
-```
-
-### 1. El sistema no estima: comprime
-
-Cuatro casos llegaron a completarse antes del corte, y todos se quedan MUY
-cortos. El séptimo, medido aparte minutos antes, se pasa por cuatro:
-
-| Caso | Predicho | Esperado | Factor |
+| | RAG · línea base | Grafo · línea base | RAG · tras el arreglo |
 |---|---|---|---|
-| 001 ecommerce | 232 h | 680 h | ×0,34 |
-| 002 healthcare | 152 h | 900 h | ×0,17 |
-| 003 finance | 232 h | 580 h | ×0,40 |
-| 004 logistics | 80 h | 750 h | ×0,11 |
-| 007 pequeño | 584 h | 140 h | ×4,17 |
+| commit | `44caecf` | `44caecf` | `e2de5f0` |
+| `within_range_rate` | **0 %** | **33 %** | **17 %** |
+| `mean_absolute_error_hours` | 553 h | 514 h | 583 h |
+| `abstention_correct` | sí | sí | sí |
+| latencia media / p95 | 123 s / 163 s | 92 s / 132 s | 94 s / 132 s |
+| `error_rate` | 0 % | 0 % | 0 % |
+| `hallucination_rate` | 0 % | 0 % | 0 % |
 
-Las cifras crudas son 29, 19, 29, 10 y 73 jornadas. El sistema mete proyectos de
-entre 470 y 1200 horas históricas —y uno de 140— dentro de una banda de diez a
-setenta jornadas: al pequeño le echa cuatro veces de más y al grande nueve veces
-de menos. **La respuesta apenas depende del alcance.** Un sistema que contesta
-siempre parecido no está estimando, está adivinando, y eso no se ve mirando una
-ejecución: hace falta una vara, varios casos y tamaños distintos. El `case-007`
-existe precisamente para cazar esto y lo cazó a la primera.
+### 1. El suelo de seguridad aguanta
 
-La causa candidata está a la vista en `app/generation/rag/prompt_builder.py`: el
-prompt pide `engineer_days`, las fuentes dicen `Estimated hours: 120`, y una de
-sus líneas llama *«its engineer-days»* a esa cifra en horas. **Nadie dice nunca
-cuántas horas tiene una jornada.** Queda sin arreglar a propósito: una línea de
-prompt es justo el cambio que pide un A/B contra el golden set, y el número que
-decide cuál gana es `within_range_rate`.
+El caso de abstención **pasa en las dos arquitecturas**. En la ruta RAG por el
+camino más limpio posible: catorce segundos, cero citas y
+`confidence="insufficient"`. Eso significa que se abstuvo por **distancia
+coseno** —ningún chunk cruzó el umbral de 0,6, así que el corto-circuito de
+recuperación respondió sin llegar a llamar al generador— y conviene decirlo con
+precisión: **el caso valida el umbral de recuperación, no el criterio del
+modelo**. Una prueba más dura del juicio del modelo necesitaría un caso que SÍ
+recupere algo y aun así deba abstenerse. En el grafo la respuesta correcta tomó
+la otra forma legítima: escaló a una persona.
 
-### 2. El proveedor se quedó sin crédito a mitad de la tanda
+### 2. La arquitectura que no deja elegir el número mide mejor
 
-Los tres últimos casos fallaron en catorce segundos cada uno, todos en la
-reformulación:
+| Caso | RAG | Grafo | Esperado |
+|---|---|---|---|
+| 001 ecommerce | 232 h ×0,34 | 1495 h ×2,2 | 680 h |
+| 002 healthcare | 120 h ×0,13 | **dentro** ×1,35 | 900 h |
+| 003 finance | 168 h ×0,29 | 909 h ×1,57 | 580 h |
+| 004 logistics | 192 h ×0,26 | **dentro** ×1,38 | 750 h |
+| 005 borde | 600 h ×0,55 | 2024 h ×1,84 | 1100 h |
+| 007 pequeño | 760 h ×5,43 | 552 h ×3,94 | 140 h |
+
+El RAG se queda corto entre dos y ocho veces; el grafo se pasa, pero entre 1,35
+y 2,2 — fallos de cerca en vez de fallos de orden de magnitud. Y encima es más
+rápido (92 s contra 123 s de media).
+
+La diferencia es de diseño, no de suerte: en el grafo **el número lo calcula una
+función de Python** (mediana de las referencias × 1,15 de contingencia) y al
+modelo sólo se le pide la prosa, mientras que en el RAG la cifra la elige el
+modelo. Esa decisión se tomó en la Sesión 13 por argumentos; ésta es la primera
+vez que hay un número detrás.
+
+### 3. El sistema comprime: la respuesta apenas depende del alcance
+
+En la línea base del RAG las cifras crudas son 29, 15, 21, 24, 75 y 95
+jornadas. El sistema mete proyectos cuyos análogos históricos van de 470 a 1200
+horas —y uno de 140— dentro de una banda estrecha: al pequeño le echa cinco
+veces de más y al grande ocho veces de menos. Un sistema que contesta siempre
+parecido no está estimando.
+
+Esto **no se ve en una ejecución suelta**: hace falta una vara, varios casos y
+tamaños distintos. El `case-007` existe para cazar exactamente el sesgo a la
+mediana y lo cazó en las tres tandas.
+
+### 4. El A/B: una métrica sube y otra baja
+
+El cambio juzgado fue una declaración de unidades en el prompt (`e2de5f0`): las
+fuentes hablan en horas, la respuesta va en jornadas, 120 horas son 15 jornadas,
+y un proyecto entero del histórico son 60-150 jornadas. El veredicto del
+comparador:
 
 ```
-litellm.RateLimitError: OpenAIException - You have no credits remaining.
+within_range_rate          0% → 17%
+mean_absolute_error_hours  553.0 h → 582.8 h
+mean_latency_ms            123 s → 94 s
+arreglados: case-001-ecommerce-checkout
+regresiones: ninguna
+sin regresión
 ```
 
-No es un fallo del sistema, pero la forma en que se ve sí dice cosas. El panel lo
-registró como lo que era —tasa de error del 43%, latencias de catorce segundos,
-coste cero porque no se llegó a gastar nada— y la instrumentación contó las
-llamadas fallidas (`failed_llm_calls=1`) sin inventarles un precio. Un fallo de
-proveedor es indistinguible de una caída propia si sólo miras «el sistema no
-responde»; con el desglose por ruta y el motivo en el log, se diagnostica en un
-minuto.
+**El acierto sube y el error medio empeora.** No hay ninguna regresión en el
+sentido estricto —ningún caso que pasara ha dejado de pasar— pero declarar el
+cambio «una mejora» sería quedarse con la mitad de los números. Es literalmente
+el aviso de la sesión: los KPIs se mueven unos contra otros, y el equilibrio se
+decide a sabiendas, con las cifras delante.
 
-### 3. El fallback existe y esta ruta no lo alcanza
+Lo más revelador está en un caso concreto. El `case-007` pasó de contestar 760 h
+—cinco veces de más— a **no contestar**: `confidence="insufficient"`, sin cifra,
+en un caso donde sí debía haberla. El sistema se volvió más prudente y se pasó
+de frenada. Reducir el exceso puede convertirse en abstenerse donde no toca, y
+esa es una forma de degradación que la tasa de acierto sola no ve.
 
-`FALLBACK_MODEL=claude-haiku-4-5` está configurado, y Anthropic respondía con
-normalidad mientras OpenAI rechazaba todo. Pero `complete_structured` **evita el
-Router a propósito** —documentado desde la S03: su round-robin enrutaba de forma
-no determinista hacia un despliegue que podía no estar— así que la ruta de
-estimación llama siempre al modelo primario, sin red.
+### 5. La misma entrada, tres respuestas distintas
 
-Resultado: el servicio tiene un fallback configurado que su camino más caro no
-puede usar, y hoy se ha comprobado en condiciones reales. Se deja **documentado y
-sin tocar**: cambiar el comportamiento del camino crítico un domingo, sin poder
-medir después si degrada la calidad, es exactamente lo que esta sesión enseña a
-no hacer.
+El `case-007`, sin cambiar una coma de la transcripción:
 
-### 4. Lo que sí funcionó
+- 584 h en la prueba de humo,
+- 760 h en la línea base, con el mismo código y el mismo prompt,
+- sin cifra tras el cambio de prompt.
 
-Cero fuentes inventadas en los cinco casos que llegaron al modelo: las once citas
-resuelven contra documentos que existen y todas pertenecen al sector esperado. La
-maquinaria de citas de la S11 aguanta. Y en el `case-007` se vio el otro riesgo
-que el golden set documenta: citó un componente de presupuesto (escala 140 h)
-junto a tres tareas (escala 12-71 h) — las dos granularidades del corpus
-compitiendo en la misma ventana de recuperación, que es justo lo que el reparto
-`sources.budgets` / `sources.tasks` existe para hacer visible.
+Un 30% de diferencia entre dos tiradas idénticas. Juzgar este sistema por una
+ejecución es juzgar un dado por un lanzamiento, y ésa es la razón por la que el
+arnés guarda un informe por tanda en vez de imprimir un número y olvidarlo.
+
+### 6. Lo que enseñó quedarse sin crédito
+
+La primera tentativa de la línea base murió a mitad: la cuenta de OpenAI se
+quedó sin saldo y los tres últimos casos fallaron en la reformulación, catorce
+segundos cada uno. El informe parcial se conserva
+(`eval-rag-20260926T162538.json`) porque el que recoge una caída de proveedor
+vale tanto como el que sale limpio.
+
+Dos cosas se aprendieron ahí. Primera: el panel lo contó como lo que era —tasa
+de error del 43%, latencias de catorce segundos y coste cero, porque no se llegó
+a gastar nada— y la instrumentación contó las llamadas fallidas sin inventarles
+precio. Segunda, y más seria: **`FALLBACK_MODEL` está configurado y Anthropic
+respondía con normalidad**, pero `complete_structured` evita el Router a
+propósito desde la S03 (su round-robin enrutaba de forma no determinista), así
+que la ruta de estimación llama siempre al primario y se cayó con él. El
+servicio tiene una red que su camino más caro no puede usar. Queda documentado y
+sin parchear: tocar el camino crítico sin poder medir después si degrada es lo
+que esta sesión enseña a no hacer.
+
+### 7. Lo que funcionó sin ruido
+
+**Cero fuentes inventadas en las tres tandas.** Todas las citas resuelven contra
+documentos que existen en el corpus. La maquinaria de citas por línea de la S11
+aguanta bajo medición.
+
+Y el reparto por granularidad enseñó lo suyo: el `case-003` (finance) citó seis
+documentos de los que **sólo uno era de su sector** (`sector_match_rate` 0,17),
+y el `case-007` construyó 95 jornadas sobre dos tareas de unas 15 horas cada
+una. Las citas son reales, la verificación las da por buenas, y aun así el
+número no se sostiene. Es el recordatorio de que una cita válida no es una
+justificación: sólo dice que el documento existe.
 
 ---
 

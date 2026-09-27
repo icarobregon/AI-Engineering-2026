@@ -1,0 +1,246 @@
+{
+  "started_at": "2026-09-27T05:49:10.773477+00:00",
+  "finished_at": "2026-09-27T06:03:31.420699+00:00",
+  "meta": {
+    "target": "rag",
+    "base_url": "http://ai-service:8000",
+    "endpoint": "/v1/estimate/from-transcript",
+    "git_sha": "44caecf",
+    "hours_per_day": 8,
+    "models": {
+      "reformulation": "gpt-5-mini",
+      "generation": "gpt-5",
+      "generation_reasoning_effort": "high",
+      "graph_supervisor": "gpt-5-mini"
+    },
+    "retrieval": {
+      "source": "live config",
+      "RETRIEVAL_SEARCH_MODE": "vector",
+      "RERANKER_ENABLED": false,
+      "RETRIEVAL_ROUTING_ENABLED": true,
+      "QUERY_TRANSFORM_ENABLED": true,
+      "TEMPORAL_DECAY_ENABLED": false,
+      "TASK_HOURS_TOP_K": 5,
+      "TASK_HOURS_DISTANCE_THRESHOLD": 0.45,
+      "overridden_at_runtime": []
+    }
+  },
+  "metrics": {
+    "within_range_rate": 0.0,
+    "mean_absolute_error_hours": 553.0,
+    "abstention_correct": true,
+    "mean_latency_ms": 122940.38571428573,
+    "p95_latency_ms": 162634.8,
+    "error_rate": 0.0,
+    "hallucinated_sources": 0,
+    "hallucination_rate": 0.0,
+    "escalated": 0,
+    "cases_total": 7,
+    "cases_passed": 1
+  },
+  "cases": [
+    {
+      "id": "case-001-ecommerce-checkout",
+      "difficulty": "easy",
+      "sector": "ecommerce",
+      "http_status": 200,
+      "latency_ms": 162634.8,
+      "confidence": "low",
+      "predicted_hours": 232,
+      "raw_value": 29,
+      "raw_unit": "engineer_days",
+      "escalated": false,
+      "sources": {
+        "cited": 3,
+        "fabricated": [],
+        "budgets": 1,
+        "tasks": 2,
+        "on_expected_sector": 3,
+        "sector_match_rate": 1.0
+      },
+      "type": "estimation",
+      "passed": false,
+      "expected_hours": 680,
+      "acceptable_range_hours": [
+        450,
+        950
+      ],
+      "abs_error_hours": 448,
+      "ratio_to_expected": 0.34,
+      "detail": "232 h outside [450, 950]"
+    },
+    {
+      "id": "case-002-healthcare-portal",
+      "difficulty": "medium-high",
+      "sector": "healthcare",
+      "http_status": 200,
+      "latency_ms": 136155.1,
+      "confidence": "low",
+      "predicted_hours": 120,
+      "raw_value": 15,
+      "raw_unit": "engineer_days",
+      "escalated": false,
+      "sources": {
+        "cited": 9,
+        "fabricated": [],
+        "budgets": 1,
+        "tasks": 8,
+        "on_expected_sector": 9,
+        "sector_match_rate": 1.0
+      },
+      "type": "estimation",
+      "passed": false,
+      "expected_hours": 900,
+      "acceptable_range_hours": [
+        550,
+        1250
+      ],
+      "abs_error_hours": 780,
+      "ratio_to_expected": 0.13,
+      "detail": "120 h outside [550, 1250]"
+    },
+    {
+      "id": "case-003-finance-reporting",
+      "difficulty": "medium",
+      "sector": "finance",
+      "http_status": 200,
+      "latency_ms": 143604.5,
+      "confidence": "medium",
+      "predicted_hours": 168,
+      "raw_value": 21,
+      "raw_unit": "engineer_days",
+      "escalated": false,
+      "sources": {
+        "cited": 6,
+        "fabricated": [],
+        "budgets": 1,
+        "tasks": 5,
+        "on_expected_sector": 1,
+        "sector_match_rate": 0.17
+      },
+      "type": "estimation",
+      "passed": false,
+      "expected_hours": 580,
+      "acceptable_range_hours": [
+        380,
+        880
+      ],
+      "abs_error_hours": 412,
+      "ratio_to_expected": 0.29,
+      "detail": "168 h outside [380, 880]"
+    },
+    {
+      "id": "case-004-logistics-fleet",
+      "difficulty": "medium",
+      "sector": "logistics",
+      "http_status": 200,
+      "latency_ms": 150887.5,
+      "confidence": "low",
+      "predicted_hours": 192,
+      "raw_value": 24,
+      "raw_unit": "engineer_days",
+      "escalated": false,
+      "sources": {
+        "cited": 3,
+        "fabricated": [],
+        "budgets": 0,
+        "tasks": 3,
+        "on_expected_sector": 3,
+        "sector_match_rate": 1.0
+      },
+      "type": "estimation",
+      "passed": false,
+      "expected_hours": 750,
+      "acceptable_range_hours": [
+        450,
+        1150
+      ],
+      "abs_error_hours": 558,
+      "ratio_to_expected": 0.26,
+      "detail": "192 h outside [450, 1150]"
+    },
+    {
+      "id": "case-005-edge-two-sectors",
+      "difficulty": "edge",
+      "sector": "education+media",
+      "http_status": 200,
+      "latency_ms": 131259.7,
+      "confidence": "low",
+      "predicted_hours": 600,
+      "raw_value": 75,
+      "raw_unit": "engineer_days",
+      "escalated": false,
+      "sources": {
+        "cited": 8,
+        "fabricated": [],
+        "budgets": 0,
+        "tasks": 8,
+        "on_expected_sector": 8,
+        "sector_match_rate": 1.0
+      },
+      "type": "estimation",
+      "passed": false,
+      "expected_hours": 1100,
+      "acceptable_range_hours": [
+        750,
+        1450
+      ],
+      "abs_error_hours": 500,
+      "ratio_to_expected": 0.55,
+      "detail": "600 h outside [750, 1450]"
+    },
+    {
+      "id": "case-006-abstention-cfd",
+      "difficulty": "abstention",
+      "sector": null,
+      "http_status": 200,
+      "latency_ms": 20169.6,
+      "confidence": "insufficient",
+      "predicted_hours": null,
+      "raw_value": null,
+      "raw_unit": "engineer_days",
+      "escalated": false,
+      "sources": {
+        "cited": 0,
+        "fabricated": [],
+        "budgets": 0,
+        "tasks": 0,
+        "on_expected_sector": 0,
+        "sector_match_rate": null
+      },
+      "type": "abstention",
+      "passed": true,
+      "detail": "abstained correctly"
+    },
+    {
+      "id": "case-007-ecommerce-small",
+      "difficulty": "small",
+      "sector": "ecommerce",
+      "http_status": 200,
+      "latency_ms": 115871.5,
+      "confidence": "medium",
+      "predicted_hours": 760,
+      "raw_value": 95,
+      "raw_unit": "engineer_days",
+      "escalated": false,
+      "sources": {
+        "cited": 2,
+        "fabricated": [],
+        "budgets": 0,
+        "tasks": 2,
+        "on_expected_sector": 2,
+        "sector_match_rate": 1.0
+      },
+      "type": "estimation",
+      "passed": false,
+      "expected_hours": 140,
+      "acceptable_range_hours": [
+        60,
+        260
+      ],
+      "abs_error_hours": 620,
+      "ratio_to_expected": 5.43,
+      "detail": "760 h outside [60, 260]"
+    }
+  ]
+}

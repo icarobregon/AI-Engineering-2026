@@ -1,0 +1,73 @@
+{
+  "started_at": "2026-09-26T16:15:08.400902+00:00",
+  "finished_at": "2026-09-26T16:16:00.690504+00:00",
+  "meta": {
+    "target": "rag",
+    "base_url": "http://ai-service:8000",
+    "endpoint": "/v1/estimate/from-transcript",
+    "git_sha": "7b05811",
+    "hours_per_day": 8,
+    "models": {
+      "reformulation": "gpt-5-mini",
+      "generation": "gpt-5",
+      "generation_reasoning_effort": "high",
+      "graph_supervisor": "gpt-5-mini"
+    },
+    "retrieval": {
+      "source": "live config",
+      "RETRIEVAL_SEARCH_MODE": "vector",
+      "RERANKER_ENABLED": false,
+      "RETRIEVAL_ROUTING_ENABLED": true,
+      "QUERY_TRANSFORM_ENABLED": true,
+      "TEMPORAL_DECAY_ENABLED": false,
+      "TASK_HOURS_TOP_K": 5,
+      "TASK_HOURS_DISTANCE_THRESHOLD": 0.45,
+      "overridden_at_runtime": []
+    }
+  },
+  "metrics": {
+    "within_range_rate": 0.0,
+    "mean_absolute_error_hours": 444.0,
+    "abstention_correct": null,
+    "mean_latency_ms": 49166.5,
+    "p95_latency_ms": 49166.5,
+    "error_rate": 0.0,
+    "hallucinated_sources": 0,
+    "hallucination_rate": 0.0,
+    "escalated": 0,
+    "cases_total": 1,
+    "cases_passed": 0
+  },
+  "cases": [
+    {
+      "id": "case-007-ecommerce-small",
+      "difficulty": "small",
+      "sector": "ecommerce",
+      "http_status": 200,
+      "latency_ms": 49166.5,
+      "confidence": "medium",
+      "predicted_hours": 584,
+      "raw_value": 73,
+      "raw_unit": "engineer_days",
+      "escalated": false,
+      "sources": {
+        "cited": 4,
+        "fabricated": [],
+        "budgets": 1,
+        "tasks": 3,
+        "on_expected_sector": 4,
+        "sector_match_rate": 1.0
+      },
+      "type": "estimation",
+      "passed": false,
+      "expected_hours": 140,
+      "acceptable_range_hours": [
+        60,
+        260
+      ],
+      "abs_error_hours": 444,
+      "ratio_to_expected": 4.17,
+      "detail": "584 h outside [60, 260]"
+    }
+  ]
+}

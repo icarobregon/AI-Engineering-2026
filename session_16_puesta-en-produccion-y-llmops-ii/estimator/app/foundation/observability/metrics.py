@@ -150,7 +150,7 @@ UNMETERED_ROUTES = frozenset(
     {"/health", "/docs", "/redoc", "/openapi.json", "/v1/metrics/summary"}
 )
 
-_request_log = structlog.get_logger("ai-service.requests")
+
 
 
 def emit_request_metrics(
@@ -185,7 +185,13 @@ def emit_request_metrics(
         "latency_ms": round((time.perf_counter() - started) * 1000, 1),
         **metrics.as_dict(),
     }
-    _request_log.info("request_completed", **payload)
+    # El logger se pide AQUI y no al importar el modulo. `configure_logging` se
+    # ejecuta en el arranque de la aplicacion, despues de los imports, y
+    # structlog cachea el logger la primera vez que se usa
+    # (`cache_logger_on_first_use=True`): un proxy de nivel de modulo congela la
+    # configuracion que hubiera cuando alguien lo estrenara, que en el peor caso
+    # es la de por defecto y para siempre.
+    structlog.get_logger("ai-service.requests").info("request_completed", **payload)
     # Se DEVUELVE en vez de guardarse aqui: este paquete no toca disco ni base
     # de datos. Quien lo llama —el middleware y la ejecucion desacoplada del
     # grafo— decide que hacer con ello, y la capa de persistencia se queda

@@ -51,17 +51,31 @@ lance.
 
 Una ejecución real de las cinco, con su salida, está capturada en
 [`evidencia-cinco-comprobaciones.txt`](evidencia-cinco-comprobaciones.txt). Es una
-foto fechada —2026-09-20, commit `30790d2`— y no se reescribe: su comprobación 2
-recorre seis rutas porque ésas eran las que había entonces, no porque falten. Lo que
-sigue es cómo reproducirla.
+foto fechada —2026-09-20, commit `ac66540`— y no se reescribe. Hoy diverge en dos
+sitios, y los dos son el registro haciendo su trabajo: su comprobación 2 recorre
+las rutas que había entonces y no las once de ahora, porque Observabilidad es de
+esta sesión; y su comprobación 5 enseña la red y los volúmenes con el nombre
+viejo, `session_15_…`, porque el nombre del proyecto aún colgaba de la carpeta.
+
+Estas cinco comprueban que el sistema **está en pie**. Lo que contesta cuando lo
+está —el golden set, el arnés que lo lanza dentro de esta misma red y el panel de
+latencia, coste y errores— es el otro documento: [`evaluation.md`](evaluation.md).
+La orden de evaluación vive allí y sólo allí: una segunda copia se desincroniza
+sin avisar.
+
+Lo que sigue es cómo reproducir las cinco.
 
 ### 1. Los cuatro servicios arriba y sanos
 
 ```bash
-docker compose ps
+docker compose ps -a
 ```
 
-Los cuatro —`business-backend`, `ai-service`, `estimator-postgres` y `redis`—
+El `-a` es para ver también `business-migrate` en `Exited (0)`: sin él sólo se
+lista lo que corre, y el contenedor de un solo uso que aplica el esquema de Prisma
+ya ha terminado cuando la aplicación arranca.
+
+Los cuatro que quedan —`business-backend`, `ai-service`, `estimator-postgres` y `redis`—
 deben aparecer en estado `healthy`; los cuatro llevan healthcheck. Además verás
 `business-migrate` en `Exited (0)`: es el contenedor de un solo uso que aplica el
 esquema de Prisma y termina antes de que arranque la aplicación.
@@ -73,18 +87,19 @@ curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:3000
 ```
 
 Debe responder `200`. En el navegador, http://localhost:3000 muestra el panel, y
-desde ahí se llega a las **nueve** pantallas: las ocho del menú —Estimación
+desde ahí se llega a las **diez** pantallas: las nueve del menú —Estimación
 (`/estimations`), Supervisor (`/supervisor`), Conversación (`/chat`), Laboratorio
 (`/lab/chunking`), Corpus (`/corpus`), Agentes (`/agentes`), Asistente
-(`/asistente`) y Grafo (`/grafo`)— más Ajustes (`/ajustes`), que desde la S15 no
-es una entrada de menú sino la rueda dentada de la cabecera.
+(`/asistente`), Grafo (`/grafo`) y Observabilidad (`/observabilidad`)— más Ajustes
+(`/ajustes`), que desde la S15 no es una entrada de menú sino la rueda dentada de
+la cabecera.
 
 El orden es el del menú y el de las tarjetas del panel, que son el mismo a
-propósito. Las diez rutas deben devolver `200`:
+propósito. Las once rutas deben devolver `200`:
 
 ```bash
-for r in / /estimations /supervisor /chat /lab/chunking /corpus /agentes /asistente /grafo /ajustes; do
-  printf '%-16s %s\n' "$r" "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000$r)"
+for r in / /estimations /supervisor /chat /lab/chunking /corpus /agentes /asistente /grafo /observabilidad /ajustes; do
+  printf '%-18s %s\n' "$r" "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000$r)"
 done
 ```
 
@@ -113,8 +128,10 @@ el token) → Postgres/pgvector → respuesta. Si la confianza es baja, la ejecu
 se detiene y aparece en la bandeja de revisión.
 
 Las rutas que **estiman** exigen el token de servicio: `/api/v1/estimate` (pantalla
-«Estimación») y las tres del grafo —`/v1/estimate/graph`, su `resume` y su
-`state`— que sirven a la del supervisor. Sin cabecera, 401 en ambos caminos:
+«Estimación») y las siete del grafo —`/v1/estimate/graph`, su `start`, su
+`resume`, su `state`, su `progress`, su `proposal` y su `diagram`— que sirven a la
+del supervisor, más `/v1/estimate/agent/run` y `/v1/corpus/references`. Sin
+cabecera, 401 en todas ellas:
 
 ```bash
 docker compose exec business-backend node -e "
@@ -124,9 +141,10 @@ for (const url of ['http://ai-service:8000/api/v1/estimate','http://ai-service:8
 }"
 ```
 
-**Y las tres familias que servían a las pantallas nuevas también.** Sesiones
-(`/sessions/*`, «Conversación»), troceado (`/embeddings/*`, el laboratorio) y
-configuración (`/api/v1/config/*`, «Ajustes») dejaron de ser anónimas: son dos
+**Y las familias que sirven a las demás pantallas también.** Sesiones
+(`/sessions/*`, «Conversación»), troceado (`/embeddings/*`, el laboratorio),
+configuración (`/api/v1/config/*`, «Ajustes») y, desde la S16, métricas
+(`/v1/metrics/summary`, «Observabilidad») no son anónimas: son dos
 barreras, no una. La red mantiene el servicio inalcanzable desde fuera, y la clave
 lo mantiene inutilizable por cualquier otra cosa que acabe corriendo dentro.
 Comprobación, desde la propia red:
@@ -135,7 +153,8 @@ Comprobación, desde la propia red:
 docker compose exec -T ai-service python -c "
 import urllib.request, urllib.error
 rutas = [('POST','/sessions'),('POST','/embeddings/compare'),('GET','/api/v1/config/models'),
-         ('POST','/search'),('POST','/api/v1/ingestion/runs'),('GET','/health')]
+         ('POST','/search'),('POST','/api/v1/ingestion/runs'),
+         ('GET','/v1/metrics/summary'),('GET','/health')]
 for metodo, ruta in rutas:
     req = urllib.request.Request('http://localhost:8000'+ruta, method=metodo,
                                  data=b'{}' if metodo=='POST' else None,
@@ -146,7 +165,7 @@ for metodo, ruta in rutas:
 "
 ```
 
-Debe dar `401` en las cinco primeras y `200` en `/health`, que es **lo único que
+Debe dar `401` en las seis primeras y `200` en `/health`, que es **lo único que
 queda abierto**, y a propósito: cerrarlo mataría el healthcheck de Docker y con él
 el arranque ordenado de compose.
 
@@ -157,7 +176,8 @@ docker compose down && docker compose up -d
 ```
 
 El corpus y el histórico siguen ahí: ambos viven en volúmenes con nombre
-(`postgres_data`, `redis_data`). Ojo: `docker compose down -v` sí los borra.
+(`estimator_postgres_data`, `estimator_redis_data`). Ojo: `docker compose down -v`
+sí los borra.
 
 Lo mismo vale para los cambios de modelo hechos en «Ajustes»: viven en el hash de
 Redis `estimator:runtime_config`, no en `.env`, así que sobreviven al ciclo. Es la

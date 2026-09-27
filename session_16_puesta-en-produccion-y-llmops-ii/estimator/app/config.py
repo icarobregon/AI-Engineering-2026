@@ -238,7 +238,8 @@ class Settings(BaseSettings):
     # warning against magic-number boosts).
     TEMPORAL_DECAY_ENABLED: bool = False
     # Small, fast models for the router classifier and the query transformer
-    # (both in AVAILABLE_MODELS, so switchable via PUT /api/v1/config/models).
+    # (both in AVAILABLE_MODELS, pero NO en MODEL_KEYS: PUT /api/v1/config/models
+    # contesta 422 a estos dos nombres, así que se cambian por .env y recreando).
     # Non-reasoning models on purpose: cheap and no reasoning-token budget to
     # starve the JSON.
     ROUTER_MODEL: str = "gpt-4o-mini"

@@ -97,7 +97,8 @@ herramienta de desarrollo, y esto es otra—, así que va en un contenedor de us
 y tirar con `evals/` montado:
 
 ```bash
-cd session_16_puesta-en-produccion-y-llmops-ii
+cd <la carpeta de la sesión>   # por los contextos de build, no por el nombre:
+                               # los volúmenes ya no dependen de él
 
 docker compose run --rm --no-deps \
   -v "$(pwd)/estimator/evals:/app/evals" \
@@ -207,8 +208,10 @@ Logfire desde la S13— dice **dónde**.
 
 ## Hallazgos (26-27/09/2026)
 
-Tres ejecuciones completas, siete casos cada una. Los informes están en
-`evals/production/reports/`; la captura del panel, en
+Tres ejecuciones completas de siete casos. En `evals/production/reports/` hay
+cinco ficheros: esas tres más las dos del 26, que son la prueba de humo de un solo
+caso y la línea base que murió a mitad cuando se acabó el crédito (§6). La captura
+del panel está en
 [`evidencia-panel-observabilidad.png`](evidencia-panel-observabilidad.png).
 
 | | RAG · línea base | Grafo · línea base | RAG · tras el arreglo |
@@ -244,9 +247,10 @@ la otra forma legítima: escaló a una persona.
 | 005 borde | 600 h ×0,55 | 2024 h ×1,84 | 1100 h |
 | 007 pequeño | 760 h ×5,43 | 552 h ×3,94 | 140 h |
 
-El RAG se queda corto entre dos y ocho veces; el grafo se pasa, pero entre 1,35
-y 2,2 — fallos de cerca en vez de fallos de orden de magnitud. Y encima es más
-rápido (92 s contra 123 s de media).
+El RAG se queda corto entre dos y ocho veces; el grafo se pasa, pero entre 1,35 y
+2,2 **en los cinco proyectos grandes** — fallos de cerca en vez de fallos de orden
+de magnitud— y encima es más rápido (92 s contra 123 s de media). El caso pequeño
+es la excepción en los dos: ×5,43 y ×3,94. Ahí no gana nadie.
 
 La diferencia es de diseño, no de suerte: en el grafo **el número lo calcula una
 función de Python** (mediana de las referencias × 1,15 de contingencia) y al

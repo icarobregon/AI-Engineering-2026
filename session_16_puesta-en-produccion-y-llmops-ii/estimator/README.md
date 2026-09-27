@@ -123,7 +123,7 @@ y desde la Sesión 15 necesita además `ESTIMATE_API_KEY`, que envía como cabec
 
 ```bash
 cd estimator
-uv run pytest        # 687 tests en 82 ficheros, ~6 s
+uv run pytest        # 715 tests en 84 ficheros, ~6 s
 uv run ruff check app tests
 ```
 
@@ -138,7 +138,7 @@ Cómo está repartida:
 
 | Directorio | Qué fija |
 |---|---|
-| `tests/` (raíz) | Los contratos de la S03–S05: schemas, render de prompts, wrapper, cachés, guardrails, adjuntos y memoria. |
+| `tests/` (raíz) | Los contratos de la S03–S05 —schemas, render de prompts, wrapper, cachés, guardrails, adjuntos y memoria— y los dos de la S16: el acumulador de coste por petición y el scoring del arnés de evaluación, los dos sin red ni clave. |
 | `tests/api/` | Los routers como los ve un cliente: códigos, formas JSON, auth y límites de tasa. |
 | `tests/generation/rag/` | Troceado, recuperación, fusión, reranking, citación y política de citas. |
 | `tests/generation/agentic/` | El bucle del agente, sus tools y el Actor-Critic-Boss. |
@@ -169,7 +169,7 @@ estimator/
 │   │   ├── config.py                  #   GET/PUT /api/v1/config/{models,retrieval}
 │   │   ├── security.py                #   require_estimate_key / require_retrieval_key
 │   │   ├── rate_limiting.py           #   slowapi, con una cuota por familia de ruta
-│   │   └── routers/                   #   S09-S15
+│   │   └── routers/                   #   S09-S16
 │   │       ├── estimate.py            #     /v1/estimate/from-transcript (RAG citado)
 │   │       ├── estimate_stages.py     #     /v1/estimate/stages/* (el asistente, paso a paso)
 │   │       ├── estimate_tasks.py      #     /v1/estimate/tasks/hours
@@ -177,7 +177,8 @@ estimator/
 │   │       ├── retrieval_advanced.py  #     /v1/retrieval/advanced-search
 │   │       ├── agent.py               #     /v1/estimate/agent/run
 │   │       ├── estimate_graph.py      #     los siete verbos del grafo
-│   │       └── references.py          #     /v1/corpus/references (S15)
+│   │       ├── references.py          #     /v1/corpus/references (S15)
+│   │       └── metrics.py             #     GET /v1/metrics/summary (S16)
 │   ├── domain/                        # EL CONTRATO Y LOS CONDUCTORES
 │   │   ├── schemas/estimation.py      #   EstimationRequest/Result/Response, TurnObservation
 │   │   ├── schemas/graph_estimation.py#   el contrato del grafo y HumanDecision
@@ -196,7 +197,8 @@ estimator/
 │   │   ├── prompts/                   #   loader Jinja2 + plantillas versionadas
 │   │   ├── guardrails/                #   input (moderación+injection+PII) / output
 │   │   ├── attachments/               #   extracción de texto de PDF/DOCX
-│   │   └── persistence/               #   engine SQLAlchemy + repositories
+│   │   ├── persistence/               #   engine SQLAlchemy + repositories
+│   │   └── observability/             #   el libro de cuentas por petición (S16)
 │   ├── generation/                    # LAS TRES ARQUITECTURAS
 │   │   ├── cag/                       #   cache exacta + semántica
 │   │   ├── rag/                       #   chunking, retrieval, generación citada
@@ -208,8 +210,8 @@ estimator/
 │   │   ├── agentic/                   #   Actor-Critic-Boss y el agente a mano (S12)
 │   │   └── conversation/              #   ventana, anclas, resumen, metadata
 │   └── ingestion/                     # pipeline offline que alimenta RAG
-├── tests/                             # 687 tests, sin red ni clave
-├── evals/                             # golden set y el arnés de estrés
+├── tests/                             # 715 tests, sin red ni clave
+├── evals/                             # golden sets, arnés de estrés y evals/production (S16)
 ├── alembic/                           # migraciones del esquema del servicio IA
 ├── data/                              # corpus de muestra
 ├── scripts/                           # siembra del corpus y runners de sesión
@@ -229,7 +231,7 @@ Lo que vive **fuera** del template (en código): el contrato (`EstimationRequest
 
 ## El mapa de rutas
 
-Treinta y cuatro operaciones. Las agrupa la sesión que las trajo, no el prefijo,
+Treinta y cinco operaciones. Las agrupa la sesión que las trajo, no el prefijo,
 porque el prefijo no dice nada de para qué sirven.
 
 | Ruta | Qué hace | Clave |
@@ -255,6 +257,7 @@ porque el prefijo no dice nada de para qué sirven.
 | `GET /v1/estimate/graph/diagram` | La topología, leída del grafo compilado. | estimate |
 | `POST /v1/corpus/references` | S15 — el desglose de una referencia histórica. | estimate |
 | `GET/PUT /api/v1/config/models` · `/retrieval` | Modelos y modo de búsqueda, en caliente. | estimate |
+| `GET /v1/metrics/summary` | S16 — latencia, coste y tasa de error del tráfico real, ya agregados. | estimate |
 
 **`/health` es la única abierta, y a propósito**: cerrarla mataría el healthcheck
 de Docker. `/docs`, `/redoc` y `/openapi.json` también responden sin clave, pero no
@@ -274,7 +277,7 @@ este servicio.
 | `CACHE_TTL` | `86400` | Segundos |
 | `APP_ENV` | `development` | Controla el renderer de structlog (JSON en `production`) |
 | `LOG_LEVEL` | `DEBUG` | Volumen de logs. **Cableado en la S15**: hasta entonces existía, estaba tipada y no filtraba nada. `DEBUG`/`INFO`/`WARNING`/`ERROR`; cualquier otro valor falla al arrancar |
-| `ESTIMATE_API_KEY` | — | **Obligatoria desde la S15.** Token (`X-API-Key`) de todas las rutas de estimación (incluida `POST /api/v1/estimate`), de `/sessions/*`, de `/embeddings/*`, de `/api/v1/config/*` y de `/api/v1/ingestion/*`. En blanco ⇒ 401 en todas. Bajo Compose la inyecta `AI_SERVICE_TOKEN` del `.env` de la raíz de la sesión |
+| `ESTIMATE_API_KEY` | — | **Obligatoria desde la S15.** Token (`X-API-Key`) de todas las rutas de estimación (incluida `POST /api/v1/estimate`), de `/sessions/*`, de `/embeddings/*`, de `/api/v1/config/*`, de `/api/v1/ingestion/*` y, desde la S16, de `/v1/metrics/*`. En blanco ⇒ 401 en todas. Bajo Compose la inyecta `AI_SERVICE_TOKEN` del `.env` de la raíz de la sesión |
 | `RETRIEVAL_API_KEY` | — | Token de `/v1/retrieval/search`, `/v1/retrieval/advanced-search` y de la `POST /search` de la S08, que lleva la misma clave que su sustituta |
 | `LLM_TIMEOUT` | `120` | Segundos por llamada. Los 30 de antes se quedaban cortos para un modelo de razonamiento |
 | `LLM_RETRIES` | `2` | Reintentos del wrapper antes de caer al fallback |
@@ -284,7 +287,6 @@ este servicio.
 | `GRAPH_MAX_ROUTING_STEPS` | `8` | El techo real de despachos, persistido en el estado |
 | `GRAPH_RECURSION_LIMIT` | `40` | La red de LangGraph, por detrás del techo anterior |
 | `GRAPH_PROPOSAL_MODEL` | `gpt-4o` | Quien redacta la propuesta comercial (S15) |
-
 | `ESTIMATOR_API_BASE_URL` | `http://localhost:8000` | Dónde responde el servicio, para lo que lo LLAMA. No es un campo de `Settings`: la leen del entorno `streamlit_app.py` y los scripts `query_examples.py` / `build_task_corpus.py`. Sin ella, los scripts sondean `localhost:8000` y `ai-service:8000` |
 
 `get_settings()` es un singleton cacheado con `lru_cache`: cualquier cambio en `.env` requiere reiniciar uvicorn (no basta con `--reload`). **Excepción: los modelos LLM** — ver la sección siguiente.
@@ -318,7 +320,9 @@ Cómo funciona (`app/foundation/llm/runtime_config.py`):
 
 **El catálogo se cura a mano, y por eso dice cuándo se hizo.** `AVAILABLE_MODELS`
 (`app/config.py`, 38 entradas) va en lockstep con `MODEL_COSTS`
-(`app/foundation/llm/wrapper.py`, 40 filas — las dos de más son alias fechados, que
+(`app/foundation/llm/wrapper.py`, 42 filas — dos de más son alias fechados, y otras dos
+los modelos de embedding que añadió la S16: no son seleccionables en Ajustes, pero cada
+recuperación paga una llamada de embedding y sin fila se facturaba a cero, que
 necesitan fila propia porque el precio se busca por el nombre que se pide). Un
 modelo añadido sólo al primero es seleccionable y **se factura a cero en silencio**:
 `_estimate_cost` cae a `{"input": 0.0, "output": 0.0}` por defecto. No es «todo lo
@@ -857,6 +861,91 @@ La vía de ejecución local sin contenedores está en
 [`../docs/deployment-local.md`](../docs/deployment-local.md), y es efímera: se
 apoya en que una variable de entorno gana al fichero `.env`, así que no hace falta
 tocar ningún fichero para depurar contra la base del Compose.
+
+## Sesión 16 — La vara y el monitor
+
+Dos mitades que responden preguntas distintas. La **evaluación** es la prueba de
+laboratorio: nosotros elegimos las entradas y la vara, y se lanza cuando queremos.
+La **observabilidad** es el monitor de constantes vitales: las entradas las manda
+el mundo y está siempre puesta. Guía completa en
+[`../docs/evaluation.md`](../docs/evaluation.md).
+
+### El golden set y el arnés — `evals/production/`
+
+Siete transcripciones de reunión con su banda aceptable, un arnés que las lanza
+contra el servicio **desplegado** con el modelo real y un comparador contra la
+línea base. Vive en `evals/production/` y no en un `eval/` nuevo al lado del
+`evals/` que ya existía, porque dos carpetas casi homónimas es un pie de banco;
+los `evals` hermanos siguen midiendo lo suyo (la ruta conversacional de la S05 en
+euros y semanas, la recuperación de la S10–S11 con conjuntos de relevancia).
+
+**La unidad viaja en el fichero.** Las expectativas van en horas más
+`hours_per_day: 8`, porque las horas son la unidad del corpus: la ruta RAG
+multiplica sus `engineer_days` y el grafo compara sus `total_hours` directamente,
+así que la misma vara mide las dos arquitecturas. Las bandas salen del corpus de
+tareas —60 proyectos, 1.543 componentes, el 96% de lo que la recuperación
+devuelve— y cada caso cita en `notes` los proyectos y las horas de los que sale.
+
+Corre en un contenedor de usar y tirar dentro de la red de Compose: `evals/` **no
+entra en la imagen** de producción, por lo mismo que la S15 sacó Streamlit de
+ahí, así que `docker compose exec ai-service` no puede encontrarlo. El comando
+exacto está en el docstring de `run_eval.py` y en `docs/evaluation.md`. No manda
+`idempotency_key`: replicaría la estimación guardada y la evaluación no mediría
+nada.
+
+### El libro de cuentas por petición — `app/foundation/observability/`
+
+El coste por llamada existía desde la S03 y se tiraba. Ahora un acumulador en un
+contextvar lo suma y el middleware emite **un** evento `request_completed` por
+petición, con `request_id`, ruta, estado, latencia, tokens y coste, y escribe una
+fila en `request_metrics` (migración `0005`).
+
+Es un **objeto mutable** y nunca un contador reasignado: medio pipeline hace su
+trabajo bloqueante en `asyncio.to_thread`, que ejecuta en una COPIA del contexto,
+así que reasignar la variable dentro del hilo sería invisible para quien llamó —
+y se perdería el coste de justo las llamadas que cuestan dinero.
+
+Se taparon tres puntos ciegos: el agente de la S12, que conduce la Responses API
+a mano y descartaba el `usage` de sus tres llamadas (con `store=True` el proveedor
+re-factura la conversación entera en cada vuelta, así que es la ruta más cara del
+servicio y salía a 0,00 $); el embebedor, que tiraba el `usage` que la respuesta
+ya traía; y las ejecuciones del grafo lanzadas por `/graph/start`, que corren en
+una tarea de fondo, es decir después de que el middleware haya cerrado.
+
+Y dos ceros que eran mentira: los modelos de embedding no tenían fila en la tabla
+de precios, y `_estimate_cost` redondeaba a seis decimales, lo que aplastaba a
+`0.0` toda llamada por debajo de medio millonésimo de dólar — es decir, todas las
+de embeddings. Ocho decimales desde ahora.
+
+Quedan fuera del registro `/health`, las rutas de documentación y las lecturas del
+propio panel: Compose sonda la primera cada quince segundos y una pantalla con
+refresco acabaría siendo la ruta más transitada del sistema, así que contar
+cualquiera de las dos convierte «la p95 del servicio» en la p95 de un latido.
+
+### `GET /v1/metrics/summary`
+
+Agrega una ventana (1 h, 24 h, 7 días) en SQL —`percentile_cont` para la p95— y
+devuelve latencia media y p95, coste medio y total, tasa de error, tokens, el
+desglose por ruta, una serie temporal y las últimas peticiones. Detrás de
+`ESTIMATE_API_KEY`: no es una ruta de estimación, pero dice qué se está
+estimando, cada cuánto y lo que cuesta. La pinta la pantalla `/observabilidad`
+del backend de negocio.
+
+### Lo que midió
+
+| | RAG | Grafo | RAG tras el arreglo |
+|---|---|---|---|
+| acierto | 0 % | 33 % | 17 % |
+| error medio | 553 h | 514 h | 583 h |
+| abstención correcta | sí | sí | sí |
+| latencia media | 123 s | 92 s | 94 s |
+
+El grafo gana en los tres ejes, y la razón es la decisión de la S13 de que el
+número lo calcule `calculate_estimate` y al modelo sólo se le pida la prosa:
+donde elige el modelo, la respuesta apenas depende del alcance. El cambio que se
+midió después —declarar en el prompt que las fuentes hablan en horas y que una
+jornada son ocho— sube el acierto y **empeora** el error medio, que es
+exactamente el aviso de la sesión: los KPIs se mueven unos contra otros.
 
 ---
 

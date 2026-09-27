@@ -33,6 +33,7 @@ src/
 │   ├── grafo/                # S13–S14 — el flujo multi-agente, de sólo lectura
 │   ├── corpus/               # S11 — estado del corpus y ampliaciones del índice
 │   ├── supervisor/           # S14 — supervisor, traza de enrutado y bandeja de revisión
+│   ├── observabilidad/       # S16 — latencia, coste y errores del tráfico real
 │   ├── ajustes/              # modelos en caliente (PUT /api/v1/config/models)
 │   └── api/health/           # liveness del propio contenedor
 ├── lib/
@@ -49,6 +50,7 @@ src/
 │   │   ├── agent.ts          #   POST /v1/estimate/agent/run
 │   │   ├── graph.ts          #   el grafo entero: start (202), resume, state,
 │   │   │                     #   progress, proposal y /v1/corpus/references
+│   │   ├── metrics.ts        #   GET /v1/metrics/summary (S16)
 │   │   └── config.ts         #   GET/PUT /api/v1/config/models
 │   ├── data/                 # presupuestos de muestra que alimentan el laboratorio
 │   ├── format.ts             # euros, horas, porcentajes y dólares, en un solo sitio
@@ -65,20 +67,21 @@ src/
 
 ## Las pantallas
 
-Ocho entradas de navegación —más la portada y la rueda de Ajustes de la
+Nueve entradas de navegación —más la portada y la rueda de Ajustes de la
 cabecera— sobre las capacidades que el servicio IA fue acumulando de la S04 a la
-S15. Casi todas consumen contratos que ya existían; la excepción es el desglose
-de referencias del supervisor, que sí obligó a una ruta nueva en Python
-(`POST /v1/corpus/references`).
+S16. Casi todas consumen contratos que ya existían; las dos excepciones son el
+desglose de referencias del supervisor (`POST /v1/corpus/references`, S15) y el
+panel de observabilidad (`GET /v1/metrics/summary`, S16), que sí obligaron a
+rutas nuevas en Python.
 
 El orden está duplicado a propósito en la portada y en el menú, y en ese orden:
-primero las dos que son el producto —Estimación y Supervisor—, después las seis
+primero las dos que son el producto —Estimación y Supervisor—, después las siete
 piezas con las que está hecho. Son dos sitios que hay que mover a la vez, pero un
 menú que contradice a la portada se nota más que la duplicación.
 
 **Panel** (`/`). Punto de partida con una tarjeta por capacidad y el enlace a su
-pantalla. Dos tarjetas grandes arriba y seis abajo, que es la misma jerarquía del
-menú. Existe porque el sistema hace ocho cosas distintas y la navegación sola no
+pantalla. Dos tarjetas grandes arriba y siete abajo, que es la misma jerarquía del
+menú. Existe porque el sistema hace nueve cosas distintas y la navegación sola no
 dice cuál sirve para qué.
 
 **Estimación transaccional** (`/estimations`, S04). Un formulario, una llamada,
@@ -264,6 +267,29 @@ comercial** (`POST /v1/estimate/graph/{id}/proposal`) y **descargarla en PDF**
 las que hay, así que volver a redactar cuesta una generación y no una estimación
 entera.
 
+**Observabilidad** (`/observabilidad`, S16). Latencia media y p95, coste por
+petición y tasa de error del tráfico real, sobre la ventana que se elija (1 h,
+24 h, 7 días), con el desglose por ruta y las últimas peticiones. Es la otra
+mitad de la sesión: el golden set mide la calidad *cuando se lanza la
+evaluación*, con entradas que elegimos; esto mide lo que el sistema hace el
+resto del tiempo.
+
+Los agregados llegan calculados del servicio IA y no se recomponen aquí, porque
+la p95 de una ventana no se puede derivar de las p95 de sus trozos: un panel que
+recibiera filas sueltas y las promediara enseñaría otra cosa con el mismo
+nombre. El refresco va por Server Action y no por route handler, como los dos
+pollers que ya existían. La serie se dibuja con un SVG escrito a mano —no hay
+librería de gráficos en el proyecto y meter una entera para catorce puntos es
+peor negocio— y sin ejes a propósito: ahí se busca la forma, y el número exacto
+está en las tablas de abajo.
+
+Dos detalles de honestidad. Las llamadas cuyo proveedor no informó de tokens se
+cuentan aparte, porque no son gratis: son desconocidas. Y `usdCost` cambia de
+escala en vez de rellenar con ceros —notación científica por debajo de
+0,0001 $— porque el coste por petición cruza cinco órdenes de magnitud entre
+una búsqueda y una estimación del grafo. La nota al pie declara lo que queda
+fuera del registro: el `/health` y las lecturas del propio panel.
+
 **Ajustes** (`/ajustes`). Los siete modelos que el servicio IA deja cambiar en
 caliente, cada uno con qué hace y qué se rompe si se toca, más su estado (por
 defecto u override) y el valor activo. El de embeddings aparece en sólo lectura y
@@ -367,7 +393,7 @@ pintar. El texto llega ya escrito.
 ## Cómo se prueba
 
 ```bash
-pnpm test          # una pasada — 117 tests en 10 ficheros
+pnpm test          # una pasada — 122 tests en 10 ficheros
 pnpm test:watch    # en vigilancia
 pnpm typecheck     # tsc --noEmit
 pnpm lint          # ESLint 9, config plana
@@ -450,7 +476,7 @@ franja estrecha contra el borde.
   detalle lo detecta y lo dice —«sin señales»— en vez de sondear para siempre, pero
   no lo reanuda.
 - **El laboratorio no guarda los runs.** El original tiene histórico justamente
-  para no volver a pagar las estrategias caras: las cuatro estrategias de pago
+  para no volver a pagar las estrategias caras: las tres estrategias de pago
   cuestan dinero y tardan minutos, y aquí se ejecutan, se pintan y al recargar se
   pierden. Es lo único del port que queda sin hacer. Costaría una tabla en el
   esquema `business` con la petición, el payload íntegro y la duración, más dos

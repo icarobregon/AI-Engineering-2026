@@ -230,7 +230,6 @@ describe("agentCanRun", () => {
   });
 });
 
-
 describe("metricsSummarySchema", () => {
   it("acepta el resumen tal y como lo emite GET /v1/metrics/summary", () => {
     // Copiado de una respuesta real del servicio, no inventado.

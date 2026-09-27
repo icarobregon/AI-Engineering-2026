@@ -9,13 +9,24 @@ running system, and it leaves a report behind.
 
 WHERE IT RUNS. Since Session 15 the AI service publishes no port: from the host
 only the business backend is reachable. So the harness runs INSIDE the private
-network::
+network — in a throwaway container, because ``evals/`` is deliberately NOT in the
+production image (the Dockerfile copies ``app/``, ``alembic/``, ``data/`` and
+``scripts/`` and nothing else, so ``docker compose exec ai-service`` cannot find
+this module)::
 
-    docker compose exec ai-service python -m evals.production.run_eval --target rag
+    docker compose run --rm --no-deps \
+      -v "$(pwd)/estimator/evals:/app/evals" \
+      -e AI_SERVICE_URL=http://ai-service:8000 \
+      -e GIT_SHA="$(git rev-parse --short HEAD)" \
+      ai-service python -m evals.production.run_eval --target rag
 
 That is not an obstacle to route around; it is the deployment boundary doing its
-job. ``AI_SERVICE_URL`` and the API key come from the environment, never from
-this file.
+job. Neither ``-e`` is decoration: nothing sets ``AI_SERVICE_URL`` inside the AI
+service's own container, so without it ``--base-url`` falls back to
+``http://localhost:8000`` — itself, where no server is listening because the
+command replaced it — and the container has no git, so without ``GIT_SHA`` the
+report's provenance reads ``unknown``. The API key comes from the environment
+the service already has, never from this file.
 
 TWO TARGETS, ONE EXPECTATION. The golden set states every expectation in HOURS,
 the unit the historical corpus speaks, plus the ``hours_per_day`` convention.
